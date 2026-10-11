@@ -1,3 +1,10 @@
+Public Description:
+
+DemonstratorV3 is a Python-based energy model designed to evaluate Ireland’s 2050 wind integration and decarbonisation/electrification scenarios without relying on simplified copper-plate grid assumptions. By modeling the Republic of Ireland and Northern Ireland separately, the script applies a lognormal transfer-limit formula (L, and sigma) calibrated against EirGrid and SONI historical dispatch data to account for localized transmission constraints, dynamic thermal ratings, and system outages. In each 15-minute interval, the dispatch engine calculates regional transmission bottlenecks first, then applies System Non-Synchronous Penetration (SNSP) operational limits to the remaining available wind power. Featuring rolling one-year-ahead hindcast error bands and an automated multi-scenario batch engine for multiple user inputs (scenarios.csv), DemonstratorV3 projects annual capacity factors, constraint and curtailment losses, and the firm backstop thermal generation required to meet projected demand growth out to 2050 or beyond. 
+
+
+
+
 Technical Briefing: 
 NEW Wind Capacity & Loss Modelling Engine
 
