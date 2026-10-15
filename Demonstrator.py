@@ -116,8 +116,8 @@ DEFAULT_SNSP_PCT = 75.0
 DEFAULT_DEMAND_RATE_TWH_PER_YEAR = 1.87
 INTERVAL_HOURS = 0.25
 
-# Minimum-generation floor, carried across from the V3-style MUON treatment.
-# Six conventional units at 250 MW minimum stable output gives a 1,500 MW floor.
+# Minimum-generation floor
+# Conventional units at 150 MW eacj. 7 minimum stable output gives a 1050 MW floor.
 NUM_MIN_UNITS = 6
 MIN_OUTPUT_PER_UNIT_MW = 250.0
 MUON_FLOOR_MW = NUM_MIN_UNITS * MIN_OUTPUT_PER_UNIT_MW
