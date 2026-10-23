@@ -1,7 +1,0 @@
-scenario,build_rate_gw,snsp_limit_pct,ie_reinforcement_pct,ni_reinforcement_pct,new_build_ie_pct,description
-optimistic,0.95,100,3,2,,"Recent network limits, grid reinforced 3%/yr in IE and 2% in NI, highly optimistic build rate including Floating Offhore Wind maintained to 2050, SNSP Maxed to 100%"
-central,0.534,85,1,0,,"Recent network limits held fixed (no reinforcement, no further decline)   534MW/year build out *"
-pessimistic,0.2,75,-1,-1,,Recent tightening continues: effective limits fall 1%/yr    Aging infrastructrure / planning fail   changed. Current ACTUAL build rate of 200MW/year
-realistic ,0.6,85,2,0.5,,"A most realistic (and optimistic) scenario PR6 in IE, less updrages in NI   Fleet build of 0.6GW/year"
-BaU with Grid,0.3,85,5,3,,A Business-as-Usual case with actual growth rates for wind and 80% SNSP  (good for short term) and grid upgrades instant
-TIMES-UCC Proxy,2.07,100,30,25,,"Proxy for TIMES model with huge build rate, No grid constraints throughout (Unrealistic: Reinformcement keeps up with overbuild)"
