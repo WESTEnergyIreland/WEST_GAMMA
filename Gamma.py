@@ -203,6 +203,10 @@ SCENARIO_FILE = "scenariosXLSX.xlsx"
 SCENARIO_SHEET = "Scenarios"
 SCENARIO_OUTPUT_DIR = "scenario_outputs"
 SCENARIO_SUMMARY_CSV = "scenario_summary.csv"   # written inside SCENARIO_OUTPUT_DIR
+# Curtailment and capacity-factor tracking, actual years then forecast (per scenario and all scenarios)
+EVALUATION_CSV = "evaluation_curtailment_cf.csv"
+EVALUATION_CHART = "evaluation_curtailment_cf.png"
+DD_ALL_ISLAND_FILES = {'Wind': "system_dd_hourly_all_island.csv", 'Solar': "system_dd_hourly_all_island_solar.csv"}
 SCENARIO_CHARTS = True  # set False for faster CSV-only runs
 DEFAULT_BUILD_RATE_GW = 1.87 / (8760 * 0.40 / 1000.0)   # ~0.534 GW/yr
 DEFAULT_SNSP_PCT = 75.0
@@ -726,6 +730,33 @@ def pipeline_mw_by_zone(gen_list):
           for t in ('wind', 'solar', 'offshore', 'battery')}
     mwh = p[p['tech'] == 'battery'].groupby('zone')['mwh'].sum().reindex(IE_ZONES, fill_value=0.0).to_dict()
     return mw, mwh
+
+
+def write_evaluation_outputs(evaluation_store, historical_evaluation):
+    """All-scenario curtailment and capacity-factor table and a four-panel chart (actual + forecast)."""
+    allev = pd.concat(evaluation_store.values(), ignore_index=True, sort=False)
+    cols = ['Scenario', 'Data_Type', 'Year'] + [c for c in allev.columns if c not in ('Scenario', 'Data_Type', 'Year')]
+    allev[cols].to_csv(os.path.join(SCENARIO_OUTPUT_DIR, 'all_scenarios_' + EVALUATION_CSV), index=False)
+    panels = [('Wind_Delivered_CF_%', 'Wind delivered capacity factor, %'),
+              ('Solar_Delivered_CF_%', 'Solar delivered capacity factor, %'),
+              ('Wind_Curtailment_%', 'Wind curtailment, % of available'),
+              ('Solar_Curtailment_%', 'Solar curtailment, % of available')]
+    fig, axes = plt.subplots(2, 2, figsize=(14, 8))
+    act = historical_evaluation[historical_evaluation['Data_Type'] == 'Actual'] if len(historical_evaluation) else None
+    for ax, (col, title) in zip(axes.flat, panels):
+        for name, ev_df in evaluation_store.items():
+            f = ev_df[ev_df['Data_Type'] == 'Forecast']
+            ax.plot(f['Year'], f[col], lw=1.4, label=name)
+        if act is not None and col in act and act[col].notna().any():
+            ax.plot(act['Year'], act[col], 'ko-', lw=1.6, ms=4, label='Actual (all-island)')
+        ax.set_title(title, fontsize=11)
+        ax.grid(alpha=0.3)
+    axes[0, 0].legend(fontsize=7, ncol=2)
+    fig.suptitle('Capacity factors and curtailment by scenario (curtailment excludes grid constraint; '
+                 'solar actual CF not available)', fontsize=12)
+    fig.tight_layout()
+    fig.savefig(os.path.join(SCENARIO_OUTPUT_DIR, EVALUATION_CHART), dpi=130)
+    plt.close(fig)
 
 
 def _run_demonstrator():
@@ -1303,6 +1334,54 @@ def _run_demonstrator():
     else:
         solar_capacity_2026_gw = SOLAR_CAPACITY_FALLBACK_GW
         solar_cap_note = "! no solar records, using SOLAR_CAPACITY_FALLBACK_GW; set SOLAR_CAPACITY_2026_GW"
+    # --- Actual curtailment and capacity factors (EirGrid/SONI dispatch-down records) ---
+    # Recorded reasons map to the model's categories: SNSP = snsp; Other = high frequency + RoCoF
+    # + other + TSO test. Minimum generation is not recorded separately in these files.
+    # Solar capacity history is not in the inputs, so actual solar CF is left blank.
+    hist_eval_rows = []
+    for tech, fname in DD_ALL_ISLAND_FILES.items():
+        path = input_path(fname)
+        if not os.path.exists(path):
+            continue
+        h = pd.read_csv(path, parse_dates=['datetime'])
+        h['year'] = h['datetime'].dt.year
+        g = h.groupby('year').agg(hours=('av_mwh', 'size'), av=('av_mwh', 'sum'), ao=('ao_mwh', 'sum'),
+                                  con=('constraint_mwh', 'sum'), curt=('curtailment_mwh', 'sum'),
+                                  snsp=('snsp_mwh', 'sum'), hf=('hi_frq_mwh', 'sum'), rocof=('rocof_mwh', 'sum'),
+                                  oth=('other_mwh', 'sum'), test=('tso_test_mwh', 'sum'))
+        for y, r in g.iterrows():
+            if r['av'] <= 0:
+                continue
+            cap_mw = np.nan
+            if tech == 'Wind':
+                rows_y = df_cap.loc[df_cap['year'] == y]
+                if len(rows_y):
+                    cap_mw = float(capacity_row_for_year(int(y), prefer_final=False)['Total_MW'])
+            pct = lambda x: round(100.0 * x / r['av'], 2)
+            hist_eval_rows.append({'tech': tech, 'Year': int(y), 'hours': int(r['hours']),
+                f'{tech}_Capacity_GW': round(cap_mw / 1000, 3) if pd.notna(cap_mw) else np.nan,
+                f'{tech}_Available_TWh': round(r['av'] / 1e6, 3), f'{tech}_Generation_TWh': round(r['ao'] / 1e6, 3),
+                f'{tech}_Available_CF_%': round(100 * r['av'] / (cap_mw * r['hours']), 2) if pd.notna(cap_mw) else np.nan,
+                f'{tech}_Delivered_CF_%': round(100 * r['ao'] / (cap_mw * r['hours']), 2) if pd.notna(cap_mw) else np.nan,
+                f'{tech}_Constraint_%': pct(r['con']), f'{tech}_Curtail_SNSP_%': pct(r['snsp']),
+                f'{tech}_Curtail_MinGen_%': np.nan, f'{tech}_Curtail_Other_%': pct(r['hf'] + r['rocof'] + r['oth'] + r['test']),
+                f'{tech}_Curtailment_%': pct(r['curt']), f'{tech}_Dispatch_Down_%': pct(r['con'] + r['curt']),
+                f'{tech}_Constrained_TWh': round(r['con'] / 1e6, 3), f'{tech}_Curtailed_TWh': round(r['curt'] / 1e6, 3)})
+    if hist_eval_rows:
+        he = pd.DataFrame(hist_eval_rows)
+        historical_evaluation = None
+        for tech in DD_ALL_ISLAND_FILES:
+            part = he[he['tech'] == tech].drop(columns='tech').dropna(axis=1, how='all')
+            historical_evaluation = part if historical_evaluation is None else historical_evaluation.merge(
+                part, on=['Year', 'hours'], how='outer')
+        full = historical_evaluation['hours'] >= 8760
+        historical_evaluation.insert(0, 'Data_Type', np.where(full, 'Actual', 'Actual (part year)'))
+        av_ws = historical_evaluation[['Wind_Available_TWh', 'Solar_Available_TWh']].sum(axis=1)
+        historical_evaluation['WindSolar_Curtailment_%'] = (100 * historical_evaluation[['Wind_Curtailed_TWh', 'Solar_Curtailed_TWh']].sum(axis=1) / av_ws).round(2)
+        historical_evaluation['WindSolar_Dispatch_Down_%'] = (100 * historical_evaluation[['Wind_Curtailed_TWh', 'Solar_Curtailed_TWh', 'Wind_Constrained_TWh', 'Solar_Constrained_TWh']].sum(axis=1) / av_ws).round(2)
+        historical_evaluation = historical_evaluation.drop(columns='hours')
+    else:
+        historical_evaluation = pd.DataFrame(columns=['Data_Type', 'Year'])
     print(f">> Solar 2026: {solar_capacity_2026_gw:.2f} GW installed ({solar_cap_note}); "
           f"split IE {100 * base_solar_ie_share:.1f}% / NI {100 * (1 - base_solar_ie_share):.1f}%")
 
@@ -2130,6 +2209,7 @@ def _run_demonstrator():
     backcast_store = {}   # scenario name -> (backcast table, error summary)
     capacity_store = {}   # scenario name -> capacity by zone and year
     summary_store = {}    # scenario name -> {'wind' / 'solar' / 'total' / 'system': yearly summary}
+    evaluation_store = {}  # scenario name -> curtailment and capacity-factor tracking table
     latest_results = {}   # scenario name -> results, saved before the charts are drawn
     scenario_stage = {}   # scenario name -> 'model' or 'charts', for error messages
 
@@ -2719,6 +2799,13 @@ def _run_demonstrator():
                 muon_binds = d['muon_ceiling_mw'] < d['snsp_ceiling_mw']
                 to_hours = 0.25 * (365.25 / (len(avail) / 96.0))
                 row['sys_curt_snsp_twh'] = curt_all[~muon_binds].sum() * to_annual_twh
+                for tech, key in (('w', 'wind'), ('s', 'solar')):
+                    row[f'{key}_curt_snsp_twh'] = d[f'curt_{tech}'][~muon_binds].sum() * to_annual_twh
+                    row[f'{key}_curt_mingen_twh'] = d[f'curt_{tech}'][muon_binds].sum() * to_annual_twh
+                share_w = np.divide(d['usable_w'], d['usable_w'] + d['usable_s'],
+                                    out=np.ones_like(d['usable_w']), where=(d['usable_w'] + d['usable_s']) > 0)
+                row['wind_export_twh'] = (d['export_vre_mw'] * share_w).sum() * to_annual_twh
+                row['solar_export_twh'] = (d['export_vre_mw'] * (1 - share_w)).sum() * to_annual_twh
                 row['sys_curt_mingen_twh'] = curt_all[muon_binds].sum() * to_annual_twh
                 row['sys_hours_snsp'] = np.count_nonzero((curt_all > 1e-6) & ~muon_binds) * to_hours
                 row['sys_hours_mingen'] = np.count_nonzero((curt_all > 1e-6) & muon_binds) * to_hours
@@ -2772,6 +2859,7 @@ def _run_demonstrator():
                   f"(other_curt_pct_2050 blank)")
 
         capacity_rows, balance_err_by_year = [], {}
+        evaluation_rows = []
         summary_rows_by_kind = {'wind': [], 'solar': [], 'total': [], 'system': []}
         summary_gap = 0.0          # largest gap between zone sums and the all-island figures (% pts)
         for yr in simulation_years:
@@ -2929,6 +3017,42 @@ def _run_demonstrator():
                 row_out[f'Headroom_{z}_MW'] = round(headrooms_yr[z])
             row_out['Con_OFFSHORE_%'] = round(run.get('Con_OFFSHORE_%', 0.0), 2)
             sim_results.append(row_out)
+
+            # Curtailment and capacity-factor tracking (EVALUATION_CSV). Available CF is the weather
+            # resource before any dispatch-down; delivered CF is after constraint, curtailment and
+            # the fixed 'other' loss. Curtailment is split by the ceiling that bound (SNSP or min gen)
+            # plus the fixed 'other' share (high frequency, RoCoF and other historical reasons).
+            def tech_eval(prefix, cap_gw, avail, gen, con, c_snsp, c_mingen, exported):
+                hours = 8760.0
+                pct = lambda x: 100.0 * x / avail if avail > 0 else np.nan
+                curt = c_snsp + c_mingen + other_yr / 100.0 * avail
+                return {f'{prefix}_Capacity_GW': round(cap_gw, 3),
+                        f'{prefix}_Available_TWh': round(avail, 3),
+                        f'{prefix}_Generation_TWh': round(gen, 3),
+                        f'{prefix}_Exported_TWh': round(exported, 3),
+                        f'{prefix}_Available_CF_%': round(100 * avail * 1000 / (cap_gw * hours), 2) if cap_gw > 0 else np.nan,
+                        f'{prefix}_Delivered_CF_%': round(100 * gen * 1000 / (cap_gw * hours), 2) if cap_gw > 0 else np.nan,
+                        f'{prefix}_Constraint_%': round(pct(con), 2),
+                        f'{prefix}_Curtail_SNSP_%': round(pct(c_snsp), 2),
+                        f'{prefix}_Curtail_MinGen_%': round(pct(c_mingen), 2),
+                        f'{prefix}_Curtail_Other_%': round(other_yr, 2) if avail > 0 else np.nan,
+                        f'{prefix}_Curtailment_%': round(pct(curt), 2),
+                        f'{prefix}_Dispatch_Down_%': round(pct(con + curt), 2),
+                        f'{prefix}_Constrained_TWh': round(con, 3),
+                        f'{prefix}_Curtailed_TWh': round(curt, 3)}
+            ev = {'Scenario': scenario_name, 'Data_Type': 'Forecast', 'Year': yr,
+                  'Demand_TWh': round(yr_demand, 2), 'SNSP_Limit_%': round(100 * snsp_yr, 1),
+                  'MUON_Floor_MW': round(muon_floor_mw)}
+            ev.update(tech_eval('Wind', cap, run['avail_twh'], implied_gen_twh, run['all_wind_con_twh'],
+                                run['wind_curt_snsp_twh'], run['wind_curt_mingen_twh'], run['wind_export_twh']))
+            ev.update(tech_eval('Solar', solar_cap, run['solar_avail_twh'], solar_gen_twh, run['all_solar_con_twh'],
+                                run['solar_curt_snsp_twh'], run['solar_curt_mingen_twh'], run['solar_export_twh']))
+            ws_av = run['avail_twh'] + run['solar_avail_twh']
+            ev['WindSolar_Curtailment_%'] = round(100 * (ev['Wind_Curtailed_TWh'] + ev['Solar_Curtailed_TWh']) / ws_av, 2) if ws_av > 0 else np.nan
+            ev['WindSolar_Dispatch_Down_%'] = round(100 * (ev['Wind_Curtailed_TWh'] + ev['Solar_Curtailed_TWh']
+                                                          + ev['Wind_Constrained_TWh'] + ev['Solar_Constrained_TWh']) / ws_av, 2) if ws_av > 0 else np.nan
+            ev['Storage_Charged_From_Surplus_TWh'] = round(run['storage_charge_twh'], 3)
+            evaluation_rows.append(ev)
             balance_err_by_year[yr] = run.get('balance_err_pct', 0.0)
 
             # Installed capacity by zone this year (MW), for capacity_by_zone_year.csv
@@ -3232,6 +3356,13 @@ def _run_demonstrator():
         record_check('results', scenario_name, 'zone summaries add up to the all-island figures',
                      'PASS' if summary_gap <= 0.01 else 'WARN', f"largest gap {summary_gap:.4f} pts of available energy")
         summary_store[scenario_name] = summaries
+        evaluation_df = pd.concat([historical_evaluation.assign(Scenario=scenario_name), pd.DataFrame(evaluation_rows)],
+                                  ignore_index=True, sort=False)
+        evaluation_store[scenario_name] = evaluation_df
+        try:
+            evaluation_df.to_csv(os.path.join(out_dir, EVALUATION_CSV), index=False)
+        except OSError as e:
+            print(f">> Could not save {EVALUATION_CSV}: {e}")
         for k, df_k in summaries.items():
             try:
                 df_k.to_csv(os.path.join(out_dir, f"summary_{k}.csv"), index=False)
@@ -4174,6 +4305,8 @@ def _run_demonstrator():
             pd.concat([v[k].assign(Scenario=s) for s, v in summary_store.items()], ignore_index=True) \
                 .pipe(lambda df: df[['Scenario'] + [c for c in df.columns if c != 'Scenario']]) \
                 .to_csv(os.path.join(SCENARIO_OUTPUT_DIR, f"all_scenarios_summary_{k}.csv"), index=False)
+        if evaluation_store:
+            write_evaluation_outputs(evaluation_store, historical_evaluation)
         if BACKCAST_SCENARIO_TREND and backcast_store:
             pd.concat([v[0].assign(Scenario=k) for k, v in backcast_store.items()], ignore_index=True).round(3).to_csv(
                 os.path.join(SCENARIO_OUTPUT_DIR, "all_scenarios_backcast.csv"), index=False)
@@ -4207,6 +4340,27 @@ def _run_demonstrator():
                 say(f"   {name if y == 2030 else '':<26} {y:>4}  {band:>17}  {sy.loc[y, 'SNSP_Curtailment_%']:>5.1f}  "
                     f"{sy.loc[y, 'MinGen_Curtailment_%']:>7.1f}  {sy.loc[y, 'Other_incl_RoCoF_%']:>5.1f}  "
                     f"{sy.loc[y, 'Total_Dispatch_Down_%']:>6.1f}  {tw.loc[y, 'Share_of_Demand_%']:>8.0f}%")
+        if evaluation_store:
+            say("")
+            say("CAPACITY FACTORS AND CURTAILMENT  (delivered CF = after all dispatch-down; curtailment excludes grid constraint)")
+            say(f"   {'scenario':<26} {'year':>4}  {'wind CF avail/deliv':>19}  {'solar CF avail/deliv':>20}  "
+                f"{'wind curt':>9}  {'solar curt':>10}")
+            for name, ev_df in evaluation_store.items():
+                e = ev_df[ev_df['Data_Type'] == 'Forecast'].set_index('Year')
+                for y in (2030, 2040, 2050):
+                    say(f"   {name if y == 2030 else '':<26} {y:>4}  "
+                        f"{e.loc[y, 'Wind_Available_CF_%']:>9.1f} / {e.loc[y, 'Wind_Delivered_CF_%']:>5.1f}%  "
+                        f"{e.loc[y, 'Solar_Available_CF_%']:>10.1f} / {e.loc[y, 'Solar_Delivered_CF_%']:>5.1f}%  "
+                        f"{e.loc[y, 'Wind_Curtailment_%']:>8.1f}%  {e.loc[y, 'Solar_Curtailment_%']:>9.1f}%")
+            act = historical_evaluation[historical_evaluation['Data_Type'] == 'Actual']
+            if len(act):
+                a = act.sort_values('Year').iloc[-1]
+                say(f"   {'actual (all-island)':<26} {int(a['Year']):>4}  "
+                    f"{a.get('Wind_Available_CF_%', np.nan):>9.1f} / {a.get('Wind_Delivered_CF_%', np.nan):>5.1f}%  "
+                    f"{'n/a':>10} / {'n/a':>5}   {a.get('Wind_Curtailment_%', np.nan):>8.1f}%  "
+                    f"{a.get('Solar_Curtailment_%', np.nan):>9.1f}%")
+            say(f"   Full tables: {os.path.join(SCENARIO_OUTPUT_DIR, 'all_scenarios_' + EVALUATION_CSV)}; "
+                f"chart: {os.path.join(SCENARIO_OUTPUT_DIR, EVALUATION_CHART)}")
         if failed:
             say(f"\n   FAILED scenarios (no results): {', '.join(failed)}  - see {RUN_LOG}")
         counts = pd.DataFrame(VALIDATION)['Status'].value_counts()
