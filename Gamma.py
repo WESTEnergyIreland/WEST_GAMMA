@@ -2692,8 +2692,14 @@ def _run_demonstrator():
         # electricity demand, so its wind/solar share is already in Wind_Gen_TWh +
         # Solar_Gen_TWh and its fossil share in Fossil_Firm_Generation_TWh. Adding
         # Transport_Energy_Electrified_TWh here would count avoided fuel as renewable energy.
+        # Heat: a heat pump delivers COP x its electricity. The electricity part is already in
+        # electricity demand (wind/solar or firm generation), so only the ambient heat drawn
+        # from air or ground, (COP - 1) x electricity, is added as renewable (EU RED basis).
+        sim_df['Heat_Ambient_Renewable_TWh'] = (
+            sim_df['Heat_Energy_Electrified_TWh'] - sim_df['Heat_Electricity_Demand_TWh']
+        ).clip(lower=0.0)
         sim_df['Total_Renewable_Energy_TWh'] = (
-            sim_df['Heat_Energy_Electrified_TWh']
+            sim_df['Heat_Ambient_Renewable_TWh']
             + sim_df['Wind_Gen_TWh']
             + sim_df['Solar_Gen_TWh']
         )
@@ -2728,6 +2734,7 @@ def _run_demonstrator():
             raise RuntimeError('Overall transition shares do not reconcile to 100%.')
         for c in [
             'Remaining_Heat_Fossil_TWh', 'Remaining_Transport_Fossil_TWh',
+            'Heat_Ambient_Renewable_TWh',
             'Total_Fossil_Energy_TWh', 'Total_Renewable_Energy_TWh',
             'Overall_Fossil_Fuel_Pct', 'Overall_Renewables_Pct',
             'Overall_Imported_Electricity_Pct'
@@ -2829,7 +2836,7 @@ def _run_demonstrator():
             'Total_Demand_Growth_TWh_per_Year', 'Heat_Electricity_Demand_TWh',
             'Transport_Electricity_Demand_TWh', 'Heat_Energy_Electrified_TWh',
             'Transport_Energy_Electrified_TWh', 'Remaining_Heat_Energy_TWh',
-            'Remaining_Transport_Energy_TWh', 'Firm_Generation_TWh',
+            'Remaining_Transport_Energy_TWh', 'Heat_Ambient_Renewable_TWh', 'Firm_Generation_TWh',
             'Fossil_Firm_Generation_TWh', 'Remaining_Heat_Fossil_TWh',
             'Remaining_Transport_Fossil_TWh', 'Total_Fossil_Energy_TWh',
             'Total_Renewable_Energy_TWh', 'Firm_Capacity_Required_GW',
