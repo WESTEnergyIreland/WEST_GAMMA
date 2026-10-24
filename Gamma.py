@@ -1911,7 +1911,23 @@ def _run_demonstrator():
         def scenario_plot_filename(suffix):
             return f"{scenario_name}_{suffix}"
 
+        # Compound reinforcement that grows headroom more than 20x by 2050 removes network
+        # constraint altogether: label such scenarios as an unconstrained-grid bound.
+        if is_reinforcement_curve(sc.get('headroom_curve', '')):
+            headroom_growth_2050 = max((1 + float(sc[f'{r.lower()}_reinforcement_pct']) / 100.0) ** (2050 - 2026)
+                                       for r in REGIONS)
+        else:
+            headroom_growth_2050 = 1.0
+        unconstrained_bound = headroom_growth_2050 > 20
+        headroom_note = (f"Unconstrained-grid bound (headroom x{headroom_growth_2050:,.0f} by 2050), not a build path"
+                         if unconstrained_bound else '')
+        sc['headroom_note'] = headroom_note
+        if unconstrained_bound:
+            print(f">> NOTE: {headroom_note}")
+
         def scenario_plot_title(title):
+            if unconstrained_bound:
+                return f"{scenario_name} [unconstrained-grid bound] | {title}"
             return f"{scenario_name} | {title}"
 
         def capacity_box_line(year):
@@ -2337,6 +2353,11 @@ def _run_demonstrator():
                         0.0,
                         demand - d['usable_w'] - d['usable_s'] - d['discharge_mw']
                     ).sum() * to_annual_twh,
+                    # Largest single-interval firm residual (MW), before interconnector imports.
+                    'firm_peak_mw': float(np.max(np.maximum(
+                        0.0,
+                        demand - d['usable_w'] - d['usable_s'] - d['discharge_mw']
+                    ))) if len(demand) else 0.0,
                     'storage_end_soc_mwh': d['soc_mwh'][-1] if len(d['soc_mwh']) else 0.0,
                     'remaining_curt_combined_pct': 100 * (d['curt_w'].sum() + d['curt_s'].sum()) / (tot_av + tot_sv),
                     'recoverable_grid_constraint_twh': d['recoverable_grid_constraint_mw'].sum() * to_annual_twh,
@@ -2394,6 +2415,8 @@ def _run_demonstrator():
                     row[f'all_{key}_curt_twh'] = d[f'curt_{tech}'].sum() * to_annual_twh
                 rows.append(row)
             out = pd.DataFrame(rows).mean().to_dict()
+            # Peak firm residual is the worst interval over all weather years, not the average.
+            out['firm_peak_mw'] = max(r['firm_peak_mw'] for r in rows)
             out['ie_share'] = ie_share
             out['solar_ie_share'] = s_ie
             out['onshore_gw'] = onshore_gw
@@ -2495,6 +2518,10 @@ def _run_demonstrator():
                 max(0.0, run['firm_generation_twh'] + other_renewable_loss_twh)
             )
             firm_capacity_required_gw = (yr_demand / (8760.0 * 0.68 / 1000.0)) * 0.90
+            # Comparison measure: largest 15-minute firm residual (demand less usable wind,
+            # solar and battery discharge) over the weather years. No reserve margin and no
+            # interconnector imports are included.
+            firm_capacity_peak_residual_gw = run['firm_peak_mw'] / 1000.0
             row_out = {
                 'Year': yr,
                 'Wind_Cap_GW': round(cap, 2),
@@ -2514,6 +2541,7 @@ def _run_demonstrator():
                 'Firm_Generation_TWh': round(firm_generation_twh, 3),
                 'Fossil_Firm_Generation_TWh': round(firm_generation_twh, 3),
                 'Firm_Capacity_Required_GW': round(firm_capacity_required_gw, 3),
+                'Firm_Capacity_Peak_Residual_GW': round(firm_capacity_peak_residual_gw, 3),
                 'RawCurt_%': round(avg_raw_curt_pct, 2),
                 'GridCon_%': round(sim_constraint_pct, 2),
                 'TotLoss_%': round(total_loss_pct, 2),
@@ -2700,6 +2728,13 @@ def _run_demonstrator():
             'Overall_Imported_Electricity_Pct'
         ]:
             sim_df[c] = sim_df[c].round(3 if c.endswith('_TWh') else 2)
+        anchor = sim_df.loc[sim_df['Year'] == TRANSITION_BASE_YEAR]
+        if not anchor.empty:
+            a = anchor.iloc[0]
+            print(f">> 2026 transition check: model fossil {a['Overall_Fossil_Fuel_Pct']:.1f}% "
+                  f"(anchor {BASE_FOSSIL_FUEL_PCT_2026:.1f}%), renewables {a['Overall_Renewables_Pct']:.1f}% "
+                  f"(anchor {BASE_RENEWABLES_PCT_2026:.1f}%), imported electricity "
+                  f"{a['Overall_Imported_Electricity_Pct']:.1f}% (fixed at 4% by construction)")
         capacity_df = pd.DataFrame(capacity_rows).round(1)
         capacity_df = capacity_df[(capacity_df['Zone'] != 'UNZONED') | (capacity_df['Battery_MW'].abs() > 0)]
         validate_results(scenario_name, sim_df, capacity_df, balance_err_by_year)
@@ -2864,7 +2899,10 @@ def _run_demonstrator():
         print(f">> Usable Solar Generation (2050)     : {row_2050['Solar_Gen_TWh']:.2f} TWh ({row_2050['Solar_%']:.2f}% of demand)")
         print(f">> Installed Solar Capacity (2050)    : {row_2050['Solar_Cap_GW']:.2f} GW")
         print(f">> Wind + Solar Share of Demand (2050): {row_2050['Wind+Solar_%']:.2f}%")
-        print(f">> Required Firm Capacity (2050) : {firm_thermal_required_gw:.2f} GW (Dunkelflaute Backup)")
+        print(f">> Required Firm Capacity (2050) : {firm_thermal_required_gw:.2f} GW "
+              f"(0.9 x average demand / 0.68; not a peak or Dunkelflaute calculation)")
+        print(f">> Peak Firm Residual (2050)          : {row_2050['Firm_Capacity_Peak_Residual_GW']:.2f} GW "
+              f"(largest 15-min shortfall over the weather years; no reserve margin, no imports)")
         print(f">> Actual Firm Generation (2050)      : {row_2050['Firm_Generation_TWh']:.2f} TWh/year")
         print(f">> Applied Build-Out Rate             : {annual_build_rate_gw*1000:.2f} MW/year ({annual_build_rate_gw:.3f} GW/year)")
         print(f">> Applied Forecast SNSP / MUON      : {snsp_limit_pct:.1f}% SNSP; IE {muon_units_ie} + NI {muon_units_ni} = {total_muon_units} units x {MUON_MIN_GEN_PER_UNIT_MW:.0f} MW = {muon_floor_mw:.0f} MW minimum generation")
@@ -3018,7 +3056,7 @@ def _run_demonstrator():
             f"Required Firm Capacity: {firm_capacity_2030_gw:.2f} GW\n"
             f"Fossil-Fuel: {fossil_pct_2030:.1f}%\n"
             f"Renewables: {overall_renewables_pct_2030:.1f}%\n"
-            f"Imported Electricity: {imported_pct_2030:.1f}%"
+            f"Imported Electricity: {imported_pct_2030:.1f}% (fixed)"
         )
         ax1.text(1.015, 0.50, transition_text1, transform=ax1.transAxes, va='bottom', fontsize=9.0,
                  fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
@@ -3096,7 +3134,7 @@ def _run_demonstrator():
             f"Required Firm Capacity: {firm_thermal_required_gw:.2f} GW\n"
             f"Fossil-Fuel: {fossil_pct_2050:.1f}%\n"
             f"Renewables: {overall_renewables_pct_2050:.1f}%\n"
-            f"Imported Electricity: {imported_pct_2050:.1f}%"
+            f"Imported Electricity: {imported_pct_2050:.1f}% (fixed)"
         )
         ax2.text(1.015, 0.49, transition_text2, transform=ax2.transAxes, va='bottom', fontsize=9.0,
                  fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
@@ -3463,7 +3501,7 @@ def _run_demonstrator():
             f"Required Firm Capacity: {firm_thermal_required_gw:.2f} GW\n"
             f"Fossil-Fuel: {fossil_pct_2050:.1f}%\n"
             f"Renewables: {overall_renewables_pct_2050:.1f}%\n"
-            f"Imported Electricity: {imported_pct_2050:.1f}%"
+            f"Imported Electricity: {imported_pct_2050:.1f}% (fixed)"
         )
         ax6.text(1.015, 0.49, transition_text6, transform=ax6.transAxes, va='bottom', fontsize=9.0,
                  fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
@@ -3700,11 +3738,13 @@ def _run_demonstrator():
                     'Pipeline_Build_Pct': sc['pipeline_build_pct'] if sc.get('capacity_source') == 'pipeline' else '',
                     'Pipeline_Complete_Year': (round(pipeline_complete_year(sc['pipeline_target_year'], sc['pipeline_build_pct']), 1)
                                                if sc.get('capacity_source') == 'pipeline' else ''),
+                    'Headroom_Note': sc.get('headroom_note', ''),
                     'Inputs_Defaulted': ' '.join(k for k in sc.get('defaulted', []) if k != 'description'),
                     'Wind_Cap_GW': r['Wind_Cap_GW'], 'Wind_Offshore_GW': r['Wind_Offshore_GW'],
                     'Storage_Power_MW': r['Storage_Power_MW'], 'Storage_Energy_MWh': r['Storage_Energy_MWh'],
                     'Dem_TWh': r['Dem_TWh'],
                     'Firm_Capacity_Required_GW': r['Firm_Capacity_Required_GW'],
+                    'Firm_Capacity_Peak_Residual_GW': r['Firm_Capacity_Peak_Residual_GW'],
                     'Firm_Generation_TWh': r['Firm_Generation_TWh'],
                     'Total_Fossil_Energy_TWh': r['Total_Fossil_Energy_TWh'],
                     'Total_Renewable_Energy_TWh': r['Total_Renewable_Energy_TWh'],
