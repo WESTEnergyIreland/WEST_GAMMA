@@ -1,14 +1,14 @@
 """
 ================================================================================
 IRELAND (SEM) - ADVANCED WIND + SOLAR + STORAGE CAPACITY + ZONAL HEADROOM DEMO
-(CONSTRAINT + CURTAILMENT MODEL, WITH USER INPUTS FOR SNSP AND BUILD RATES IN SCENARIOSV11.XLSX)
+(CONSTRAINT + CURTAILMENT MODEL, WITH USER INPUTS FOR SNSP AND BUILD RATES IN scenariosXLSX.xlsx)
 ================================================================================
 
 PURPOSE & METHODOLOGY:
-GAMMAv10.py
-Demonstrates why static or linear loss assumptions fail when modeling large-scale 
+GAMMA.py Version 13  with transition parameters
+Also demonstrates why static or linear loss assumptions fail when modeling large-scale 
 offshore or onshore wind build-outs in TIMES/TIM Models. 
-Model incorporating decarbonisation/electrification demand scaling (+2TWh/yr, required rate for a 2050 net zero target)
+Model incorporating decarbonisation/electrification demand scaling (+2.2TWh/yr, required rate for a 2050 net zero target)
 
 CAPACITY TIMING & COD RAMP ENGINE:
 - 2026 Baseline anchored at exact current fleet capacity for the all island SEM (6.51 GW).
@@ -176,16 +176,29 @@ FORECAST_RESULTS_CSV = "forecast_results.csv"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INPUT_DIR = "Data_inputs"
 INPUT_DIR_ALIASES = ("Data_inputs", "data_inputs")
-# Prefer scenarios.csv if present (supports headroom_curve); else scenariosv11.xlsx
-SCENARIO_FILE_CANDIDATES = ("scenariosV11.xlsx", "scenarios.xlsx")
-SCENARIO_FILE = "scenariosV11.xlsx"
+# Prefer scenarios.csv if present (supports headroom_curve); else scenariosxlsx.xlsx
+SCENARIO_FILE_CANDIDATES = ("scenariosXLSX.xlsx", "scenarios.xlsx")
+SCENARIO_FILE = "scenariosXLSX.xlsx"
 SCENARIO_SHEET = "Scenarios"
 SCENARIO_OUTPUT_DIR = "scenario_outputs"
 SCENARIO_SUMMARY_CSV = "scenario_summary.csv"   # written inside SCENARIO_OUTPUT_DIR
 SCENARIO_CHARTS = True  # set False for faster CSV-only runs
 DEFAULT_BUILD_RATE_GW = 1.87 / (8760 * 0.40 / 1000.0)   # ~0.534 GW/yr
 DEFAULT_SNSP_PCT = 75.0
-DEFAULT_DEMAND_RATE_TWH_PER_YEAR = 1.87
+DEFAULT_DEMAND_RATE_TWH_PER_YEAR = 1.87  # legacy fallback only
+DEFAULT_BACKGROUND_DEMAND_GROWTH_TWH_PER_YEAR = 0.50
+DEFAULT_HEAT_DEMAND_GROWTH_TWH_PER_YEAR = 0.15
+DEFAULT_TRANSPORT_DEMAND_GROWTH_TWH_PER_YEAR = 0.25
+# Overall-transition calibration: 2025 physical baseline, 2026 percentage anchor.
+TRANSITION_BASE_YEAR = 2026
+ALL_ISLAND_HEAT_DEMAND_TWH = 62.0
+ALL_ISLAND_TRANSPORT_DEMAND_TWH = 75.5
+BASE_HEAT_ELECTRICITY_TWH_2025 = 1.0
+BASE_TRANSPORT_ELECTRICITY_TWH_2025 = 1.5
+HEAT_COP = 3.5
+TRANSPORT_DISPLACEMENT_FACTOR = 3.0
+BASE_FOSSIL_FUEL_PCT_2026 = 80.0
+BASE_RENEWABLES_PCT_2026 = 16.0
 INTERVAL_HOURS = 0.25
 
 # Chart-only interconnector sensitivities. These constants never enter the normal
@@ -203,7 +216,7 @@ DEFAULT_MARES_ENERGISED_YEAR = 2032
 # cycling, total daily charge-input plus discharge-output energy is capped at
 # this multiple of installed storage energy. A value of 1.0 means a 10 GWh fleet
 # can move at most 10 GWh gross across charging and discharging during one day.
-MAX_DAILY_BESS_GROSS_THROUGHPUT_PER_MWH = 1.0  # compatibility only; GammaV11 aggregate dispatch does not use this cap
+MAX_DAILY_BESS_GROSS_THROUGHPUT_PER_MWH = 1.0  # compatibility only; Gamma code aggregate dispatch does not use this cap
 
 # Minimum Units Online (MUON) assumptions.
 # Default SEM requirement: 4 conventional units in IE plus 3 in NI.
@@ -1565,7 +1578,7 @@ def _run_demonstrator():
         }
     def interactive_scenario():
         """Ask for the scenario inputs (used when there is no scenarios.csv)."""
-        print("\n(No scenariosV11.xlsx found: running one scenario from prompts.)")
+        print("\n(No scenariosXLSX.xlsx found: running one scenario from prompts.)")
         return {
             'scenario': 'interactive',
             'build_rate_wind_ie': ask_float("Enter annual WIND build-out rate in IE/ROI, GW/year",
@@ -1576,6 +1589,9 @@ def _run_demonstrator():
                                              round(DEFAULT_SOLAR_BUILD_RATE_GW * base_solar_ie_share, 3)),
             'build_rate_solar_ni': ask_float("Enter annual SOLAR build-out rate in NI, GW/year",
                                              round(DEFAULT_SOLAR_BUILD_RATE_GW * (1 - base_solar_ie_share), 3)),
+            'background_demand_growth_twh_per_year': ask_float("Enter annual background/native/data-centre demand growth, TWh/year", DEFAULT_BACKGROUND_DEMAND_GROWTH_TWH_PER_YEAR),
+            'heat_demand_growth_twh_per_year': ask_float("Enter annual heat-sector electricity demand growth, TWh/year", DEFAULT_HEAT_DEMAND_GROWTH_TWH_PER_YEAR),
+            'transport_demand_growth_twh_per_year': ask_float("Enter annual transport-sector electricity demand growth, TWh/year", DEFAULT_TRANSPORT_DEMAND_GROWTH_TWH_PER_YEAR),
             'snsp_limit_pct': ask_float("Enter System Non-Synchronous Penetration (SNSP) Limit %", DEFAULT_SNSP_PCT),
             'muon_units_ie': ask_float("Enter IE MUON units online", DEFAULT_MUON_UNITS_IE),
             'muon_units_ni': ask_float("Enter NI MUON units online", DEFAULT_MUON_UNITS_NI),
@@ -1603,7 +1619,7 @@ def _run_demonstrator():
     BUILD_COLUMNS = ['build_rate_wind_ie', 'build_rate_wind_ni', 'build_rate_solar_ie', 'build_rate_solar_ni']
 
     def load_scenarios(path):
-        """Read scenariosv11.xlsx; blank cells take the defaults.
+        """Read scenariosXLSX.xlsx; blank cells take the defaults.
 
         Headers are matched ignoring case, spaces, hyphens and underscores, so "Build rate_WIND_IE",
         "Build Rate WIND IE" and "build_rate_wind_ie" are all the same column. Files in the old
@@ -1624,7 +1640,9 @@ def _run_demonstrator():
                                  'description', 'storage_power_build_rate_mw', 'storage_energy_build_rate_mwh',
                                  'storage_power_2026_mw', 'storage_energy_2026_mwh',
                                  'storage_charge_efficiency', 'storage_discharge_efficiency', 'storage_initial_soc_pct', 'pc_storage_hybrid',
-                                 'wind_build_rate_gw', 'build_rate_gw', 'demand_rate_twh_per_year', 'units',
+                                 'wind_build_rate_gw', 'build_rate_gw', 'demand_rate_twh_per_year',
+                                 'background_demand_growth_twh_per_year', 'heat_demand_growth_twh_per_year',
+                                 'transport_demand_growth_twh_per_year', 'units',
                                  'new_build_ie_pct', 'solar_build_rate_gw',
                                  'solar_new_build_ie_pct', 'capacity_source', 'pipeline_target_year',
                                  'pipeline_build_pct']
@@ -1664,6 +1682,9 @@ def _run_demonstrator():
                     'celtic_energised_year': DEFAULT_CELTIC_ENERGISED_YEAR,
                     'mares_energised_year': DEFAULT_MARES_ENERGISED_YEAR,
                     'demand_rate_twh_per_year': DEFAULT_DEMAND_RATE_TWH_PER_YEAR,
+                    'background_demand_growth_twh_per_year': DEFAULT_BACKGROUND_DEMAND_GROWTH_TWH_PER_YEAR,
+                    'heat_demand_growth_twh_per_year': DEFAULT_HEAT_DEMAND_GROWTH_TWH_PER_YEAR,
+                    'transport_demand_growth_twh_per_year': DEFAULT_TRANSPORT_DEMAND_GROWTH_TWH_PER_YEAR,
                     'snsp_limit_pct': DEFAULT_SNSP_PCT,
                     'muon_units_ie': DEFAULT_MUON_UNITS_IE,
                     'muon_units_ni': DEFAULT_MUON_UNITS_NI,
@@ -1729,7 +1750,10 @@ def _run_demonstrator():
     SCENARIO_RANGES = {
         'build_rate_wind_ie': (0, 10), 'build_rate_wind_ni': (0, 10), 'build_rate_wind_offshore': (0, 10),
         'build_rate_solar_ie': (0, 10), 'build_rate_solar_ni': (0, 10),
-        'snsp_limit_pct': (1, 100), 'demand_rate_twh_per_year': (-10, 20), 'headroom_scale': (0.01, 10),
+        'snsp_limit_pct': (1, 100), 'demand_rate_twh_per_year': (-10, 20),
+        'background_demand_growth_twh_per_year': (-10, 20),
+        'heat_demand_growth_twh_per_year': (0, 20),
+        'transport_demand_growth_twh_per_year': (0, 20), 'headroom_scale': (0.01, 10),
         'muon_units_ie': (0, 20), 'muon_units_ni': (0, 20),
         'storage_power_build_rate_mw': (0, 20000), 'storage_energy_build_rate_mwh': (0, 100000),
         'storage_power_2026_mw': (0, 50000), 'storage_energy_2026_mwh': (0, 200000),
@@ -1908,7 +1932,11 @@ def _run_demonstrator():
             demand_2025_twh = float(completed.sort_values('year').iloc[-1]['Demand_TWh'])
         else:
             demand_2025_twh = float(demand_2025.iloc[0])
-        annual_demand_growth_rate = float(sc['demand_rate_twh_per_year'])
+        background_demand_growth_rate = float(sc['background_demand_growth_twh_per_year'])
+        heat_demand_growth_rate = float(sc['heat_demand_growth_twh_per_year'])
+        transport_demand_growth_rate = float(sc['transport_demand_growth_twh_per_year'])
+        annual_demand_growth_rate = (background_demand_growth_rate + heat_demand_growth_rate
+                                     + transport_demand_growth_rate)
 
         # 2026 is a transition year before the assumed decarbonisation and
         # electrification trajectory begins. Use a fixed 0.9 TWh increase over
@@ -1953,7 +1981,10 @@ def _run_demonstrator():
 
         print(f"\n>> Baseline Demand (2026): {base_demand_twh:.2f} TWh")
         print(f">> 2026 Demand Increase over 2025: {demand_increase_2026_twh:.2f} TWh")
-        print(f">> Scenario Demand Growth Rate from 2027: {annual_demand_growth_rate:.2f} TWh/year")
+        print(f">> Background Demand Growth from 2027: {background_demand_growth_rate:.2f} TWh/year")
+        print(f">> Heat-Sector Electricity Growth from 2027: {heat_demand_growth_rate:.2f} TWh/year")
+        print(f">> Transport-Sector Electricity Growth from 2027: {transport_demand_growth_rate:.2f} TWh/year")
+        print(f">> Total Scenario Demand Growth from 2027: {annual_demand_growth_rate:.2f} TWh/year")
         print(f">> Projected Total Demand in {final_year}: {tot_demand_2050:.2f} TWh")
         print(f">> Wind build-out: IE onshore {bw_ie:.3f} + NI {bw_ni:.3f} + offshore {bw_off:.3f} GW/year")
         print(f">> Solar build-out: IE {bs_ie:.3f} + NI {bs_ni:.3f} = {solar_build_rate_gw:.3f} GW/year")
@@ -2287,6 +2318,13 @@ def _run_demonstrator():
                     'solar_NI_own_pct': 100 * reg_s['NI'].sum() / (sv * (1 - s_ie)) if s_ie < 1 else 0.0,
                     'storage_charge_twh': d['charge_mw'].sum() * to_annual_twh,
                     'storage_discharge_twh': d['discharge_mw'].sum() * to_annual_twh,
+                    # Firm generation is the chronological residual after usable wind,
+                    # usable solar and battery discharge. Calculating interval by interval
+                    # prevents annual renewable surplus from cancelling Dunkelflaute deficits.
+                    'firm_generation_twh': np.maximum(
+                        0.0,
+                        demand - d['usable_w'] - d['usable_s'] - d['discharge_mw']
+                    ).sum() * to_annual_twh,
                     'storage_end_soc_mwh': d['soc_mwh'][-1] if len(d['soc_mwh']) else 0.0,
                     'remaining_curt_combined_pct': 100 * (d['curt_w'].sum() + d['curt_s'].sum()) / (tot_av + tot_sv),
                     'recoverable_grid_constraint_twh': d['recoverable_grid_constraint_mw'].sum() * to_annual_twh,
@@ -2402,12 +2440,51 @@ def _run_demonstrator():
             solar_cf = solar_gen_twh * 1000.0 / (solar_cap * 8760.0) if solar_cap > 0 else 0.0
             solar_pct_of_demand = 100.0 * solar_gen_twh / yr_demand
 
+            # Three-component demand and whole-energy transition indicators.
+            # Existing 2025 electrified loads are advanced once to the 2026 anchor;
+            # scenario growth applies from 2027. Heat/transport progress is capped
+            # at the corresponding all-island sector demand.
+            base_heat_electricity_2026 = BASE_HEAT_ELECTRICITY_TWH_2025 + DEFAULT_HEAT_DEMAND_GROWTH_TWH_PER_YEAR
+            base_transport_electricity_2026 = BASE_TRANSPORT_ELECTRICITY_TWH_2025 + DEFAULT_TRANSPORT_DEMAND_GROWTH_TWH_PER_YEAR
+            heat_electricity_twh = min(ALL_ISLAND_HEAT_DEMAND_TWH / HEAT_COP,
+                base_heat_electricity_2026 + years_elapsed * heat_demand_growth_rate)
+            transport_electricity_twh = min(ALL_ISLAND_TRANSPORT_DEMAND_TWH / TRANSPORT_DISPLACEMENT_FACTOR,
+                base_transport_electricity_2026 + years_elapsed * transport_demand_growth_rate)
+            heat_electrified_twh = min(ALL_ISLAND_HEAT_DEMAND_TWH, heat_electricity_twh * HEAT_COP)
+            transport_electrified_twh = min(ALL_ISLAND_TRANSPORT_DEMAND_TWH, transport_electricity_twh * TRANSPORT_DISPLACEMENT_FACTOR)
+            remaining_heat_twh = max(0.0, ALL_ISLAND_HEAT_DEMAND_TWH - heat_electrified_twh)
+            remaining_transport_twh = max(0.0, ALL_ISLAND_TRANSPORT_DEMAND_TWH - transport_electrified_twh)
+            # The dispatch residual already includes weather lulls, SNSP/MUON limits
+            # and battery discharge. The model's fixed 'other' renewable loss also
+            # has to be supplied by firm generation. Cap at annual electricity demand.
+            other_renewable_loss_twh = (
+                other_curt_pct / 100.0
+                * (run['avail_twh'] + run['solar_avail_twh'])
+            )
+            firm_generation_twh = min(
+                yr_demand,
+                max(0.0, run['firm_generation_twh'] + other_renewable_loss_twh)
+            )
+            firm_capacity_required_gw = (yr_demand / (8760.0 * 0.68 / 1000.0)) * 0.90
             row_out = {
                 'Year': yr,
                 'Wind_Cap_GW': round(cap, 2),
                 'Wind_Onshore_GW': round(onshore_gw, 2),
                 'Wind_Offshore_GW': round(offshore_gw, 2),
                 'Dem_TWh': round(yr_demand, 2),
+                'Background_Demand_Growth_TWh_per_Year': round(background_demand_growth_rate, 3),
+                'Heat_Demand_Growth_TWh_per_Year': round(heat_demand_growth_rate, 3),
+                'Transport_Demand_Growth_TWh_per_Year': round(transport_demand_growth_rate, 3),
+                'Total_Demand_Growth_TWh_per_Year': round(annual_demand_growth_rate, 3),
+                'Heat_Electricity_Demand_TWh': round(heat_electricity_twh, 3),
+                'Transport_Electricity_Demand_TWh': round(transport_electricity_twh, 3),
+                'Heat_Energy_Electrified_TWh': round(heat_electrified_twh, 3),
+                'Transport_Energy_Electrified_TWh': round(transport_electrified_twh, 3),
+                'Remaining_Heat_Energy_TWh': round(remaining_heat_twh, 3),
+                'Remaining_Transport_Energy_TWh': round(remaining_transport_twh, 3),
+                'Firm_Generation_TWh': round(firm_generation_twh, 3),
+                'Fossil_Firm_Generation_TWh': round(firm_generation_twh, 3),
+                'Firm_Capacity_Required_GW': round(firm_capacity_required_gw, 3),
                 'RawCurt_%': round(avg_raw_curt_pct, 2),
                 'GridCon_%': round(sim_constraint_pct, 2),
                 'TotLoss_%': round(total_loss_pct, 2),
@@ -2504,7 +2581,11 @@ def _run_demonstrator():
                      'Total_Loss_%': pct(con_ws + curt_ws, av_ws, other_curt_pct),
                      'Share_of_Demand_%': row_out['Wind+Solar_%'],
                      'Storage_Power_MW': row_out['Storage_Power_MW'], 'Storage_Energy_MWh': row_out['Storage_Energy_MWh'],
-                     'Storage_Discharge_TWh': row_out['Storage_Discharge_TWh']}
+                     'Storage_Discharge_TWh': row_out['Storage_Discharge_TWh'],
+                     'Firm_Capacity_Required_GW': row_out['Firm_Capacity_Required_GW'],
+                     'Overall_Fossil_Fuel_Pct': row_out.get('Overall_Fossil_Fuel_Pct', np.nan),
+                     'Overall_Renewables_Pct': row_out.get('Overall_Renewables_Pct', np.nan),
+                     'Overall_Imported_Electricity_Pct': row_out.get('Overall_Imported_Electricity_Pct', np.nan)}
             t_row.update({f'{z}_limit_MW': round(headrooms_yr[z]) for z in Z})
             t_row.update({f'{z}_capacity_MW': round(1000 * (zone_caps.get(z, 0.0) + off_caps.get(z, 0.0) + sol_caps.get(z, 0.0)))
                           for z in Z})
@@ -2524,7 +2605,11 @@ def _run_demonstrator():
                        'SNSP_Binding_Hours': round(run['sys_hours_snsp']),
                        'MinGen_Binding_Hours': round(run['sys_hours_mingen']),
                        'Storage_Recovered_Constraint_TWh': round(run['sys_recovered_twh'], 3),
-                       'Storage_Discharge_TWh': row_out['Storage_Discharge_TWh']}
+                       'Storage_Discharge_TWh': row_out['Storage_Discharge_TWh'],
+                     'Firm_Capacity_Required_GW': row_out['Firm_Capacity_Required_GW'],
+                     'Overall_Fossil_Fuel_Pct': row_out.get('Overall_Fossil_Fuel_Pct', np.nan),
+                     'Overall_Renewables_Pct': row_out.get('Overall_Renewables_Pct', np.nan),
+                     'Overall_Imported_Electricity_Pct': row_out.get('Overall_Imported_Electricity_Pct', np.nan)}
             for key, r in (('wind', w_row), ('solar', s_row), ('total', t_row), ('system', sys_row)):
                 summary_rows_by_kind[key].append(r)
             summary_gap = max(summary_gap, *(100 * abs(a - b) / av_ws for a, b in (
@@ -2532,6 +2617,60 @@ def _run_demonstrator():
                 (w_curt, run['all_wind_curt_twh']), (s_curt, run['all_solar_curt_twh'])))) if av_ws > 0 else summary_gap
 
         sim_df = pd.DataFrame(sim_results)
+        # Overall Transition Progress: calculate annual shares from actual energy
+        # quantities. Firm generation is the chronological dispatch residual, so
+        # Dunkelflaute fossil use remains visible even in fully electrified scenarios.
+        # Imported Electricity remains the balancing remainder. The agreed 2026
+        # calibration assigns 4% of the three-category total to that remainder.
+        sim_df['Remaining_Heat_Fossil_TWh'] = sim_df['Remaining_Heat_Energy_TWh']
+        sim_df['Remaining_Transport_Fossil_TWh'] = sim_df['Remaining_Transport_Energy_TWh']
+        sim_df['Total_Fossil_Energy_TWh'] = (
+            sim_df['Remaining_Heat_Fossil_TWh']
+            + sim_df['Remaining_Transport_Fossil_TWh']
+            + sim_df['Fossil_Firm_Generation_TWh']
+        )
+        sim_df['Total_Renewable_Energy_TWh'] = (
+            sim_df['Heat_Energy_Electrified_TWh']
+            + sim_df['Transport_Energy_Electrified_TWh']
+            + sim_df['Wind_Gen_TWh']
+            + sim_df['Solar_Gen_TWh']
+        )
+        domestic_energy_twh = (
+            sim_df['Total_Fossil_Energy_TWh']
+            + sim_df['Total_Renewable_Energy_TWh']
+        )
+        # If domestic fossil + renewable energy is 96% of the overall total, the
+        # balancing imported-electricity category is 4%, matching the agreed anchor.
+        overall_energy_twh = domestic_energy_twh / 0.96
+        sim_df['Overall_Fossil_Fuel_Pct'] = np.where(
+            overall_energy_twh > 0.0,
+            100.0 * sim_df['Total_Fossil_Energy_TWh'] / overall_energy_twh,
+            0.0,
+        )
+        sim_df['Overall_Renewables_Pct'] = np.where(
+            overall_energy_twh > 0.0,
+            100.0 * sim_df['Total_Renewable_Energy_TWh'] / overall_energy_twh,
+            0.0,
+        )
+        sim_df['Overall_Imported_Electricity_Pct'] = (
+            100.0
+            - sim_df['Overall_Fossil_Fuel_Pct']
+            - sim_df['Overall_Renewables_Pct']
+        ).clip(lower=0.0)
+        share_check = (
+            sim_df['Overall_Fossil_Fuel_Pct']
+            + sim_df['Overall_Renewables_Pct']
+            + sim_df['Overall_Imported_Electricity_Pct']
+        )
+        if not np.allclose(share_check, 100.0, rtol=0.0, atol=1e-8):
+            raise RuntimeError('Overall transition shares do not reconcile to 100%.')
+        for c in [
+            'Remaining_Heat_Fossil_TWh', 'Remaining_Transport_Fossil_TWh',
+            'Total_Fossil_Energy_TWh', 'Total_Renewable_Energy_TWh',
+            'Overall_Fossil_Fuel_Pct', 'Overall_Renewables_Pct',
+            'Overall_Imported_Electricity_Pct'
+        ]:
+            sim_df[c] = sim_df[c].round(3 if c.endswith('_TWh') else 2)
         capacity_df = pd.DataFrame(capacity_rows).round(1)
         capacity_df = capacity_df[(capacity_df['Zone'] != 'UNZONED') | (capacity_df['Battery_MW'].abs() > 0)]
         validate_results(scenario_name, sim_df, capacity_df, balance_err_by_year)
@@ -2615,6 +2754,25 @@ def _run_demonstrator():
 
         # Readable summaries: wind, solar, wind + solar by zone, and system dispatch-down by reason
         summaries = {k: pd.DataFrame(v) for k, v in summary_rows_by_kind.items()}
+        transition_cols = [
+            'Year', 'Background_Demand_Growth_TWh_per_Year',
+            'Heat_Demand_Growth_TWh_per_Year', 'Transport_Demand_Growth_TWh_per_Year',
+            'Total_Demand_Growth_TWh_per_Year', 'Heat_Electricity_Demand_TWh',
+            'Transport_Electricity_Demand_TWh', 'Heat_Energy_Electrified_TWh',
+            'Transport_Energy_Electrified_TWh', 'Remaining_Heat_Energy_TWh',
+            'Remaining_Transport_Energy_TWh', 'Firm_Generation_TWh',
+            'Fossil_Firm_Generation_TWh', 'Remaining_Heat_Fossil_TWh',
+            'Remaining_Transport_Fossil_TWh', 'Total_Fossil_Energy_TWh',
+            'Total_Renewable_Energy_TWh', 'Firm_Capacity_Required_GW',
+            'Overall_Fossil_Fuel_Pct', 'Overall_Renewables_Pct',
+            'Overall_Imported_Electricity_Pct'
+        ]
+        transition_by_year = sim_df.loc[sim_df['Data_Type'] == 'Forecast', transition_cols].copy()
+        for k in ('total', 'system'):
+            drop_existing = [c for c in transition_cols if c != 'Year' and c in summaries[k].columns]
+            if drop_existing:
+                summaries[k] = summaries[k].drop(columns=drop_existing)
+            summaries[k] = summaries[k].merge(transition_by_year, on='Year', how='left')
         for k in ('wind', 'system'):          # hindcast band on all-island constraint (see METHODOLOGY)
             c = summaries[k]['Constraint_%']
             summaries[k].insert(summaries[k].columns.get_loc('Constraint_%') + 1, 'Constraint_Low_%', (c * (1 - hindcast_band)).round(2))
@@ -2650,8 +2808,10 @@ def _run_demonstrator():
         actual_wind_pct = row_2050['Wind_%_SEM']
         actual_gen_twh = max(0.0, actual_dem_twh * (actual_wind_pct / 100.0))
     
-        peak_demand_2050_gw = actual_dem_twh / (8760.0 * 0.68 / 1000.0)
-        firm_thermal_required_gw = peak_demand_2050_gw * 0.90
+        firm_thermal_required_gw = float(row_2050['Firm_Capacity_Required_GW'])
+        fossil_pct_2050 = float(row_2050['Overall_Fossil_Fuel_Pct'])
+        overall_renewables_pct_2050 = float(row_2050['Overall_Renewables_Pct'])
+        imported_pct_2050 = float(row_2050['Overall_Imported_Electricity_Pct'])
 
         # Long-term chart databox metrics. Total dispatch-down uses the final
         # year's mutually exclusive reporting categories: recoverable grid
@@ -2675,7 +2835,8 @@ def _run_demonstrator():
         print(f">> Usable Solar Generation (2050)     : {row_2050['Solar_Gen_TWh']:.2f} TWh ({row_2050['Solar_%']:.2f}% of demand)")
         print(f">> Installed Solar Capacity (2050)    : {row_2050['Solar_Cap_GW']:.2f} GW")
         print(f">> Wind + Solar Share of Demand (2050): {row_2050['Wind+Solar_%']:.2f}%")
-        print(f">> Required Firm Thermal Plant (2050) : {firm_thermal_required_gw:.2f} GW (Dunkelflaute Backup)")
+        print(f">> Required Firm Capacity (2050) : {firm_thermal_required_gw:.2f} GW (Dunkelflaute Backup)")
+        print(f">> Actual Firm Generation (2050)      : {row_2050['Firm_Generation_TWh']:.2f} TWh/year")
         print(f">> Applied Build-Out Rate             : {annual_build_rate_gw*1000:.2f} MW/year ({annual_build_rate_gw:.3f} GW/year)")
         print(f">> Applied Forecast SNSP / MUON      : {snsp_limit_pct:.1f}% SNSP; IE {muon_units_ie} + NI {muon_units_ni} = {total_muon_units} units x {MUON_MIN_GEN_PER_UNIT_MW:.0f} MW = {muon_floor_mw:.0f} MW minimum generation")
 
@@ -2791,6 +2952,10 @@ def _run_demonstrator():
         wind_pct_2030 = float(row_2030['Wind_%_SEM'])
         wind_cf_2030 = float(row_2030['Wind_Fleet_CF_%_SEM'])
         solar_cf_2030 = float(row_2030['Solar_CF_%'])
+        firm_capacity_2030_gw = float(row_2030['Firm_Capacity_Required_GW'])
+        fossil_pct_2030 = float(row_2030['Overall_Fossil_Fuel_Pct'])
+        overall_renewables_pct_2030 = float(row_2030['Overall_Renewables_Pct'])
+        imported_pct_2030 = float(row_2030['Overall_Imported_Electricity_Pct'])
 
         ax1.plot([], [], ' ', label=f'2030 Wind % of Demand: {wind_pct_2030:.1f}%')
 
@@ -2819,6 +2984,16 @@ def _run_demonstrator():
         )
         ax1.text(1.015, 0.03, stats_text1, transform=ax1.transAxes, va='bottom', fontsize=9.5, fontweight='bold', color='#000080',
                  bbox=dict(boxstyle='round,pad=0.6', facecolor='#F0F4FF', edgecolor='#B0C4DE', alpha=0.9))
+        transition_text1 = (
+            "Overall Transition Progress\n"
+            f"Required Firm Capacity: {firm_capacity_2030_gw:.2f} GW\n"
+            f"Fossil-Fuel: {fossil_pct_2030:.1f}%\n"
+            f"Renewables: {overall_renewables_pct_2030:.1f}%\n"
+            f"Imported Electricity: {imported_pct_2030:.1f}%"
+        )
+        ax1.text(1.015, 0.50, transition_text1, transform=ax1.transAxes, va='bottom', fontsize=9.0,
+                 fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
+                 facecolor='#FFF2F2', edgecolor='#8B0000', alpha=0.95))
 
         plt.tight_layout()
         g1_png = scenario_plot_filename("Historical_2019_2030_Overview.png")
@@ -2876,7 +3051,6 @@ def _run_demonstrator():
             f"2050 Demand: {actual_dem_twh:.2f} TWh\n"
             f"2050 Renewables (incl. Storage): {renewables_2050_pct:.1f}%\n"
             f"Total Dispatch Down (2050): {total_dispatch_down_2050_twh:.2f} TWh/yr\n"
-            f"Required Firm Thermal Plant (2050): {firm_thermal_required_gw:.2f} GW\n"
             f"Wind as % of Demand (2035): {wind_pct_2035:.1f}%\n"
             f"Wind as % of Demand (2050): {wind_pct_2050:.1f}%\n"
             f"2050 Wind Capacity Factor: {wind_cf_2050:.1f}%\n"
@@ -2888,6 +3062,16 @@ def _run_demonstrator():
         )
         ax2.text(1.015, 0.03, stats_text2, transform=ax2.transAxes, va='bottom', fontsize=8.7, fontweight='bold', color='#000080',
                  bbox=dict(boxstyle='round,pad=0.6', facecolor='#F0F4FF', edgecolor='#B0C4DE', alpha=0.9))
+        transition_text2 = (
+            "Overall Transition Progress\n"
+            f"Required Firm Capacity: {firm_thermal_required_gw:.2f} GW\n"
+            f"Fossil-Fuel: {fossil_pct_2050:.1f}%\n"
+            f"Renewables: {overall_renewables_pct_2050:.1f}%\n"
+            f"Imported Electricity: {imported_pct_2050:.1f}%"
+        )
+        ax2.text(1.015, 0.49, transition_text2, transform=ax2.transAxes, va='bottom', fontsize=9.0,
+                 fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
+                 facecolor='#FFF2F2', edgecolor='#8B0000', alpha=0.95))
 
         plt.tight_layout()
         g2_png = scenario_plot_filename("Forecast_2045_2050_Overview.png")
@@ -3234,7 +3418,6 @@ def _run_demonstrator():
             f"2050 Demand: {actual_dem_twh:.1f} TWh\n"
             f"2050 Renewables (incl. Storage): {renewables_2050_pct:.1f}%\n"
             f"Total Dispatch Down (2050): {total_dispatch_down_2050_twh:.2f} TWh/yr\n"
-            f"Required Firm Thermal Plant (2050): {firm_thermal_required_gw:.2f} GW\n"
             f"Wind as % of Demand (2035): {wind_pct_2035:.1f}%\n"
             f"Wind as % of Demand (2050): {wind_pct_2050:.1f}%\n"
             f"2050 Wind Capacity Factor: {wind_cf_2050:.1f}%\n"
@@ -3246,6 +3429,16 @@ def _run_demonstrator():
         )
         ax6.text(1.015, 0.03, stats_text6, transform=ax6.transAxes, va='bottom', fontsize=8.7, fontweight='bold', color='#000080',
                  bbox=dict(boxstyle='round,pad=0.6', facecolor='#F0F4FF', edgecolor='#B0C4DE', alpha=0.9))
+        transition_text6 = (
+            "Overall Transition Progress\n"
+            f"Required Firm Capacity: {firm_thermal_required_gw:.2f} GW\n"
+            f"Fossil-Fuel: {fossil_pct_2050:.1f}%\n"
+            f"Renewables: {overall_renewables_pct_2050:.1f}%\n"
+            f"Imported Electricity: {imported_pct_2050:.1f}%"
+        )
+        ax6.text(1.015, 0.49, transition_text6, transform=ax6.transAxes, va='bottom', fontsize=9.0,
+                 fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
+                 facecolor='#FFF2F2', edgecolor='#8B0000', alpha=0.95))
 
         plt.tight_layout()
         g6_png = scenario_plot_filename("Grand_Overview_2019_2050.png")
@@ -3482,6 +3675,13 @@ def _run_demonstrator():
                     'Wind_Cap_GW': r['Wind_Cap_GW'], 'Wind_Offshore_GW': r['Wind_Offshore_GW'],
                     'Storage_Power_MW': r['Storage_Power_MW'], 'Storage_Energy_MWh': r['Storage_Energy_MWh'],
                     'Dem_TWh': r['Dem_TWh'],
+                    'Firm_Capacity_Required_GW': r['Firm_Capacity_Required_GW'],
+                    'Firm_Generation_TWh': r['Firm_Generation_TWh'],
+                    'Total_Fossil_Energy_TWh': r['Total_Fossil_Energy_TWh'],
+                    'Total_Renewable_Energy_TWh': r['Total_Renewable_Energy_TWh'],
+                    'Overall_Fossil_Fuel_Pct': r['Overall_Fossil_Fuel_Pct'],
+                    'Overall_Renewables_Pct': r['Overall_Renewables_Pct'],
+                    'Overall_Imported_Electricity_Pct': r['Overall_Imported_Electricity_Pct'],
                     'GridCon_%': r['GridCon_%'], 'GridCon_Low_%': r['GridCon_Low_%'],
                     'GridCon_High_%': r['GridCon_High_%'], 'Con_IE_%': r['Con_IE_%'],
                     'Con_NI_%': r['Con_NI_%'], 'RawCurt_%': r['RawCurt_%'], 'TotLoss_%': r['TotLoss_%'],
