@@ -2686,9 +2686,14 @@ def _run_demonstrator():
             + sim_df['Remaining_Transport_Fossil_TWh']
             + sim_df['Fossil_Firm_Generation_TWh']
         )
+        # Transport: each TWh of EV electricity displaces TRANSPORT_DISPLACEMENT_FACTOR TWh of
+        # fossil fuel (fuel-to-wheel), which the remaining fossil transport above already
+        # reflects. Only the EV electricity itself is energy used, and it is part of
+        # electricity demand, so its wind/solar share is already in Wind_Gen_TWh +
+        # Solar_Gen_TWh and its fossil share in Fossil_Firm_Generation_TWh. Adding
+        # Transport_Energy_Electrified_TWh here would count avoided fuel as renewable energy.
         sim_df['Total_Renewable_Energy_TWh'] = (
             sim_df['Heat_Energy_Electrified_TWh']
-            + sim_df['Transport_Energy_Electrified_TWh']
             + sim_df['Wind_Gen_TWh']
             + sim_df['Solar_Gen_TWh']
         )
