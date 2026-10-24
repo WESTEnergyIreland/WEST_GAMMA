@@ -238,6 +238,13 @@ INTERVAL_HOURS = 0.25
 # (Appendix 1): existing EWIC + Moyle + Greenlink 1,450 MW; Celtic 700 MW from April 2028;
 # MaresConnect 750 MW from January 2031. Energisation years may be decimal (2028.25 = April);
 # a year is credited with the fraction of it the link is in service. Scenario columns override.
+# Interconnector flows in the 15-minute dispatch. False (decision of 24 Oct 2026): no imports or
+# exports in the dispatch; firm plant covers every shortfall and surplus is curtailed, as before
+# issue #5. Interconnectors appear only in the chart-only sensitivities (50% import / max export).
+INTERCONNECTOR_DISPATCH = False
+# Imported electricity in the Overall Transition Progress shares: fixed share of the total, with
+# fossil and renewables scaled to the remainder (100% - this).
+FIXED_IMPORT_SHARE_PCT = 4.0
 EXISTING_INTERCONNECTOR_CAPACITY_MW = 1450.0
 CELTIC_INTERCONNECTOR_CAPACITY_MW = 700.0
 MARES_INTERCONNECTOR_CAPACITY_MW = 750.0
@@ -2382,8 +2389,10 @@ def _run_demonstrator():
             return max(single)
 
         def ic_dispatch_caps(year):
-            """Usable export and import MW. Applies from 2026, including the 2026 calibration run,
-            so the 'other' curtailment residual is derived on the same basis as the forecast."""
+            """Usable export and import MW. Zero unless INTERCONNECTOR_DISPATCH is True (reversed
+            24 Oct 2026: interconnectors are shown only in the chart-only sensitivities)."""
+            if not INTERCONNECTOR_DISPATCH:
+                return 0.0, 0.0
             cap = ic_capacity_for_year(year)
             return cap * ic_export_availability, cap * ic_import_availability
         new_build_ie_share = bw_ie / annual_build_rate_gw if annual_build_rate_gw > 0 else base_ie_share
@@ -3201,7 +3210,8 @@ def _run_demonstrator():
         # consumed in Ireland, so the three shares sum to 100%:
         #   fossil    = remaining heat fuel + remaining transport fuel + firm electricity consumed
         #   renewable = ambient heat + domestic wind/solar consumed + BESS discharge
-        #   imported  = interconnector imports (modelled in the dispatch, issue #9)
+        #   imported  = FIXED_IMPORT_SHARE_PCT, the remainder of 100% (decision of 24 Oct 2026;
+        #               fossil and renewables are scaled to 100% - that share)
         # Avoided transport fuel is not energy and is not counted (fixed earlier under #7).
         # Firm generation is treated as fossil; bioenergy, hydro, waste and biofuels are not in
         # scope, so the renewable share is a lower bound against SEAI's published RES.
@@ -3235,9 +3245,14 @@ def _run_demonstrator():
         )
         gfec = sim_df['Gross_Final_Energy_TWh']
         share = lambda num: np.where(gfec > 0.0, 100.0 * num / gfec, 0.0)
-        sim_df['Overall_Fossil_Fuel_Pct'] = share(sim_df['Total_Fossil_Energy_TWh'])
-        sim_df['Overall_Renewables_Pct'] = share(sim_df['Total_Renewable_Energy_TWh'])
-        sim_df['Overall_Imported_Electricity_Pct'] = share(sim_df['Import_TWh'])
+        domestic = sim_df['Total_Fossil_Energy_TWh'] + sim_df['Total_Renewable_Energy_TWh']
+        domestic_pct = 100.0 - FIXED_IMPORT_SHARE_PCT
+        sim_df['Overall_Fossil_Fuel_Pct'] = np.where(
+            domestic > 0.0, domestic_pct * sim_df['Total_Fossil_Energy_TWh'] / domestic, 0.0)
+        sim_df['Overall_Renewables_Pct'] = np.where(
+            domestic > 0.0, domestic_pct * sim_df['Total_Renewable_Energy_TWh'] / domestic, 0.0)
+        sim_df['Overall_Imported_Electricity_Pct'] = (
+            100.0 - sim_df['Overall_Fossil_Fuel_Pct'] - sim_df['Overall_Renewables_Pct'])
         red_res_twh = (sim_df['Heat_Ambient_Renewable_TWh'] + sim_df['Wind_Gen_TWh']
                        + sim_df['Solar_Gen_TWh'] + sim_df['Storage_Discharge_TWh'])
         sim_df['RES_Overall_RED_%'] = share(red_res_twh)
@@ -3272,7 +3287,7 @@ def _run_demonstrator():
             a = anchor.iloc[0]
             print(f">> 2026 transition shares (RED gross final basis): fossil {a['Overall_Fossil_Fuel_Pct']:.1f}%, "
                   f"renewables {a['Overall_Renewables_Pct']:.1f}%, imported electricity "
-                  f"{a['Overall_Imported_Electricity_Pct']:.1f}% (modelled); "
+                  f"{a['Overall_Imported_Electricity_Pct']:.1f}% (remainder of 100%, fixed); "
                   f"RED overall RES {a['RES_Overall_RED_%']:.1f}% (SEAI published 17.1% for IE in 2025, "
                   f"which includes bioenergy and biofuels not modelled here)")
         capacity_df = pd.DataFrame(capacity_rows).round(1)
@@ -3625,7 +3640,7 @@ def _run_demonstrator():
             f"Required Firm Capacity: {firm_capacity_2030_gw:.2f} GW\n"
             f"Fossil-Fuel: {fossil_pct_2030:.1f}%\n"
             f"Renewables: {overall_renewables_pct_2030:.1f}%\n"
-            f"Imported Electricity: {imported_pct_2030:.1f}% (modelled)"
+            f"Imported Electricity: {imported_pct_2030:.1f}% (fixed)"
         )
         ax1.text(1.015, 0.50, transition_text1, transform=ax1.transAxes, va='bottom', fontsize=9.0,
                  fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
@@ -3703,7 +3718,7 @@ def _run_demonstrator():
             f"Required Firm Capacity: {firm_thermal_required_gw:.2f} GW\n"
             f"Fossil-Fuel: {fossil_pct_2050:.1f}%\n"
             f"Renewables: {overall_renewables_pct_2050:.1f}%\n"
-            f"Imported Electricity: {imported_pct_2050:.1f}% (modelled)"
+            f"Imported Electricity: {imported_pct_2050:.1f}% (fixed)"
         )
         ax2.text(1.015, 0.49, transition_text2, transform=ax2.transAxes, va='bottom', fontsize=9.0,
                  fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
@@ -4068,7 +4083,7 @@ def _run_demonstrator():
             f"Required Firm Capacity: {firm_thermal_required_gw:.2f} GW\n"
             f"Fossil-Fuel: {fossil_pct_2050:.1f}%\n"
             f"Renewables: {overall_renewables_pct_2050:.1f}%\n"
-            f"Imported Electricity: {imported_pct_2050:.1f}% (modelled)"
+            f"Imported Electricity: {imported_pct_2050:.1f}% (fixed)"
         )
         ax6.text(1.015, 0.49, transition_text6, transform=ax6.transAxes, va='bottom', fontsize=9.0,
                  fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
