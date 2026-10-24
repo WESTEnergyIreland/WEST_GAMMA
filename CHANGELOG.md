@@ -52,7 +52,7 @@ Changes to `Gamma.py` and `Data_inputs/scenariosXLSX.xlsx` for the open GitHub i
 - Battery MWh: the published list masks project MWh; EirGrid's sheet total (15,217.75 MWh for 5,632 MW, 2.70 h) is used. Dispatch uses the fleet total, so the per-project split only affects zonal reporting. The check is now a PASS with this note.
 
 ### Decisions of 24 October 2026 (Niall)
-- Interconnector export availability 0.5, import availability 0.7 and capacity credit 0.5 agreed (no longer placeholders). Reserve = largest single infeed.
+- Interconnector export availability 0.5, import availability 0.7 and capacity credit 0.5 agreed (no longer placeholders). Reserve = largest single infeed + 0.5 GW operating reserve (`OPERATING_RESERVE_MW`); column renamed `Firm_Reserve_GW`.
 - E, F, G: battery energy added after the pipeline = power x 2.70 h (EirGrid ECP pipeline average), was 0 MWh.
 - Heat and transport totals in the code aligned with the Demand Calculator: 70.6 and 76 TWh (were 62 and 75.5). COP stays 3.5; background growth stays 0.8 TWh/yr.
 - Headroom growth stays compound %/yr. North–South interconnector added to A, C, D, E, F, G as `reinforcement_steps = NI:2032:950` (300 → 1,250 MW, October 2031, SEAI NEP26).
