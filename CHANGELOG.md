@@ -7,7 +7,7 @@ The full methodology is in `Technical_Briefing_README.docx`.
 
 1. Install Python 3.10 or later, then from the repository folder: `pip install -r requirements.txt`.
 2. Inputs live in `Data_inputs/`. Edit scenarios in `Data_inputs/scenariosXLSX.xlsx` (sheet `Scenarios`) and save.
-3. Run `python Gamma.py`. All scenarios run without prompts (about 10 minutes with charts). Outputs go to `scenario_outputs/`: one folder per scenario, `scenario_summary.csv`, `validation_report.csv` and `run_log.txt`. Set `SCENARIO_CHARTS = False` near the top of `Gamma.py` for a faster CSV-only run.
+3. Run `python Gamma.py`. All scenarios run without prompts (about 10 minutes with charts). Outputs go to `scenario_outputs/`: one folder per scenario, `scenario_summary.csv`, `all_scenarios_evaluation_curtailment_cf.csv` (curtailment and capacity factors, with actuals), `evaluation_curtailment_cf.png`, `validation_report.csv` and `run_log.txt`. Set `SCENARIO_CHARTS = False` near the top of `Gamma.py` for a faster CSV-only run.
 4. Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py` (outputs in `analysis/output/`).
 5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
 
@@ -60,6 +60,12 @@ Changes to `Gamma.py` and `Data_inputs/scenariosXLSX.xlsx` for the open GitHub i
 - NI must-run units 3 → 2 in all scenarios: SONI made this standing policy in April 2026 (*Northern Ireland Dispatch Down Action Plan*, August 2026, p. 13: minimum conventional generation 389 → 323 MW).
 - Dispatch fix: wind/solar serving native demand is capped at that demand (charging was counted as demand in the SNSP/MUON ceiling, which let direct supply exceed demand; C's supply check showed a 1.04% gap).
 - Added heat-pump demand can follow hourly temperature: `TEMPERATURE_FILE` (Met Éireann hourly, Dublin Airport 532). Weight = heating degree hours (base 15.5 °C) / COP(T), COP falling 2.5% per K below its heating-weighted mean. Without the file, or for weather years it doesn't cover, the demand shape is used.
+
+### Curtailment and capacity-factor tracking (24 October 2026)
+- New output `evaluation_curtailment_cf.csv` in each scenario folder and `all_scenarios_evaluation_curtailment_cf.csv`, with actual years (2021–2025, 2026 part year) above the forecast years. For wind and solar separately: capacity, available and delivered energy, exported energy, available CF (weather resource before dispatch-down), delivered CF (after constraint, curtailment and the fixed 'other' loss), constraint %, curtailment split into SNSP, min gen and other, total curtailment %, dispatch-down %, and TWh constrained and curtailed. Combined wind + solar curtailment and dispatch-down, and battery charging from surplus.
+- Actual rows come from the EirGrid/SONI hourly dispatch-down records. Recorded SNSP maps to SNSP; high frequency, RoCoF, other and TSO test map to 'other'; minimum generation is not recorded separately. Actual solar CF is blank because solar capacity history is not in the inputs.
+- New chart `scenario_outputs/evaluation_curtailment_cf.png` (wind and solar delivered CF, wind and solar curtailment, all scenarios, with actuals) and a CF and curtailment table at the end of the console readout.
+- Points the tracking shows: modelled solar curtailment in 2026 (4.8%) is below the 2025 actual (6.7%), which rose from 0.6% in 2022; the 2026 forecast row uses 2026 weather only, so its CFs are high (wind available 32%).
 
 ### NI constraint drivers: Moyle imports and transmission outages (`analysis/ni_constraint_drivers.py`)
 - Data added in `Data_inputs/ni_drivers/`: NESO historic demand data 2024 (`MOYLE_FLOW`), SONI system data quarter-hourly 2026 (Moyle, North–South flow, NI demand), SONI transmission outage plans 2024–2026, SONI System and Renewable Data Summary Report, and the 2026 committed generator outage programme.
