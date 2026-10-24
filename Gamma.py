@@ -146,6 +146,13 @@ ALL_GEN_ZONES = HEADROOM_ZONES + ['OFFSHORE']
 # to HEADROOM_CALIBRATION_YEAR; the other years are the out-of-sample zonal backcast.
 ZONAL_HISTORY_FILE = "zonal_dd_percentages.csv"
 HEADROOM_CALIBRATION_YEAR = 2025
+# NI headroom calibration years (issue #3). NI constraint depends heavily on how the conventional
+# fleet is run: EirGrid/SONI attribute the 2024 peak (26.4%) partly to a must-run CCGT, summer
+# transmission outages, OCGT testing and higher GB imports, and the 2025 fall (18.6%) primarily
+# to a long unplanned outage of a large conventional generator (Annual Renewable Constraint and
+# Curtailment Reports 2024 and 2025). Neither year alone is a clean base. Several years are
+# pooled (energy-weighted). Default: 2025 only, as before; [2024, 2025] is the sensitivity.
+NI_CALIBRATION_YEARS = [2025]
 ZONAL_BACKCAST_CSV = "zonal_backcast_results.csv"   # written inside SCENARIO_OUTPUT_DIR
 HEADROOM_FILE = "zonal_headroom_by_year.csv"   # default curve (TID/TDPNI/TYTFS path)
 HEADROOM_CURVES_SUBDIR = "headroom_curves"     # named curves: Data_inputs/headroom_curves/<name>.csv
@@ -1050,7 +1057,7 @@ def _run_demonstrator():
     # constraint % is matched exactly. NI: its own hourly records. Every IE zone uses the IE sigma.
     cy = HEADROOM_CALIBRATION_YEAR
     ie_cy = dd['IE'].loc[dd['IE']['year'] == cy, 'avail_mw'].values
-    ni_cy = dd['NI'][dd['NI']['year'] == cy]
+    ni_cy = dd['NI'][dd['NI']['year'].isin(NI_CALIBRATION_YEARS)]
     if not len(ie_cy) or cy not in hist_annual.columns:
         raise ValueError(f"Calibration year {cy} needs hourly IE records and a {cy} column in {ZONAL_HISTORY_FILE}.")
     headroom_base = {z: calibrate_headroom(ie_cy * zone_shares[z]['share_of_ie_onshore'], hist_annual.loc[z, cy],
@@ -1059,7 +1066,7 @@ def _run_demonstrator():
     headroom_base['NI'] = calibrate_headroom(ni_cy['avail_mw'].values, ni_cy_pct, sigma_by_zone['NI'])
     default_table = rebase_headroom_table(load_zonal_headroom(input_path(HEADROOM_FILE))[0], headroom_base)
     print(f">> Zones {HEADROOM_ZONES}; 2026 headroom calibrated to each zone's recorded {cy} constraint "
-          f"('{ZONAL_HISTORY_FILE}'; NI from its hourly records):")
+          f"('{ZONAL_HISTORY_FILE}'; NI from its hourly records for {NI_CALIBRATION_YEARS}):")
     print(pd.DataFrame({'Zone_MW': {z: zone_caps_mw.get(z, np.nan) for z in IE_ZONES},
                         f'Constraint_{cy}_%': {**{z: hist_annual.loc[z, cy] for z in IE_ZONES}, 'NI': ni_cy_pct},
                         'Headroom_2026_MW': headroom_base}).round(1).to_string())

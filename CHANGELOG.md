@@ -58,6 +58,12 @@ Changes to `Gamma.py` and `Data_inputs/scenariosXLSX.xlsx` for the open GitHub i
 - No load factor enters the new figure; the 0.68 load factor is only in the legacy comparison column.
 - Not yet fixed: added heat-pump and EV demand is spread in proportion to the historical demand shape, so its cold-weather peak is understated. This matters most for B. A temperature-driven profile is needed.
 
+### NI constraint: sources and calibration (issue #3)
+- Official NI wind figures (EirGrid/SONI Annual Renewable Constraint and Curtailment Report 2025, Table 3): constraint 5.8% (2022), 14.1% (2023), 26.4% (2024), 18.6% (2025); curtailment 3.6, 4.5, 3.2, 3.3%. The model's NI dispatch-down input reproduces these constraint figures to 0.1 point.
+- Stated causes: 2024 report (p. 14): summer transmission outages, a large CCGT made must-run in a high-wind region after coal closure and delayed replacement units, higher GB imports even at high island wind, and constraints during testing of two new OCGTs. 2025 report (pp. 4, 15): the fall was primarily driven by a long unplanned outage of a large conventional generator; NI transmission outages in 2025 were normal.
+- NI installed wind in `Input - capacity, constraints, curtailment.xlsx` corrected to the report's Table 1 (2019 1,276.3; 2020 1,276.3; 2021 1,350.6; 2022 1,350.6; 2023 1,364.3; 2024 1,387.0; 2025 1,392.5 MW). It previously showed 1,392.5 MW from 2020. Effect on results is under 0.2 points.
+- New setting `NI_CALIBRATION_YEARS` (default `[2025]`). Pooling 2024 and 2025 raises modelled NI constraint from 21.7% to 25.5% in 2026 and from 27.0% to 31.0% in 2050 (A); all-island constraint rises by 0.5–0.9 points. The 2026 data so far (19.7% for January to September) sit closer to the 2025 calibration, so the default is unchanged. Revisit if the conventional unit returns to service.
+
 ### Weather years and dunkelflaute (`analysis/weather_dunkelflaute.py`)
 - The model's weather years are 2019–2025 plus 2026 (January–September actual, October–December filled from the 2025 shape). 2014–2018 demand and wind are in the input file but unused, because installed capacity is only given from 2019.
 - Against DNV's Ireland wind index (annual mean wind speed, % of the 1996-to-prior-year average): 2021 93.6, 2022 97.9, 2023 99.2, 2024 99.1, 2025 97.2. DNV gives no Irish figure for 2019 or 2020 (UK: 98.4 and 106.1). The set is slightly less windy than the long-term average, with 2021 among the three calmest years since 1996. This is about 26–29 years of reference, not a 30-year normal.
