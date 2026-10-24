@@ -3636,11 +3636,10 @@ def _run_demonstrator():
         ax1.text(1.015, 0.03, stats_text1, transform=ax1.transAxes, va='bottom', fontsize=9.5, fontweight='bold', color='#000080',
                  bbox=dict(boxstyle='round,pad=0.6', facecolor='#F0F4FF', edgecolor='#B0C4DE', alpha=0.9))
         transition_text1 = (
-            "Overall Transition Progress\n"
+            "Overall Transition Progress 2030\n"
             f"Required Firm Capacity: {firm_capacity_2030_gw:.2f} GW\n"
             f"Fossil-Fuel: {fossil_pct_2030:.1f}%\n"
-            f"Renewables: {overall_renewables_pct_2030:.1f}%\n"
-            f"Imported Electricity: {imported_pct_2030:.1f}% (fixed)"
+            f"Renewables: {overall_renewables_pct_2030:.1f}%"
         )
         ax1.text(1.015, 0.50, transition_text1, transform=ax1.transAxes, va='bottom', fontsize=9.0,
                  fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
@@ -3714,11 +3713,10 @@ def _run_demonstrator():
         ax2.text(1.015, 0.03, stats_text2, transform=ax2.transAxes, va='bottom', fontsize=8.7, fontweight='bold', color='#000080',
                  bbox=dict(boxstyle='round,pad=0.6', facecolor='#F0F4FF', edgecolor='#B0C4DE', alpha=0.9))
         transition_text2 = (
-            "Overall Transition Progress\n"
+            "Overall Transition Progress 2050\n"
             f"Required Firm Capacity: {firm_thermal_required_gw:.2f} GW\n"
             f"Fossil-Fuel: {fossil_pct_2050:.1f}%\n"
-            f"Renewables: {overall_renewables_pct_2050:.1f}%\n"
-            f"Imported Electricity: {imported_pct_2050:.1f}% (fixed)"
+            f"Renewables: {overall_renewables_pct_2050:.1f}%"
         )
         ax2.text(1.015, 0.49, transition_text2, transform=ax2.transAxes, va='bottom', fontsize=9.0,
                  fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
@@ -4079,11 +4077,10 @@ def _run_demonstrator():
         ax6.text(1.015, 0.03, stats_text6, transform=ax6.transAxes, va='bottom', fontsize=8.7, fontweight='bold', color='#000080',
                  bbox=dict(boxstyle='round,pad=0.6', facecolor='#F0F4FF', edgecolor='#B0C4DE', alpha=0.9))
         transition_text6 = (
-            "Overall Transition Progress\n"
+            "Overall Transition Progress 2050\n"
             f"Required Firm Capacity: {firm_thermal_required_gw:.2f} GW\n"
             f"Fossil-Fuel: {fossil_pct_2050:.1f}%\n"
-            f"Renewables: {overall_renewables_pct_2050:.1f}%\n"
-            f"Imported Electricity: {imported_pct_2050:.1f}% (fixed)"
+            f"Renewables: {overall_renewables_pct_2050:.1f}%"
         )
         ax6.text(1.015, 0.49, transition_text6, transform=ax6.transAxes, va='bottom', fontsize=9.0,
                  fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
@@ -4193,6 +4190,48 @@ def _run_demonstrator():
                 ax.text(1.01, 0.03, note, transform=ax.transAxes, va='bottom', fontsize=8.8,
                         color='#000080', bbox=dict(boxstyle='round,pad=0.5', facecolor='#F0F4FF',
                                                    edgecolor='#B0C4DE', alpha=0.92))
+
+                # Transition box for the sensitivity chart. Imported Electricity is shown
+                # only for the explicit 50% import case, using that case's actual annual
+                # import energy. It is deliberately omitted from all other red boxes.
+                end = x[x['year'] == year_end]
+                base_transition = sim_df.loc[sim_df['Year'] == year_end].iloc[0]
+                sensitivity_import_twh = end['interconnector_import_gwh'].sum() / 1000.0
+                sensitivity_renewable_electricity_twh = (
+                    end['usable_wind_gwh'].sum() + end['usable_solar_gwh'].sum()
+                    + end['storage_discharge_gwh'].sum()) / 1000.0
+                sensitivity_demand_twh = end['demand_gwh'].sum() / 1000.0
+                sensitivity_fossil_electricity_twh = max(
+                    0.0, sensitivity_demand_twh - sensitivity_renewable_electricity_twh
+                    - sensitivity_import_twh)
+                sensitivity_fossil_twh = (
+                    float(base_transition['Remaining_Heat_Fossil_TWh'])
+                    + float(base_transition['Remaining_Transport_Fossil_TWh'])
+                    + sensitivity_fossil_electricity_twh)
+                sensitivity_renewable_twh = (
+                    float(base_transition['Heat_Ambient_Renewable_TWh'])
+                    + sensitivity_renewable_electricity_twh)
+                sensitivity_gfec_twh = (sensitivity_fossil_twh + sensitivity_renewable_twh
+                                        + sensitivity_import_twh)
+                if sensitivity_gfec_twh > 0.0:
+                    sensitivity_fossil_pct = 100.0 * sensitivity_fossil_twh / sensitivity_gfec_twh
+                    sensitivity_renewable_pct = 100.0 * sensitivity_renewable_twh / sensitivity_gfec_twh
+                    sensitivity_import_pct = 100.0 * sensitivity_import_twh / sensitivity_gfec_twh
+                else:
+                    sensitivity_fossil_pct = sensitivity_renewable_pct = sensitivity_import_pct = 0.0
+
+                transition_lines = [
+                    f"Overall Transition Progress {year_end}",
+                    f"Required Firm Capacity: {float(base_transition['Firm_Capacity_Required_GW']):.2f} GW",
+                    f"Fossil-Fuel: {sensitivity_fossil_pct:.1f}%",
+                    f"Renewables: {sensitivity_renewable_pct:.1f}%",
+                ]
+                if mode == '50pct_Import':
+                    transition_lines.append(f"Imported Electricity: {sensitivity_import_pct:.1f}%")
+                transition_text = "\n".join(transition_lines)
+                ax.text(1.01, 0.49, transition_text, transform=ax.transAxes, va='bottom', fontsize=9.0,
+                        fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
+                        facecolor='#FFF2F2', edgecolor='#8B0000', alpha=0.95))
                 plt.tight_layout()
                 filename = scenario_plot_filename(f"{stem}_interconnector_{mode}.png")
                 plt.savefig(os.path.join(out_dir, filename), bbox_inches='tight', pad_inches=0.08)
