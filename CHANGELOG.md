@@ -51,6 +51,17 @@ Changes to `Gamma.py` and `Data_inputs/scenariosXLSX.xlsx` for the open GitHub i
 - Rows with the same project name in different ECP batches (Ballyroe Solar 120 MW in ECP-2.2 and 7 MW in ECP-GSS1) are kept as separate increments and no longer warned about. Only rows repeating name, technology and batch are flagged.
 - Battery MWh: the published list masks project MWh; EirGrid's sheet total (15,217.75 MWh for 5,632 MW, 2.70 h) is used. Dispatch uses the fleet total, so the per-project split only affects zonal reporting. The check is now a PASS with this note.
 
+### Decisions of 24 October 2026 (Niall)
+- Interconnector export availability 0.5, import availability 0.7 and capacity credit 0.5 agreed (no longer placeholders). Reserve = largest single infeed.
+- E, F, G: battery energy added after the pipeline = power x 2.70 h (EirGrid ECP pipeline average), was 0 MWh.
+- Heat and transport totals in the code aligned with the Demand Calculator: 70.6 and 76 TWh (were 62 and 75.5). COP stays 3.5; background growth stays 0.8 TWh/yr.
+- Headroom growth stays compound %/yr. North–South interconnector added to A, C, D, E, F, G as `reinforcement_steps = NI:2032:950` (300 → 1,250 MW, October 2031, SEAI NEP26).
+- NI calibration stays on 2025.
+- Weather years extended to 2014–2026: installed wind 2014–2018 added from the EirGrid/SONI 2025 report Table 1. Year-end capacity is used to normalise availability, so CF is biased low in fast-growth years (2016–2018).
+- NI must-run units 3 → 2 in all scenarios: SONI made this standing policy in April 2026 (*Northern Ireland Dispatch Down Action Plan*, August 2026, p. 13: minimum conventional generation 389 → 323 MW).
+- Dispatch fix: wind/solar serving native demand is capped at that demand (charging was counted as demand in the SNSP/MUON ceiling, which let direct supply exceed demand; C's supply check showed a 1.04% gap).
+- Added heat-pump demand can follow hourly temperature: `TEMPERATURE_FILE` (Met Éireann hourly, Dublin Airport 532). Weight = heating degree hours (base 15.5 °C) / COP(T), COP falling 2.5% per K below its heating-weighted mean. Without the file, or for weather years it doesn't cover, the demand shape is used.
+
 ### Firm capacity follow-up (Cian's review)
 - The 2026 firm requirement was too low (6.44 GW). The 2026 row used 2026 weather only, so it missed the 8–9 January 2025 cold, calm peak (7.49 GW demand with 0.2–0.8 GW of wind). Firm peaks are now taken over every weather year for every year, including 2026.
 - The interconnector credit no longer reduces the headline figure. `Firm_Capacity_Required_GW` = peak residual + largest single infeed. The figure net of the de-rated credit is `Firm_Capacity_Net_of_IC_Credit_GW`.

@@ -212,11 +212,19 @@ DEFAULT_HEAT_DEMAND_GROWTH_TWH_PER_YEAR = 0.15
 DEFAULT_TRANSPORT_DEMAND_GROWTH_TWH_PER_YEAR = 0.25
 # Overall-transition calibration: 2025 physical baseline, 2026 percentage anchor.
 TRANSITION_BASE_YEAR = 2026
-ALL_ISLAND_HEAT_DEMAND_TWH = 62.0
-ALL_ISLAND_TRANSPORT_DEMAND_TWH = 75.5
+ALL_ISLAND_HEAT_DEMAND_TWH = 70.6      # IE 50.6 + NI 20 (Demand Calculator sheet)
+ALL_ISLAND_TRANSPORT_DEMAND_TWH = 76.0  # IE 55 + NI 21 (Demand Calculator sheet)
 BASE_HEAT_ELECTRICITY_TWH_2025 = 1.0
 BASE_TRANSPORT_ELECTRICITY_TWH_2025 = 1.5
 HEAT_COP = 3.5
+# Heat-pump demand profile (Cian's review). Heat-pump electricity added after 2026 follows hourly
+# heating degree hours from Met Eireann hourly temperature (Dublin Airport, station 532) instead of
+# today's demand shape: weight = max(0, base - T) / COP(T), with COP falling HEAT_COP_SLOPE per K
+# below its annual heating-weighted mean (clipped). Weather years without temperature data use
+# the demand shape. Assumptions: one station stands for the island; no diurnal heating schedule.
+TEMPERATURE_FILE = "met_eireann_hly532_dublin_airport.csv"
+HEATING_BASE_TEMP_C = 15.5
+HEAT_COP_SLOPE_PER_K = 0.025
 TRANSPORT_DISPLACEMENT_FACTOR = 3.0
 INTERVAL_HOURS = 0.25
 
@@ -232,14 +240,14 @@ MARES_INTERCONNECTOR_CAPACITY_MW = 750.0
 DEFAULT_CELTIC_ENERGISED_YEAR = 2028.25
 DEFAULT_MARES_ENERGISED_YEAR = 2031.0
 # Share of interconnector capacity usable for exports when Ireland has surplus wind/solar.
-# GB wind is correlated with Irish wind, so exports are not always possible. PLACEHOLDER
-# assumption, to be agreed by the group.
+# GB wind is correlated with Irish wind, so exports are not always possible. Agreed by the
+# group 24 Oct 2026 (assumption, not measured).
 DEFAULT_IC_EXPORT_AVAILABILITY = 0.5
 # Share of interconnector capacity usable for imports when Ireland has a firm residual.
-# PLACEHOLDER assumption, to be agreed by the group.
+# Agreed by the group 24 Oct 2026 (assumption, not measured).
 DEFAULT_IC_IMPORT_AVAILABILITY = 0.7
 # Capacity credit (de-rating) given to interconnectors at the system peak when sizing firm
-# capacity. PLACEHOLDER assumption, to be agreed by the group.
+# capacity. Agreed by the group 24 Oct 2026 (assumption, not measured).
 DEFAULT_IC_CAPACITY_CREDIT = 0.5
 # Firm capacity reserve: largest single infeed. The largest unit or link is taken as this
 # minimum, or the largest interconnector in service if larger (Celtic 700, Mares 750 MW).
@@ -821,6 +829,30 @@ def _run_demonstrator():
         merged = pd.merge(df_15m, df_cap_hist[['year', 'Total_MW']], on='year', how='inner')
         merged['installed_gw'] = merged['Total_MW'] / 1000.0
         merged['spec_avail_mw_per_gw'] = merged['sem_wind_availability'] / merged['installed_gw']
+
+        # Hourly temperature for the heat-pump profile (optional input)
+        merged['heat_weight'] = np.nan
+        temp_path = input_path(TEMPERATURE_FILE)
+        if os.path.exists(temp_path):
+            with open(temp_path, encoding='utf-8', errors='replace') as fh:
+                lines = fh.readlines()
+            hdr = next(i for i, ln in enumerate(lines) if ln.lower().startswith('date,'))
+            met = pd.read_csv(temp_path, skiprows=hdr, low_memory=False)
+            met.columns = [c.strip().lower() for c in met.columns]
+            met['t'] = pd.to_datetime(met['date'], format='%d-%b-%Y %H:%M', errors='coerce')
+            met['temp'] = pd.to_numeric(met['temp'], errors='coerce')
+            met = met.dropna(subset=['t', 'temp']).drop_duplicates('t').set_index('t')['temp']
+            key = (pd.to_datetime(merged['datetime_utc'], format='%d/%m/%Y %H:%M', errors='coerce')
+                   if 'datetime_utc' in merged else merged['parsed_date']).dt.floor('h')
+            temp = key.map(met)
+            hdh = np.maximum(0.0, HEATING_BASE_TEMP_C - temp)
+            t_mean = float(np.nansum(temp * hdh) / np.nansum(hdh)) if np.nansum(hdh) > 0 else 6.0
+            cop_rel = np.clip(1.0 + HEAT_COP_SLOPE_PER_K * (temp - t_mean), 0.5, 1.5)
+            merged['heat_weight'] = hdh / cop_rel
+            covered = sorted(merged.loc[merged['heat_weight'].notna(), 'year'].unique())
+            print(f">> Heat-pump profile: hourly temperature '{TEMPERATURE_FILE}' covers weather years {covered}")
+        else:
+            print(f">> Heat-pump profile: '{TEMPERATURE_FILE}' not found; added heat demand follows the demand shape")
 
         # Solar profile per GW installed. Historical solar capacity isn't in the inputs, so each
         # year's solar series is normalised to its own mean (its shape) and scaled by
@@ -1511,7 +1543,9 @@ def _run_demonstrator():
             limit_mw, snsp_ceiling_mw, muon_ceiling_mw = operational_limit(
                 native_demand_mw, charge_mw
             )
-            direct_vre_mw = min(vre_after_charge_mw, limit_mw)
+            # Wind/solar serving native demand can't exceed that demand. The SNSP/MUON ceiling
+            # counts charging as demand, but the charging MW are already supplied from VRE.
+            direct_vre_mw = min(vre_after_charge_mw, limit_mw, native_demand_mw)
             curtailment_mw = max(
                 0.0, vre_after_charge_mw - direct_vre_mw
             )
@@ -2528,6 +2562,32 @@ def _run_demonstrator():
                             offshore_own=offshore_own, export_cap_mw=ic_dispatch_caps(year)[0],
                             import_cap_mw=ic_dispatch_caps(year)[1])
 
+        heat_base_2026_twh = BASE_HEAT_ELECTRICITY_TWH_2025 + DEFAULT_HEAT_DEMAND_GROWTH_TWH_PER_YEAR
+
+        def heat_extra_twh(year):
+            """Heat-pump electricity added since 2026 (TWh/yr), capped at full electrification."""
+            full = ALL_ISLAND_HEAT_DEMAND_TWH / HEAT_COP
+            now = min(full, heat_base_2026_twh + max(0, year - start_year) * heat_demand_growth_rate)
+            return max(0.0, now - heat_base_2026_twh)
+
+        def scenario_demand_mw(df_wy, demand_twh, year):
+            """15-minute demand for a weather year: today's demand shape scaled to the demand less the
+            added heat-pump load, plus that load shaped by heating degree hours / COP(T) where
+            temperature is available (otherwise by the demand shape)."""
+            shape = df_wy['sem_demand'].to_numpy(dtype=float)
+            n = len(shape)
+            if n == 0 or shape.mean() <= 0:
+                return shape
+            extra = min(heat_extra_twh(year), 0.9 * demand_twh)
+            base = shape * ((demand_twh - extra) * 1e6 / 8760.0) / shape.mean()
+            w = df_wy['heat_weight'].to_numpy(dtype=float) if 'heat_weight' in df_wy else np.full(n, np.nan)
+            if extra > 0 and np.isfinite(w).all() and w.sum() > 0:
+                sample_mwh = extra * 1e6 * (n * INTERVAL_HOURS / 8760.0)
+                heat = w / w.sum() * sample_mwh / INTERVAL_HOURS
+            else:
+                heat = shape * (extra * 1e6 / 8760.0) / shape.mean()
+            return base + heat
+
         def run_weather_years(year, demand_twh, snsp_fraction, solar_gw,
                               storage_power_mw, storage_energy_mwh, weather_years=None):
             """Run selected SEM weather years and average their annual results (V9 zonal)."""
@@ -2547,8 +2607,7 @@ def _run_demonstrator():
                 wind_on, wind_off, _, _, _ = wind_avail_for_year(df_wy['spec_avail_mw_per_gw'].values, year)
                 avail = wind_on + wind_off
                 solar = df_wy['solar_avail_mw_per_gw'].values * solar_gw
-                hist_avg = df_wy['sem_demand'].mean()
-                demand = df_wy['sem_demand'].values * ((demand_twh * 1e6 / 8760.0) / hist_avg if hist_avg > 0 else 1.0)
+                demand = scenario_demand_mw(df_wy, demand_twh, year)
 
                 d = dispatch(wind_on, wind_off, solar, demand, headrooms, zone_caps, offshore_caps, solar_caps,
                              snsp_fraction,
@@ -3299,7 +3358,7 @@ def _run_demonstrator():
                 wind_on_y, wind_off_y, _, _, _ = wind_avail_for_year(df_wy['spec_avail_mw_per_gw'].values, y)
                 avail_year = wind_on_y + wind_off_y
                 solar_year = df_wy['solar_avail_mw_per_gw'].values * solar_y
-                demand_year = df_wy['sem_demand'].values * scale
+                demand_year = scenario_demand_mw(df_wy, dem_y, y)
                 sp_y, se_y = storage_for_year(y)
                 d_year = dispatch_year(df_wy['spec_avail_mw_per_gw'].values, solar_year, demand_year, y,
                                        snsp_y, sp_y, se_y)
@@ -3495,7 +3554,7 @@ def _run_demonstrator():
             expected_avg_mw = (demand_twh * 1000000.0) / 8760.0
             actual_hist_avg_mw = df_wy['sem_demand'].mean()
             mw_scale = expected_avg_mw / actual_hist_avg_mw if actual_hist_avg_mw > 0 else 1.0
-            df_wy['scaled_demand_mw'] = df_wy['sem_demand'] * mw_scale
+            df_wy['scaled_demand_mw'] = scenario_demand_mw(df_wy, demand_twh, target_year)
 
             # Dispatch the complete chronological weather year first, then extract the
             # requested day. This gives the chart the true SOC carried in from the
@@ -3717,8 +3776,7 @@ def _run_demonstrator():
         solar_cycle = df_cycle['solar_avail_mw_per_gw'].to_numpy() * solar_cycle_gw
         expected_cycle_mw = (demand_cycle_twh * 1000000.0) / 8760.0
         hist_cycle_mw = df_cycle['sem_demand'].mean()
-        demand_cycle = df_cycle['sem_demand'].to_numpy() * (
-            expected_cycle_mw / hist_cycle_mw if hist_cycle_mw > 0 else 1.0)
+        demand_cycle = scenario_demand_mw(df_cycle, demand_cycle_twh, target_cycle_year)
         storage_power_cycle, storage_energy_cycle = storage_for_year(target_cycle_year)
         dd_cycle = dispatch_year(df_cycle['spec_avail_mw_per_gw'].to_numpy(), solar_cycle, demand_cycle,
                                  target_cycle_year, snsp_limit_fraction,
