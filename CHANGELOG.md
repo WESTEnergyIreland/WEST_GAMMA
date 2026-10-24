@@ -51,6 +51,18 @@ Changes to `Gamma.py` and `Data_inputs/scenariosXLSX.xlsx` for the open GitHub i
 - Rows with the same project name in different ECP batches (Ballyroe Solar 120 MW in ECP-2.2 and 7 MW in ECP-GSS1) are kept as separate increments and no longer warned about. Only rows repeating name, technology and batch are flagged.
 - Battery MWh: the published list masks project MWh; EirGrid's sheet total (15,217.75 MWh for 5,632 MW, 2.70 h) is used. Dispatch uses the fleet total, so the per-project split only affects zonal reporting. The check is now a PASS with this note.
 
+### Firm capacity follow-up (Cian's review)
+- The 2026 firm requirement was too low (6.44 GW). The 2026 row used 2026 weather only, so it missed the 8–9 January 2025 cold, calm peak (7.49 GW demand with 0.2–0.8 GW of wind). Firm peaks are now taken over every weather year for every year, including 2026.
+- The interconnector credit no longer reduces the headline figure. `Firm_Capacity_Required_GW` = peak residual + largest single infeed. The figure net of the de-rated credit is `Firm_Capacity_Net_of_IC_Credit_GW`.
+- 2026 is now 8.02 GW (7.52 peak residual + 0.50 reserve), matching Cian's estimate of about 8 GW. 2050: A 12.97, B 18.74, C 12.69 GW.
+- No load factor enters the new figure; the 0.68 load factor is only in the legacy comparison column.
+- Not yet fixed: added heat-pump and EV demand is spread in proportion to the historical demand shape, so its cold-weather peak is understated. This matters most for B. A temperature-driven profile is needed.
+
+### Weather years and dunkelflaute (`analysis/weather_dunkelflaute.py`)
+- The model's weather years are 2019–2025 plus 2026 (January–September actual, October–December filled from the 2025 shape). 2014–2018 demand and wind are in the input file but unused, because installed capacity is only given from 2019.
+- Against DNV's Ireland wind index (annual mean wind speed, % of the 1996-to-prior-year average): 2021 93.6, 2022 97.9, 2023 99.2, 2024 99.1, 2025 97.2. DNV gives no Irish figure for 2019 or 2020 (UK: 98.4 and 106.1). The set is slightly less windy than the long-term average, with 2021 among the three calmest years since 1996. This is about 26–29 years of reference, not a 30-year normal.
+- Outputs in `analysis/output/`: wind CF by year, dunkelflaute events (2+ days with daily mean wind CF below 10%) with the storage each would need, and storage for an all-renewable islanded system.
+
 ### Effect on 2050 results (run of 24 October 2026)
 | Scenario | Constraint % (before → after) | Total dispatch-down % | Imports TWh | Firm capacity GW (legacy) | Renewables % (RED, consumed) |
 |---|---|---|---|---|---|

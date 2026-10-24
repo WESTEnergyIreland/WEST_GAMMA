@@ -215,7 +215,7 @@ INTERVAL_HOURS = 0.25
 
 # Interconnectors to GB/France (issues #5, #8, #9). These enter the dispatch: exports absorb
 # surplus wind and solar, imports cover part of the residual before firm plant, and the
-# capacity credit reduces the firm capacity required. Capacities and dates follow SEAI NEP26
+# capacity credit gives a second firm figure net of interconnectors (Firm_Capacity_Net_of_IC_Credit_GW). Capacities and dates follow SEAI NEP26
 # (Appendix 1): existing EWIC + Moyle + Greenlink 1,450 MW; Celtic 700 MW from April 2028;
 # MaresConnect 750 MW from January 2031. Energisation years may be decimal (2028.25 = April);
 # a year is credited with the fraction of it the link is in service. Scenario columns override.
@@ -2724,6 +2724,14 @@ def _run_demonstrator():
             run = run_weather_years(yr, yr_demand, snsp_yr, solar_cap,
                                     storage_power_mw, storage_energy_mwh,
                                     weather_years=selected_weather_years)
+            # Firm capacity is an adequacy measure, so its peak is taken over every weather year,
+            # including 2026 (whose energy results use 2026 weather only). Without this the 2026
+            # requirement missed the January 2025 cold, calm peak (7.49 GW demand, ~0.2-0.8 GW wind).
+            if yr == start_year and len(complete_weather_years) > 1:
+                peak_run = run_weather_years(yr, yr_demand, snsp_yr, solar_cap,
+                                             storage_power_mw, storage_energy_mwh,
+                                             weather_years=complete_weather_years)
+                run['firm_peak_mw'], run['firm_p_mw'] = peak_run['firm_peak_mw'], peak_run['firm_p_mw']
 
             avg_raw_curt_pct = other_yr + run['curt_pct']
             sim_constraint_pct = run['cons_pct']
@@ -2765,18 +2773,20 @@ def _run_demonstrator():
                 yr_demand,
                 max(0.0, run['firm_generation_twh'] + other_renewable_loss_twh)
             )
-            # Firm capacity (issue #8): the largest 15-minute firm residual over the weather years
+            # Firm capacity (issue #8): the largest 15-minute firm residual over all weather years
             # (demand less domestic wind, solar and battery discharge, before imports), plus the
-            # largest single infeed as reserve, less the interconnector capacity credit.
-            # The previous formula, 0.9 x average demand / 0.68, is kept for comparison.
+            # largest single infeed as reserve. Interconnectors get no credit in the headline
+            # figure (GB is often short at the same time); the figure net of a de-rated
+            # interconnector credit is reported separately. The previous formula,
+            # 0.9 x average demand / 0.68, is kept for comparison.
             firm_capacity_legacy_gw = (yr_demand / (8760.0 * 0.68 / 1000.0)) * 0.90
             firm_capacity_peak_residual_gw = run['firm_peak_mw'] / 1000.0
             firm_capacity_p_residual_gw = run['firm_p_mw'] / 1000.0
             ic_cap_yr_mw = ic_capacity_for_year(yr)
             reserve_mw = largest_infeed_mw(yr)
             ic_credit_mw = ic_capacity_credit * ic_cap_yr_mw
-            firm_capacity_required_gw = max(
-                0.0, (run['firm_peak_mw'] + reserve_mw - ic_credit_mw) / 1000.0)
+            firm_capacity_required_gw = (run['firm_peak_mw'] + reserve_mw) / 1000.0
+            firm_capacity_net_ic_gw = max(0.0, firm_capacity_required_gw - ic_credit_mw / 1000.0)
             row_out = {
                 'Year': yr,
                 'Wind_Cap_GW': round(cap, 2),
@@ -2801,6 +2811,7 @@ def _run_demonstrator():
                 'Firm_Reserve_Largest_Infeed_GW': round(reserve_mw / 1000.0, 3),
                 'Interconnector_Capacity_GW': round(ic_cap_yr_mw / 1000.0, 3),
                 'Interconnector_Capacity_Credit_GW': round(ic_credit_mw / 1000.0, 3),
+                'Firm_Capacity_Net_of_IC_Credit_GW': round(firm_capacity_net_ic_gw, 3),
                 'Firm_Capacity_Legacy_Formula_GW': round(firm_capacity_legacy_gw, 3),
                 'Import_TWh': round(run['import_twh'], 3),
                 'Export_TWh': round(run['export_twh'], 3),
@@ -3134,6 +3145,7 @@ def _run_demonstrator():
             'Interconnector_Capacity_GW', 'Firm_Capacity_Required_GW',
             'Firm_Capacity_Peak_Residual_GW', f'Firm_Residual_P{FIRM_RESIDUAL_PERCENTILE:g}_GW',
             'Firm_Reserve_Largest_Infeed_GW', 'Interconnector_Capacity_Credit_GW',
+            'Firm_Capacity_Net_of_IC_Credit_GW',
             'Firm_Capacity_Legacy_Formula_GW',
             'Overall_Fossil_Fuel_Pct', 'Overall_Renewables_Pct',
             'Overall_Imported_Electricity_Pct', 'RES_Overall_RED_%', 'RES_E_RED_%'
@@ -3209,8 +3221,8 @@ def _run_demonstrator():
         print(f">> Wind + Solar Share of Demand (2050): {row_2050['Wind+Solar_%']:.2f}%")
         print(f">> Required Firm Capacity (2050) : {firm_thermal_required_gw:.2f} GW "
               f"(peak residual {row_2050['Firm_Capacity_Peak_Residual_GW']:.2f} + largest infeed "
-              f"{row_2050['Firm_Reserve_Largest_Infeed_GW']:.2f} - interconnector credit "
-              f"{row_2050['Interconnector_Capacity_Credit_GW']:.2f} GW; legacy formula "
+              f"{row_2050['Firm_Reserve_Largest_Infeed_GW']:.2f} GW; net of interconnector credit "
+              f"{row_2050['Firm_Capacity_Net_of_IC_Credit_GW']:.2f} GW; legacy formula "
               f"{row_2050['Firm_Capacity_Legacy_Formula_GW']:.2f} GW)")
         print(f">> Firm residual P{FIRM_RESIDUAL_PERCENTILE:g} (2050)      : "
               f"{row_2050[f'Firm_Residual_P{FIRM_RESIDUAL_PERCENTILE:g}_GW']:.2f} GW")
@@ -4062,6 +4074,7 @@ def _run_demonstrator():
                     'Firm_Capacity_Required_GW': r['Firm_Capacity_Required_GW'],
                     'Firm_Capacity_Peak_Residual_GW': r['Firm_Capacity_Peak_Residual_GW'],
                     'Firm_Capacity_Legacy_Formula_GW': r['Firm_Capacity_Legacy_Formula_GW'],
+                    'Firm_Capacity_Net_of_IC_Credit_GW': r['Firm_Capacity_Net_of_IC_Credit_GW'],
                     'Interconnector_Capacity_GW': r['Interconnector_Capacity_GW'],
                     'Import_TWh': r['Import_TWh'], 'Export_TWh': r['Export_TWh'],
                     'Export_Wind_Solar_TWh': r['Export_Wind_Solar_TWh'],

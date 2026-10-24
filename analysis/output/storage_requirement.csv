@@ -1,0 +1,9 @@
+mix,weather_years,oversize,storage_TWh,storage_days_of_avg_demand,wind_GW_equivalent
+wind only,2019-2025,1.0,23.69,221.2,15.6
+wind only,2019-2025,1.25,5.46,51.0,19.5
+wind only,2019-2025,1.5,3.7,34.6,23.5
+wind only,2019-2025,2.0,1.8,16.9,31.3
+wind 80% / solar 20%,2022-2025,1.0,14.21,132.7,12.8
+wind 80% / solar 20%,2022-2025,1.25,4.26,39.7,16.1
+wind 80% / solar 20%,2022-2025,1.5,2.38,22.2,19.3
+wind 80% / solar 20%,2022-2025,2.0,0.64,6.0,25.7
