@@ -252,6 +252,8 @@ DEFAULT_IC_CAPACITY_CREDIT = 0.5
 # Firm capacity reserve: largest single infeed. The largest unit or link is taken as this
 # minimum, or the largest interconnector in service if larger (Celtic 700, Mares 750 MW).
 LARGEST_UNIT_INFEED_MW = 500.0
+# Operating reserve added on top of the largest single infeed (agreed 24 Oct 2026).
+OPERATING_RESERVE_MW = 500.0
 # Percentile of the 15-minute firm residual reported beside the maximum (issue #8)
 FIRM_RESIDUAL_PERCENTILE = 99.9
 # Conservative aggregate BESS throughput safeguard. The original V8 allows
@@ -2849,7 +2851,7 @@ def _run_demonstrator():
             firm_capacity_peak_residual_gw = run['firm_peak_mw'] / 1000.0
             firm_capacity_p_residual_gw = run['firm_p_mw'] / 1000.0
             ic_cap_yr_mw = ic_capacity_for_year(yr)
-            reserve_mw = largest_infeed_mw(yr)
+            reserve_mw = largest_infeed_mw(yr) + OPERATING_RESERVE_MW
             ic_credit_mw = ic_capacity_credit * ic_cap_yr_mw
             firm_capacity_required_gw = (run['firm_peak_mw'] + reserve_mw) / 1000.0
             firm_capacity_net_ic_gw = max(0.0, firm_capacity_required_gw - ic_credit_mw / 1000.0)
@@ -2874,7 +2876,7 @@ def _run_demonstrator():
                 'Firm_Capacity_Required_GW': round(firm_capacity_required_gw, 3),
                 'Firm_Capacity_Peak_Residual_GW': round(firm_capacity_peak_residual_gw, 3),
                 f'Firm_Residual_P{FIRM_RESIDUAL_PERCENTILE:g}_GW': round(firm_capacity_p_residual_gw, 3),
-                'Firm_Reserve_Largest_Infeed_GW': round(reserve_mw / 1000.0, 3),
+                'Firm_Reserve_GW': round(reserve_mw / 1000.0, 3),
                 'Interconnector_Capacity_GW': round(ic_cap_yr_mw / 1000.0, 3),
                 'Interconnector_Capacity_Credit_GW': round(ic_credit_mw / 1000.0, 3),
                 'Firm_Capacity_Net_of_IC_Credit_GW': round(firm_capacity_net_ic_gw, 3),
@@ -3210,7 +3212,7 @@ def _run_demonstrator():
             'Export_Wind_Solar_TWh', 'Export_Synchronous_TWh', 'Net_Import_TWh',
             'Interconnector_Capacity_GW', 'Firm_Capacity_Required_GW',
             'Firm_Capacity_Peak_Residual_GW', f'Firm_Residual_P{FIRM_RESIDUAL_PERCENTILE:g}_GW',
-            'Firm_Reserve_Largest_Infeed_GW', 'Interconnector_Capacity_Credit_GW',
+            'Firm_Reserve_GW', 'Interconnector_Capacity_Credit_GW',
             'Firm_Capacity_Net_of_IC_Credit_GW',
             'Firm_Capacity_Legacy_Formula_GW',
             'Overall_Fossil_Fuel_Pct', 'Overall_Renewables_Pct',
@@ -3286,8 +3288,8 @@ def _run_demonstrator():
         print(f">> Installed Solar Capacity (2050)    : {row_2050['Solar_Cap_GW']:.2f} GW")
         print(f">> Wind + Solar Share of Demand (2050): {row_2050['Wind+Solar_%']:.2f}%")
         print(f">> Required Firm Capacity (2050) : {firm_thermal_required_gw:.2f} GW "
-              f"(peak residual {row_2050['Firm_Capacity_Peak_Residual_GW']:.2f} + largest infeed "
-              f"{row_2050['Firm_Reserve_Largest_Infeed_GW']:.2f} GW; net of interconnector credit "
+              f"(peak residual {row_2050['Firm_Capacity_Peak_Residual_GW']:.2f} + reserve (largest infeed + operating) "
+              f"{row_2050['Firm_Reserve_GW']:.2f} GW; net of interconnector credit "
               f"{row_2050['Firm_Capacity_Net_of_IC_Credit_GW']:.2f} GW; legacy formula "
               f"{row_2050['Firm_Capacity_Legacy_Formula_GW']:.2f} GW)")
         print(f">> Firm residual P{FIRM_RESIDUAL_PERCENTILE:g} (2050)      : "
