@@ -52,7 +52,7 @@ Changes to `Gamma.py` and `Data_inputs/scenariosXLSX.xlsx` for the open GitHub i
 - Battery MWh: the published list masks project MWh; EirGrid's sheet total (15,217.75 MWh for 5,632 MW, 2.70 h) is used. Dispatch uses the fleet total, so the per-project split only affects zonal reporting. The check is now a PASS with this note.
 
 ### Decisions of 24 October 2026 (Niall)
-- Interconnector export availability 0.5, import availability 0.7 and capacity credit 0.5 agreed (no longer placeholders). Reserve = largest single infeed.
+- Interconnector export availability 0.5, import availability 0.7 and capacity credit 0.5 agreed (no longer placeholders). Reserve = largest single infeed + 0.5 GW operating reserve (`OPERATING_RESERVE_MW`); column renamed `Firm_Reserve_GW`.
 - E, F, G: battery energy added after the pipeline = power x 2.70 h (EirGrid ECP pipeline average), was 0 MWh.
 - Heat and transport totals in the code aligned with the Demand Calculator: 70.6 and 76 TWh (were 62 and 75.5). COP stays 3.5; background growth stays 0.8 TWh/yr.
 - Headroom growth stays compound %/yr. North–South interconnector added to A, C, D, E, F, G as `reinforcement_steps = NI:2032:950` (300 → 1,250 MW, October 2031, SEAI NEP26).
@@ -61,6 +61,12 @@ Changes to `Gamma.py` and `Data_inputs/scenariosXLSX.xlsx` for the open GitHub i
 - NI must-run units 3 → 2 in all scenarios: SONI made this standing policy in April 2026 (*Northern Ireland Dispatch Down Action Plan*, August 2026, p. 13: minimum conventional generation 389 → 323 MW).
 - Dispatch fix: wind/solar serving native demand is capped at that demand (charging was counted as demand in the SNSP/MUON ceiling, which let direct supply exceed demand; C's supply check showed a 1.04% gap).
 - Added heat-pump demand can follow hourly temperature: `TEMPERATURE_FILE` (Met Éireann hourly, Dublin Airport 532). Weight = heating degree hours (base 15.5 °C) / COP(T), COP falling 2.5% per K below its heating-weighted mean. Without the file, or for weather years it doesn't cover, the demand shape is used.
+
+### Temperature-shaped heat-pump demand (24 October 2026)
+- Met Éireann hourly data for Dublin Airport (station 532), 2014–2025, added as `Data_inputs/met_eireann_hly532_dublin_airport.csv`. Added heat-pump demand now follows heating degree hours (base 15.5 °C) divided by a temperature-dependent COP, instead of today's demand shape. Weather year 2026 is not covered and keeps the demand shape.
+- Peak firm residual in 2050: A 12.26 → 13.01 GW, B 18.05 → 22.38 GW, C 11.98 → 12.63 GW; D unchanged (no added heat demand). Firm generation rises by 0.2–2.0 TWh.
+- Firm capacity required in 2050 (peak residual + largest infeed + 0.5 GW operating reserve): A 14.3, B 23.6, C 13.9, D 11.8, E 14.2, F 14.1, G 14.3 GW.
+- The operating-reserve commit missed the PR #11 merge and is included here.
 
 ### Firm capacity follow-up (Cian's review)
 - The 2026 firm requirement was too low (6.44 GW). The 2026 row used 2026 weather only, so it missed the 8–9 January 2025 cold, calm peak (7.49 GW demand with 0.2–0.8 GW of wind). Firm peaks are now taken over every weather year for every year, including 2026.
