@@ -12,6 +12,58 @@ The full methodology is in `Technical_Briefing_README.docx`.
    - With `scenarios.csv` present, every scenario runs without prompts and results go to `scenario_outputs/` and `scenario_summary.csv`.
    - Without it, the script prompts for one scenario and writes `forecast_results.csv` and the charts to the script folder.
 
+## Gamma V13 issue fixes: 24 October 2026
+
+Changes to `Gamma.py` and `Data_inputs/scenariosXLSX.xlsx` for the open GitHub issues. Decisions on approach were agreed by Niall on 24 October; values marked PLACEHOLDER still need group agreement.
+
+### Scenario inputs
+- **Demand split.** Every scenario now has its own background / heat / transport growth (TWh/yr). Background 0.8 in all (Demand Calculator, IE background increase). Heat 0.15 and transport 0.25 in A, C, E, F, G. B 0.84 heat and 1.06 transport: full electrification of 70.6 TWh heat (COP 3.5) and 76 TWh transport (factor 3) over 24 years. D (No Transition) 0 and 0. The calculated `total_demand_growth_twh_per_year` column is now recognised and no longer warned about.
+- **New columns:** `offshore_connection`, `ic_export_availability`, `ic_import_availability`, `ic_capacity_credit`, `celtic_energised_year`, `mares_energised_year`, `ie_reinforcement_mw_per_year`, `ni_reinforcement_mw_per_year`, `reinforcement_steps`. The Field Guide describes every column, including the storage rows that were blank.
+- New check warns when a scenario adds battery MW with (almost) no MWh. E, F and G add 625.8 MW/yr after the pipeline completes with 0 MWh/yr; this was not changed and needs a decision.
+
+### #1 Offshore wind connection
+- Offshore wind has its own connection by default (`offshore_connection = own`): headroom equal to installed offshore capacity, no use of onshore zonal headroom. Its output still counts in SNSP and min-gen curtailment. `shared` restores the earlier treatment as a sensitivity. With `own`, OFFSHORE appears as its own zone in the summary files.
+
+### #2 Reinforcement as a build path
+- New `headroom_curve = reinforcement_mw`: 2026 headroom plus a fixed MW each year (`ie_/ni_reinforcement_mw_per_year`; IE split over zones by 2026 headroom).
+- New `reinforcement_steps` column for named one-off steps on any built-in curve, e.g. `NI:2032:950` for the North–South interconnector (300 to 1,250 MW, October 2031, SEAI NEP26). No scenario uses either yet.
+
+### #3 Regional uncertainty bands
+- IE and NI each get a band from their own rolling hindcast error (IE ±11.2%, NI ±29.7%). The all-island band adds the regional bands applied to each region's constraint. New columns `Con_IE_Low/High_%`, `Con_NI_Low/High_%`.
+- Investigation of the NI step change: NI available wind energy and the 99th-percentile hourly availability (a fleet-size proxy) rose only about 4% from 2022 to 2025, while NI constraint went from 5.8% (2022) to 14.1% (2023, from July) and 26.4% (2024). The change is not explained by new connections. Outage or transfer-limit data from SONI is needed to confirm the cause.
+
+### #5, #8, #9 Interconnectors, firm capacity and imports
+- Interconnectors to GB/France now enter the 15-minute dispatch. Capacity: existing 1,450 MW, Celtic 700 MW from April 2028, MaresConnect 750 MW from January 2031 (SEAI NEP26), credited for the fraction of the year in service.
+- Exports absorb surplus wind/solar after battery charging, up to capacity x `ic_export_availability`. Exports enter the SNSP denominator and the min-gen ceiling, so the extra wind/solar dispatched is L(D+C+E) − L(D+C). When SNSP binds, (1 − SNSP) of the export flow is synchronous generation; it is reported (`Export_Synchronous_TWh`) and counted as firm generation.
+- Imports cover the residual after wind, solar and batteries, before firm plant, up to capacity x `ic_import_availability` and within SNSP/min-gen headroom (HVDC imports are non-synchronous).
+- Firm capacity required = peak 15-minute firm residual (before imports) + largest single infeed (500 MW, or 700/750 MW once Celtic/Mares are in service) − `ic_capacity_credit` x interconnector capacity. The old 0.9 x average demand / 0.68 is kept as `Firm_Capacity_Legacy_Formula_GW`; the 99.9th percentile residual is reported beside the maximum.
+- Daily Dunkelflaute chart uses the new firm capacity figure.
+- Interconnectors run from 2026, including the 2026 calibration run. Exports now absorb some curtailment the model previously attributed to SNSP, so the fixed 'other' curtailment residual rises from 3.4% to 4.6%.
+- PLACEHOLDERS: export availability 0.5, import availability 0.7, capacity credit 0.5. As a check, the model gives 6.8 TWh of all-island imports in 2026; CSO reports IE net imports of 6.1 TWh in 2025 (17% of supply). Not a like-for-like comparison (IE only, net).
+
+### #7 Energy accounting (point 3)
+- Transition shares follow the EU RED gross final consumption basis: electricity counted as consumed, heat and transport fuel as final fuel, heat-pump ambient heat as renewable. The fixed 4% import share is gone; imports come from the dispatch. The three shares (fossil, renewable, imported) sum to 100% of energy consumed in Ireland.
+- `RES_Overall_RED_%` and `RES_E_RED_%` follow RED Article 7 (domestic renewable generation including exports, over gross final consumption) for comparison with SEAI.
+- Scope limits: firm generation is treated as fossil; bioenergy, hydro, waste and biofuels are not modelled, so the renewable share is a lower bound against SEAI's published 17.1% RES (2025, IE only).
+- New check: renewable + firm + imports must equal electricity demand each year.
+
+### #10 Input data
+- Rows with the same project name in different ECP batches (Ballyroe Solar 120 MW in ECP-2.2 and 7 MW in ECP-GSS1) are kept as separate increments and no longer warned about. Only rows repeating name, technology and batch are flagged.
+- Battery MWh: the published list masks project MWh; EirGrid's sheet total (15,217.75 MWh for 5,632 MW, 2.70 h) is used. Dispatch uses the fleet total, so the per-project split only affects zonal reporting. The check is now a PASS with this note.
+
+### Effect on 2050 results (run of 24 October 2026)
+| Scenario | Constraint % (before → after) | Total dispatch-down % | Imports TWh | Firm capacity GW (legacy) | Renewables % (RED, consumed) |
+|---|---|---|---|---|---|
+| A.CurrentTrajectory | 32.8 → 16.1 | 36.3 → 21.9 | 10.3 | 11.5 (10.8) | 28.5 |
+| B.AcceleratedNOCONSTRAINT | 0.0 → 0.0 | 48.8 → 40.2 | 3.4 | 17.3 (16.2) | 83.4 |
+| C.EirgridAIRAA | 56.0 → 30.6 | 60.8 → 48.1 | 3.5 | 11.2 (10.8) | 35.8 |
+| D.ActualBuild_NoTransition | 32.8 → 16.1 | 36.5 → 26.4 | 7.1 | 9.8 (9.3) | 20.2 |
+| E.ECP_Normal | 38.6 → 25.4 | 42.6 → 32.4 | 9.2 | 11.5 (10.8) | 28.0 |
+| F.ECP_Fast | 42.6 → 30.3 | 47.5 → 38.5 | 8.0 | 11.4 (10.8) | 29.1 |
+| G.ECP_Slow | 34.0 → 23.5 | 37.7 → 29.0 | 10.9 | 11.6 (10.8) | 26.2 |
+
+Most of the constraint fall is offshore leaving SE headroom (#1). In B, exports cut min-gen curtailment from 45.3% to 35.6% in 2050 (#5). Demand inputs also changed (background 0.5 → 0.8 TWh/yr; B, D re-split), so the columns are not a pure method comparison.
+
 ## V2: 10 October 2026
 
 ### Added
