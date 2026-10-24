@@ -154,7 +154,7 @@ Annual constraint: for each weather year, both regions’ constraint is summed o
 How capacity drives constraint: growth pushes the whole availability distribution up, so more intervals cross the limit and those already above it go deeper. With IE’s 2021–2025 fit and a fixed limit, constraint rises from 5.1% of available wind at today’s capacity to 11.5% at 1.5×, 17.9% at 2× and 29.1% at 3×. When capacity and the limit grow at the same rate, the percentage levels off.
 Assumptions:
 	New capacity in each region sits behind the same mix of bottlenecks as today (σ is held at its fitted value).
-	The per-GW availability profile is the current all-island fleet’s and is the same in both regions. Offshore wind, with different timing, is not represented separately.
+	The per-GW availability profile is the current all-island fleet’s and is the same in both regions. Offshore wind uses the same profile but has its own connection (headroom = installed offshore capacity) unless offshore_connection = shared.
 	Demand does not affect constraint in the model, only SNSP curtailment.
 	Each reinforcement rate is one number standing in for a region’s whole grid development plan, so results should be shown as a range of scenarios. The effective limit has moved about 10–20% a year historically, which is the source of the forecast band.
 Why the power law was replaced: the original formula, 10.0% × (Scaling Ratio)^0.75, used one fixed elasticity that was never fitted, ignored weather and the network, and blended grid response with an assumed amount of reinforcement. The fitted model separates them and is tested against data (Section 4).
@@ -205,10 +205,14 @@ SNSP Limit (Input)	Prompt / scenarios.csv (75% default)	Operational SNSP ceiling
 IE / NI Reinforcement (Inputs)	Prompt / scenarios.csv (0%/yr default)	Annual % change in each region’s effective limit; negative = continued tightening. One-off steps via REINFORCEMENT_STEPS_MW.
 Constraint Model	E[max(0, x − L·η)] per region	IE and NI fitted separately on 2024–2026 hourly records (IE L ≈ 4,275 MW, σ ≈ 0.89; NI printed at run time). Energy matched exactly; no calibration factor.
 New-Build IE Share (Input)	Prompt / scenarios.csv (≈81% default)	Share of capacity added after 2026 that connects in IE; the rest connects in NI.
-Forecast Band	± typical one-year-ahead hindcast error	GridCon_Low_% / GridCon_High_%; about ±15% on the IE data.
+Forecast Band	± typical one-year-ahead hindcast error, by region	Con_IE/NI_Low/High_% from each region's own error (IE about ±11%, NI about ±30%); GridCon_Low/High_% adds the two regional bands.
 Scenario File	scenarios.csv (optional)	Runs every row without prompts; outputs per scenario plus scenario_summary.csv.
 Weather Loop	2019–2025	Rolling 6-year historical weather dataset preserving 15-minute seasonality. 
 
 
  
 
+
+
+Changes of 24 October 2026 (GitHub issues #1, #2, #3, #5, #7, #8, #9, #10)
+Offshore wind has its own connection and no longer shares SE onshore headroom. Interconnectors to GB/France are in the 15-minute dispatch: exports absorb surplus wind and solar within SNSP and min-gen limits, and imports cover part of the residual before firm plant. Firm capacity is the peak firm residual plus the largest single infeed less an interconnector capacity credit. Transition shares use the EU RED gross final consumption basis, with imports taken from the dispatch instead of a fixed 4%. Constraint bands are regional. Headroom can grow by MW per year or by named steps. Each scenario has its own background, heat and transport demand growth. Details, placeholder values still to agree, and checks are in CHANGELOG.md.

@@ -146,6 +146,13 @@ ALL_GEN_ZONES = HEADROOM_ZONES + ['OFFSHORE']
 # to HEADROOM_CALIBRATION_YEAR; the other years are the out-of-sample zonal backcast.
 ZONAL_HISTORY_FILE = "zonal_dd_percentages.csv"
 HEADROOM_CALIBRATION_YEAR = 2025
+# NI headroom calibration years (issue #3). NI constraint depends heavily on how the conventional
+# fleet is run: EirGrid/SONI attribute the 2024 peak (26.4%) partly to a must-run CCGT, summer
+# transmission outages, OCGT testing and higher GB imports, and the 2025 fall (18.6%) primarily
+# to a long unplanned outage of a large conventional generator (Annual Renewable Constraint and
+# Curtailment Reports 2024 and 2025). Neither year alone is a clean base. Several years are
+# pooled (energy-weighted). Default: 2025 only, as before; [2024, 2025] is the sensitivity.
+NI_CALIBRATION_YEARS = [2025]
 ZONAL_BACKCAST_CSV = "zonal_backcast_results.csv"   # written inside SCENARIO_OUTPUT_DIR
 HEADROOM_FILE = "zonal_headroom_by_year.csv"   # default curve (TID/TDPNI/TYTFS path)
 HEADROOM_CURVES_SUBDIR = "headroom_curves"     # named curves: Data_inputs/headroom_curves/<name>.csv
@@ -160,9 +167,23 @@ HEADROOM_CURVE_ALIASES = {
 }
 DEFAULT_HEADROOM_CURVE = "TID"              # scenario default: published TID path
 REINFORCEMENT_CURVE = "reinforcement_pct"   # V8-style: 2026 headroom x (1 + ie/ni_reinforcement_pct)^years
+# Issue #2: build-path alternative. 2026 headroom + years x ie/ni_reinforcement_mw_per_year (the IE
+# MW/yr is split over the IE zones in proportion to their 2026 headroom).
+REINFORCEMENT_MW_CURVE = "reinforcement_mw"
+# Named one-off steps, applied on top of any built-in headroom curve. Scenario column
+# reinforcement_steps, e.g. "NI:2032:950" or "NI:2032:950; SE:2030:400" (zone:first year:+MW).
+# Example: North-South interconnector, 300 to 1,250 MW from October 2031 (SEAI NEP26), as +950 MW
+# of NI headroom from 2032. Not applied unless a scenario names it.
 OFFSHORE_PROFILE_SCALE = 1.0                # offshore avail = IE wind shape × capacity × this
 DEFAULT_HEADROOM_SCALE = 1.0                # scenario sensitivity multiplier
 DEFAULT_BUILD_RATE_WIND_OFFSHORE = 0.0      # GW/yr; scenarios may override
+# Offshore connection (issue #1). 'own': offshore wind connects through dedicated 220/400 kV
+# export infrastructure and has its own headroom, OFFSHORE_CONNECTION_RATIO x installed
+# offshore capacity, so it does not compete for onshore zonal headroom. 'shared': the earlier
+# treatment, offshore shares SE headroom (rates) or its ECP area's zone (pipeline); kept as a
+# sensitivity. Offshore output still counts towards SNSP and min-gen curtailment either way.
+DEFAULT_OFFSHORE_CONNECTION = 'own'
+OFFSHORE_CONNECTION_RATIO = 1.0
 DD_FILES = {'IE': "system_dd_hourly_ie.csv", 'NI': "system_dd_hourly_ni.csv"}
 CONSTRAINT_COLUMN = "constraint_mwh"      # or "trans_constr_mwh" for transmission constraints only
 CONSTRAINT_FIT_YEARS = {'IE': [2024, 2025, 2026], 'NI': [2024, 2025, 2026]}
@@ -191,25 +212,48 @@ DEFAULT_HEAT_DEMAND_GROWTH_TWH_PER_YEAR = 0.15
 DEFAULT_TRANSPORT_DEMAND_GROWTH_TWH_PER_YEAR = 0.25
 # Overall-transition calibration: 2025 physical baseline, 2026 percentage anchor.
 TRANSITION_BASE_YEAR = 2026
-ALL_ISLAND_HEAT_DEMAND_TWH = 62.0
-ALL_ISLAND_TRANSPORT_DEMAND_TWH = 75.5
+ALL_ISLAND_HEAT_DEMAND_TWH = 70.6      # IE 50.6 + NI 20 (Demand Calculator sheet)
+ALL_ISLAND_TRANSPORT_DEMAND_TWH = 76.0  # IE 55 + NI 21 (Demand Calculator sheet)
 BASE_HEAT_ELECTRICITY_TWH_2025 = 1.0
 BASE_TRANSPORT_ELECTRICITY_TWH_2025 = 1.5
 HEAT_COP = 3.5
+# Heat-pump demand profile (Cian's review). Heat-pump electricity added after 2026 follows hourly
+# heating degree hours from Met Eireann hourly temperature (Dublin Airport, station 532) instead of
+# today's demand shape: weight = max(0, base - T) / COP(T), with COP falling HEAT_COP_SLOPE per K
+# below its annual heating-weighted mean (clipped). Weather years without temperature data use
+# the demand shape. Assumptions: one station stands for the island; no diurnal heating schedule.
+TEMPERATURE_FILE = "met_eireann_hly532_dublin_airport.csv"
+HEATING_BASE_TEMP_C = 15.5
+HEAT_COP_SLOPE_PER_K = 0.025
 TRANSPORT_DISPLACEMENT_FACTOR = 3.0
-BASE_FOSSIL_FUEL_PCT_2026 = 80.0
-BASE_RENEWABLES_PCT_2026 = 16.0
 INTERVAL_HOURS = 0.25
 
-# Chart-only interconnector sensitivities. These constants never enter the normal
-# Gamma dispatch or standard outputs. Only the first two scenarios receive the
-# extra long-run overview charts. The two energisation years are read from the
-# scenario workbook when present, with these fallbacks.
+# Interconnectors to GB/France (issues #5, #8, #9). These enter the dispatch: exports absorb
+# surplus wind and solar, imports cover part of the residual before firm plant, and the
+# capacity credit gives a second firm figure net of interconnectors (Firm_Capacity_Net_of_IC_Credit_GW). Capacities and dates follow SEAI NEP26
+# (Appendix 1): existing EWIC + Moyle + Greenlink 1,450 MW; Celtic 700 MW from April 2028;
+# MaresConnect 750 MW from January 2031. Energisation years may be decimal (2028.25 = April);
+# a year is credited with the fraction of it the link is in service. Scenario columns override.
 EXISTING_INTERCONNECTOR_CAPACITY_MW = 1450.0
 CELTIC_INTERCONNECTOR_CAPACITY_MW = 700.0
 MARES_INTERCONNECTOR_CAPACITY_MW = 750.0
-DEFAULT_CELTIC_ENERGISED_YEAR = 2029
-DEFAULT_MARES_ENERGISED_YEAR = 2032
+DEFAULT_CELTIC_ENERGISED_YEAR = 2028.25
+DEFAULT_MARES_ENERGISED_YEAR = 2031.0
+# Share of interconnector capacity usable for exports when Ireland has surplus wind/solar.
+# GB wind is correlated with Irish wind, so exports are not always possible. Agreed by the
+# group 24 Oct 2026 (assumption, not measured).
+DEFAULT_IC_EXPORT_AVAILABILITY = 0.5
+# Share of interconnector capacity usable for imports when Ireland has a firm residual.
+# Agreed by the group 24 Oct 2026 (assumption, not measured).
+DEFAULT_IC_IMPORT_AVAILABILITY = 0.7
+# Capacity credit (de-rating) given to interconnectors at the system peak when sizing firm
+# capacity. Agreed by the group 24 Oct 2026 (assumption, not measured).
+DEFAULT_IC_CAPACITY_CREDIT = 0.5
+# Firm capacity reserve: largest single infeed. The largest unit or link is taken as this
+# minimum, or the largest interconnector in service if larger (Celtic 700, Mares 750 MW).
+LARGEST_UNIT_INFEED_MW = 500.0
+# Percentile of the 15-minute firm residual reported beside the maximum (issue #8)
+FIRM_RESIDUAL_PERCENTILE = 99.9
 # Conservative aggregate BESS throughput safeguard. The original V8 allows
 # geographically separate batteries to charge and discharge in the same interval,
 # consistent with a multi-node interpretation. To prevent implausibly repeated
@@ -472,6 +516,47 @@ def is_reinforcement_curve(name):
     return re.sub(r'[^a-z0-9]', '', str(name).lower()) == re.sub(r'[^a-z0-9]', '', REINFORCEMENT_CURVE)
 
 
+def is_reinforcement_mw_curve(name):
+    return re.sub(r'[^a-z0-9]', '', str(name).lower()) == re.sub(r'[^a-z0-9]', '', REINFORCEMENT_MW_CURVE)
+
+
+def reinforcement_mw_headroom_table(base, ie_mw_per_year, ni_mw_per_year, last_year=2050):
+    """(year, zone) -> headroom: 2026 headroom plus a fixed MW added each year (issue #2).
+    IE MW/yr is split over the IE zones in proportion to their 2026 headroom."""
+    ie_base = sum(base[z] for z in IE_ZONES) or 1.0
+    table = {}
+    for z in HEADROOM_ZONES:
+        add = ni_mw_per_year if z == 'NI' else ie_mw_per_year * base[z] / ie_base
+        for y in range(2026, last_year + 1):
+            table[(y, z)] = max(1.0, base[z] + add * (y - 2026))
+    return table
+
+
+def parse_reinforcement_steps(text):
+    """'NI:2032:950; SE:2030:400' -> [('NI', 2032, 950.0), ('SE', 2030, 400.0)]."""
+    steps = []
+    if text is None or str(text).strip().lower() in ('', 'nan', 'none'):
+        return steps
+    for part in re.split(r'[;,]', str(text)):
+        part = part.strip()
+        if not part:
+            continue
+        bits = [b.strip() for b in part.split(':')]
+        if len(bits) != 3 or bits[0].upper() not in HEADROOM_ZONES:
+            raise ValueError(f"reinforcement step '{part}' should be zone:year:MW with zone in {HEADROOM_ZONES}")
+        steps.append((bits[0].upper(), int(float(bits[1])), float(bits[2])))
+    return steps
+
+
+def apply_reinforcement_steps(table, steps):
+    out = dict(table)
+    for zone, first_year, mw in steps:
+        for (y, z) in table:
+            if z == zone and y >= first_year:
+                out[(y, z)] = max(1.0, out[(y, z)] + mw)
+    return out
+
+
 def reinforcement_headroom_table(base, ie_pct, ni_pct, last_year=2050):
     """(year, zone) -> headroom: each zone's 2026 headroom base[zone] x (1 + r)^(year - 2026), as V8
     grew L, with r = ie_reinforcement_pct for the IE zones and ni_reinforcement_pct for NI."""
@@ -585,11 +670,13 @@ def load_generation_list(path, area_map_path):
                  f"unknown types {unknown_types}" if unknown_types else '')
     w = pd.DataFrame({'name': gen['Name'], 'area': gen['Area'], 'node': gen['Node'],
                       'tech': raw_type.map(tech_map), 'status': gen['Connection Status'],
-                      'mw': pd.to_numeric(gen[mec], errors='coerce'), 'mwh': np.nan})
+                      'mw': pd.to_numeric(gen[mec], errors='coerce'), 'mwh': np.nan,
+                      'ptype': gen.get('Processing Type', pd.Series(index=gen.index, dtype=object))})
     b_mwh = pd.to_numeric(bat['Battery Capacity (MWh)'], errors='coerce')
     b = pd.DataFrame({'name': bat['Project Name'], 'area': bat['Area'], 'node': bat['Node'],
                       'tech': 'battery', 'status': bat['Connection Status'],
-                      'mw': pd.to_numeric(bat[mec], errors='coerce'), 'mwh': b_mwh})
+                      'mw': pd.to_numeric(bat[mec], errors='coerce'), 'mwh': b_mwh,
+                      'ptype': bat.get('Processing Type', pd.Series(index=bat.index, dtype=object))})
     df = pd.concat([w, b], ignore_index=True)
     df = df[df['name'].notna()].copy()
     for c in ('name', 'area', 'node', 'status'):
@@ -606,14 +693,27 @@ def load_generation_list(path, area_map_path):
     unmapped = sorted(df.loc[df['zone'].isna(), 'area'].unique())
     record_check(stage, '', 'every ECP area maps to a zone', 'FAIL' if unmapped else 'PASS',
                  f"areas {unmapped} missing from {AREA_ZONE_MAP_FILE}" if unmapped else '')
-    dups = df[df.duplicated(['name', 'tech'], keep=False)]
-    record_check(stage, '', 'no duplicate project names', 'WARN' if len(dups) else 'PASS',
-                 f"{sorted(dups['name'].unique())} appear more than once (each row kept)" if len(dups) else '')
+    # Issue #10: a name may appear more than once when a project was processed in more than one
+    # ECP batch (e.g. Ballyroe Solar: 120 MW in ECP-2.2 and a 7 MW increment in ECP-GSS1). Those are
+    # separate capacity increments and are kept. Only rows repeating name, technology and
+    # processing batch are flagged as possible duplicates.
+    df['ptype'] = df['ptype'].astype(str).str.strip()
+    dups = df[df.duplicated(['name', 'tech', 'ptype'], keep=False)]
+    increments = df[df.duplicated(['name', 'tech'], keep=False) & ~df.index.isin(dups.index)]
+    record_check(stage, '', 'no duplicate project rows', 'WARN' if len(dups) else 'PASS',
+                 (f"{sorted(dups['name'].unique())} repeat name, technology and ECP batch (each row kept)"
+                  if len(dups) else
+                  (f"same name in different ECP batches kept as separate increments: "
+                   f"{sorted(increments['name'].unique())}" if len(increments) else '')))
     no_mwh = (df['tech'] == 'battery') & df['mwh'].isna()
     df.loc[no_mwh, 'mwh'] = df.loc[no_mwh, 'mw'] * PIPELINE_BATTERY_HOURS
-    record_check(stage, '', 'battery MWh given', 'WARN' if no_mwh.any() else 'PASS',
-                 (f"{int(no_mwh.sum())} batteries ({df.loc[no_mwh, 'mw'].sum():.0f} MW) have hidden MWh; "
-                  f"{PIPELINE_BATTERY_HOURS:.2f} h applied (sheet total)") if no_mwh.any() else '')
+    # Issue #10: project MWh are masked in the published list; EirGrid's sheet total (15,217.75 MWh
+    # for 5,632 MW) is applied as the average duration. Dispatch uses the all-island fleet total, so
+    # the per-project split affects only the zonal battery reporting, not results.
+    record_check(stage, '', 'battery MWh given', 'PASS',
+                 (f"{int(no_mwh.sum())} batteries ({df.loc[no_mwh, 'mw'].sum():.0f} MW) have masked MWh; "
+                  f"EirGrid sheet-total duration {PIPELINE_BATTERY_HOURS:.2f} h applied (fleet total exact; "
+                  f"zonal split approximate)") if no_mwh.any() else '')
     return df.reset_index(drop=True)
 
 
@@ -729,6 +829,30 @@ def _run_demonstrator():
         merged = pd.merge(df_15m, df_cap_hist[['year', 'Total_MW']], on='year', how='inner')
         merged['installed_gw'] = merged['Total_MW'] / 1000.0
         merged['spec_avail_mw_per_gw'] = merged['sem_wind_availability'] / merged['installed_gw']
+
+        # Hourly temperature for the heat-pump profile (optional input)
+        merged['heat_weight'] = np.nan
+        temp_path = input_path(TEMPERATURE_FILE)
+        if os.path.exists(temp_path):
+            with open(temp_path, encoding='utf-8', errors='replace') as fh:
+                lines = fh.readlines()
+            hdr = next(i for i, ln in enumerate(lines) if ln.lower().startswith('date,'))
+            met = pd.read_csv(temp_path, skiprows=hdr, low_memory=False)
+            met.columns = [c.strip().lower() for c in met.columns]
+            met['t'] = pd.to_datetime(met['date'], format='%d-%b-%Y %H:%M', errors='coerce')
+            met['temp'] = pd.to_numeric(met['temp'], errors='coerce')
+            met = met.dropna(subset=['t', 'temp']).drop_duplicates('t').set_index('t')['temp']
+            key = (pd.to_datetime(merged['datetime_utc'], format='%d/%m/%Y %H:%M', errors='coerce')
+                   if 'datetime_utc' in merged else merged['parsed_date']).dt.floor('h')
+            temp = key.map(met)
+            hdh = np.maximum(0.0, HEATING_BASE_TEMP_C - temp)
+            t_mean = float(np.nansum(temp * hdh) / np.nansum(hdh)) if np.nansum(hdh) > 0 else 6.0
+            cop_rel = np.clip(1.0 + HEAT_COP_SLOPE_PER_K * (temp - t_mean), 0.5, 1.5)
+            merged['heat_weight'] = hdh / cop_rel
+            covered = sorted(merged.loc[merged['heat_weight'].notna(), 'year'].unique())
+            print(f">> Heat-pump profile: hourly temperature '{TEMPERATURE_FILE}' covers weather years {covered}")
+        else:
+            print(f">> Heat-pump profile: '{TEMPERATURE_FILE}' not found; added heat demand follows the demand shape")
 
         # Solar profile per GW installed. Historical solar capacity isn't in the inputs, so each
         # year's solar series is normalised to its own mean (its shape) and scaled by
@@ -870,6 +994,7 @@ def _run_demonstrator():
                                           p_train['sigma'], p_train['calib']).sum()
             hind[(reg, y)] = (g['cons_mw'].sum(), pred, g['avail_mw'].sum(), train)
     hindcast_band = 0.0
+    hindcast_band_by_region = {r: 0.0 for r in REGIONS}
     if hind:
         hind_rows = []
         for y in sorted({y for _, y in hind}):
@@ -908,8 +1033,16 @@ def _run_demonstrator():
         if len(e_ai) == 0:
             e_ai = hind_df['Error_%'].dropna()
         hindcast_band = float(e_ai.abs().mean()) / 100.0 if len(e_ai) else 0.0
-        print(f">> Forecast constraint is reported with a ±{100 * hindcast_band:.0f}% band "
-              "(GridCon_Low_% / GridCon_High_%), the typical one-year-ahead error.")
+        # Issue #3: each region gets its own band from its own hindcast error. The all-island
+        # band is built from the IE and NI bands applied to each region's constraint, so NI's
+        # larger uncertainty is not hidden by IE.
+        for reg in REGIONS:
+            e_r = hind_df.loc[hind_df['Region'] == reg, 'Error_%'].dropna()
+            hindcast_band_by_region[reg] = float(e_r.abs().mean()) / 100.0 if len(e_r) else hindcast_band
+        print(f">> Forecast constraint bands (typical one-year-ahead error by region): "
+              + ", ".join(f"{r} ±{100 * hindcast_band_by_region[r]:.0f}%" for r in REGIONS)
+              + f"; all-island band = regional bands applied to each region's constraint "
+              f"(all-island hindcast alone gives ±{100 * hindcast_band:.0f}%).")
 
     cons_params = {}
     print()
@@ -922,8 +1055,9 @@ def _run_demonstrator():
               f"sigma = {p['sigma']:.2f} (used for zone sigma / hindcast only)")
     say("[2/5] Constraint model")
     say(f"      spread fitted on 2024-26: IE {cons_params['IE']['sigma']:.2f}, NI {cons_params['NI']['sigma']:.2f}")
-    say(f"      rolling hindcast 2022-26: all-island error +/-{100 * hindcast_band:.1f}%  "
-        f"-> forecast band on constraint (Constraint_Low/High)")
+    say(f"      rolling hindcast 2022-26: error IE +/-{100 * hindcast_band_by_region['IE']:.1f}%, "
+        f"NI +/-{100 * hindcast_band_by_region['NI']:.1f}% (all-island +/-{100 * hindcast_band:.1f}%)  "
+        f"-> regional bands on constraint (Constraint_Low/High)")
 
     # --- Zonal history: zone capacity split and checks ---
     VALIDATION.clear()
@@ -955,7 +1089,7 @@ def _run_demonstrator():
     # constraint % is matched exactly. NI: its own hourly records. Every IE zone uses the IE sigma.
     cy = HEADROOM_CALIBRATION_YEAR
     ie_cy = dd['IE'].loc[dd['IE']['year'] == cy, 'avail_mw'].values
-    ni_cy = dd['NI'][dd['NI']['year'] == cy]
+    ni_cy = dd['NI'][dd['NI']['year'].isin(NI_CALIBRATION_YEARS)]
     if not len(ie_cy) or cy not in hist_annual.columns:
         raise ValueError(f"Calibration year {cy} needs hourly IE records and a {cy} column in {ZONAL_HISTORY_FILE}.")
     headroom_base = {z: calibrate_headroom(ie_cy * zone_shares[z]['share_of_ie_onshore'], hist_annual.loc[z, cy],
@@ -964,7 +1098,7 @@ def _run_demonstrator():
     headroom_base['NI'] = calibrate_headroom(ni_cy['avail_mw'].values, ni_cy_pct, sigma_by_zone['NI'])
     default_table = rebase_headroom_table(load_zonal_headroom(input_path(HEADROOM_FILE))[0], headroom_base)
     print(f">> Zones {HEADROOM_ZONES}; 2026 headroom calibrated to each zone's recorded {cy} constraint "
-          f"('{ZONAL_HISTORY_FILE}'; NI from its hourly records):")
+          f"('{ZONAL_HISTORY_FILE}'; NI from its hourly records for {NI_CALIBRATION_YEARS}):")
     print(pd.DataFrame({'Zone_MW': {z: zone_caps_mw.get(z, np.nan) for z in IE_ZONES},
                         f'Constraint_{cy}_%': {**{z: hist_annual.loc[z, cy] for z in IE_ZONES}, 'NI': ni_cy_pct},
                         'Headroom_2026_MW': headroom_base}).round(1).to_string())
@@ -1194,7 +1328,7 @@ def _run_demonstrator():
         print(">> Warning: too few shared hours to compare the two availability series; assuming the same basis.")
 
     def zonal_constraint_mw(wind_onshore_mw, wind_offshore_mw, solar_mw, headrooms,
-                            zone_caps_gw, offshore_caps_gw, solar_caps_gw):
+                            zone_caps_gw, offshore_caps_gw, solar_caps_gw, offshore_own=False):
         """V9: expected constraint by zone; each zone's onshore wind, offshore wind and solar
         share that zone's headroom.
 
@@ -1212,7 +1346,10 @@ def _run_demonstrator():
         offshore_con = np.zeros_like(wind_on)
         for z in HEADROOM_ZONES:
             w_z = wind_on * (float(zone_caps_gw.get(z, 0.0)) / onshore_gw)
-            o_z = wind_off * (float(offshore_caps_gw.get(z, 0.0)) / offshore_gw) if offshore_gw > 0 else 0.0 * wind_off
+            if offshore_own or offshore_gw <= 0:
+                o_z = 0.0 * wind_off          # own connection: offshore takes no onshore headroom
+            else:
+                o_z = wind_off * (float(offshore_caps_gw.get(z, 0.0)) / offshore_gw)
             s_z = solar * (float(solar_caps_gw.get(z, 0.0)) / solar_gw) if solar_gw > 0 else 0.0 * solar
             x = w_z + o_z + s_z
             total = expected_constraint_mw(x, headrooms[z], sigma_by_zone[z], calib_by_zone[z])
@@ -1224,6 +1361,11 @@ def _run_demonstrator():
                 'offshore': total * (o_z / denom) / avail_basis_ratio,     # this zone's offshore wind
             }
             offshore_con += zone_out[z]['offshore']
+        if offshore_own and offshore_gw > 0:
+            # Dedicated export connection sized at OFFSHORE_CONNECTION_RATIO x installed capacity.
+            # Output above the connection rating is constrained; nothing else is.
+            connection_mw = OFFSHORE_CONNECTION_RATIO * offshore_gw * 1000.0 * avail_basis_ratio
+            offshore_con = np.maximum(0.0, wind_off - connection_mw) / avail_basis_ratio
         zone_out['OFFSHORE'] = {'wind': offshore_con, 'solar': np.zeros_like(offshore_con)}
         # IE/NI rollups (offshore attributed to IE)
         reg = {
@@ -1245,7 +1387,8 @@ def _run_demonstrator():
                  discharge_efficiency=DEFAULT_STORAGE_DISCHARGE_EFFICIENCY,
                  initial_soc_pct=DEFAULT_STORAGE_INITIAL_SOC_PCT,
                  pc_storage_hybrid=DEFAULT_PC_STORAGE_HYBRID,
-                 muon_floor_mw=DEFAULT_MUON_FLOOR_MW):
+                 muon_floor_mw=DEFAULT_MUON_FLOOR_MW,
+                 offshore_own=False, export_cap_mw=0.0, import_cap_mw=0.0):
         """Quarter-hour gamma.py dispatch with Marcel's zonal/offshore constraints and V10's aggregated BESS fleet.
 
         Order of operation:
@@ -1258,10 +1401,20 @@ def _run_demonstrator():
              first, then discharge BESS into residual demand and remaining SNSP/MUON
              headroom. There is no time-of-day discharge window.
 
-        SNSP used here (interconnector terms remain zero until modelled):
-            (dispatched wind + solar + BESS discharge)
-            -------------------------------------------------
-                    (native demand + BESS charging)
+          5. Interconnectors (issues #5, #9). export_cap_mw and import_cap_mw are the usable
+             MW this year (capacity x availability). In intervals with curtailment left after
+             charging, exports are added to demand up to export_cap_mw, only as far as needed
+             to absorb the surplus. Exports enter the SNSP denominator and the MUON ceiling, so
+             the extra wind/solar dispatched is L(D + C + E) - L(D + C). When SNSP binds, part of
+             the export flow, (1 - SNSP) x E, has to come from synchronous plant; that part is
+             returned as export_sync_mw and counted as firm generation. In deficit intervals,
+             imports cover the residual after wind, solar and BESS, up to import_cap_mw and
+             within the SNSP and MUON headroom (HVDC imports are non-synchronous).
+
+        SNSP used here (EirGrid definition):
+            (dispatched wind + solar + BESS discharge + HVDC imports)
+            ----------------------------------------------------------
+                    (native demand + BESS charging + HVDC exports)
 
         The fleet has one MW limit, one MWh state of charge and one dispatch rule.
         pc_storage_hybrid affects only access to otherwise-curtailed VRE:
@@ -1279,8 +1432,10 @@ def _run_demonstrator():
 
         reg, zone_detail = zonal_constraint_mw(
             wind_onshore, wind_offshore, solar, headrooms, zone_caps_gw,
-            offshore_caps_gw, solar_caps_gw
+            offshore_caps_gw, solar_caps_gw, offshore_own=offshore_own
         )
+        export_cap_mw = max(0.0, float(export_cap_mw))
+        import_cap_mw = max(0.0, float(import_cap_mw))
         gross_con_w = sum(reg[r]['wind'] for r in REGIONS)
         gross_con_s = sum(reg[r]['solar'] for r in REGIONS)
         gross_con = gross_con_w + gross_con_s
@@ -1313,7 +1468,8 @@ def _run_demonstrator():
         names = [
             'charge', 'discharge', 'soc', 'curt', 'direct', 'limit',
             'snspceil', 'muonceil', 'snsppct', 'potential_curt',
-            'accessible_curt', 'charge_blocked_constraint'
+            'accessible_curt', 'charge_blocked_constraint',
+            'export', 'export_vre', 'export_sync', 'imp'
         ]
         a = {name: np.zeros(n, dtype=float) for name in names}
 
@@ -1387,10 +1543,28 @@ def _run_demonstrator():
             limit_mw, snsp_ceiling_mw, muon_ceiling_mw = operational_limit(
                 native_demand_mw, charge_mw
             )
-            direct_vre_mw = min(vre_after_charge_mw, limit_mw)
+            # Wind/solar serving native demand can't exceed that demand. The SNSP/MUON ceiling
+            # counts charging as demand, but the charging MW are already supplied from VRE.
+            direct_vre_mw = min(vre_after_charge_mw, limit_mw, native_demand_mw)
             curtailment_mw = max(
                 0.0, vre_after_charge_mw - direct_vre_mw
             )
+
+            # Exports absorb what is left, only as far as needed: the export E that lifts the
+            # ceiling L(D + C + E) = min(f (D + C + E), D + C + E - MUON) to the remaining VRE.
+            export_mw = export_vre_mw = export_sync_mw = 0.0
+            if export_cap_mw > 0.0 and curtailment_mw > 1e-9 and f > 0.0:
+                needed_mw = max(vre_after_charge_mw / f,
+                                vre_after_charge_mw + muon_floor_mw) - effective_demand_mw
+                export_mw = min(export_cap_mw, max(0.0, needed_mw))
+                limit_mw, snsp_ceiling_mw, muon_ceiling_mw = operational_limit(
+                    native_demand_mw + export_mw, charge_mw
+                )
+                total_vre_mw = min(vre_after_charge_mw, limit_mw)
+                export_vre_mw = min(export_mw, max(0.0, total_vre_mw - direct_vre_mw))
+                export_sync_mw = export_mw - export_vre_mw
+                curtailment_mw = max(0.0, vre_after_charge_mw - direct_vre_mw - export_vre_mw)
+                effective_demand_mw = native_demand_mw + charge_mw + export_mw
 
             discharge_mw = 0.0
             if charge_mw <= 1e-9 and soc_mwh_now > 0.0:
@@ -1416,6 +1590,16 @@ def _run_demonstrator():
                     muon_headroom_mw,
                 )
 
+            # Imports cover the residual after wind, solar and BESS, within SNSP/MUON headroom.
+            import_mw = 0.0
+            if import_cap_mw > 0.0 and charge_mw <= 1e-9 and export_mw <= 0.0:
+                import_mw = min(
+                    import_cap_mw,
+                    max(0.0, native_demand_mw - direct_vre_mw - discharge_mw),
+                    max(0.0, f * native_demand_mw - direct_vre_mw - discharge_mw),
+                    max(0.0, native_demand_mw - muon_floor_mw - direct_vre_mw - discharge_mw),
+                )
+
             soc_mwh_now += charge_mw * INTERVAL_HOURS * charge_eff
             soc_mwh_now -= discharge_mw * INTERVAL_HOURS / discharge_eff
             soc_mwh_now = min(energy_mwh, max(0.0, soc_mwh_now))
@@ -1429,7 +1613,11 @@ def _run_demonstrator():
             a['limit'][i] = limit_mw
             a['snspceil'][i] = snsp_ceiling_mw
             a['muonceil'][i] = muon_ceiling_mw
-            snsp_numerator_mw = direct_vre_mw + discharge_mw
+            a['export'][i] = export_mw
+            a['export_vre'][i] = export_vre_mw
+            a['export_sync'][i] = export_sync_mw
+            a['imp'][i] = import_mw
+            snsp_numerator_mw = direct_vre_mw + export_vre_mw + discharge_mw + import_mw
             a['snsppct'][i] = (
                 100.0 * snsp_numerator_mw / effective_demand_mw
                 if effective_demand_mw > 0.0 else 0.0
@@ -1555,8 +1743,14 @@ def _run_demonstrator():
             'recovered_constraint_mw': recovered_constraint_mw,
             'curt_w': a['curt'] * post_wind_fraction,
             'curt_s': a['curt'] * (1.0 - post_wind_fraction),
-            'usable_w': a['direct'] * post_wind_fraction,
-            'usable_s': a['direct'] * (1.0 - post_wind_fraction),
+            # usable = wind/solar generated and dispatched, including the part exported
+            'usable_w': (a['direct'] + a['export_vre']) * post_wind_fraction,
+            'usable_s': (a['direct'] + a['export_vre']) * (1.0 - post_wind_fraction),
+            'domestic_vre_mw': a['direct'],
+            'export_mw': a['export'],
+            'export_vre_mw': a['export_vre'],
+            'export_sync_mw': a['export_sync'],
+            'import_mw': a['imp'],
             'potential_curt_mw': a['potential_curt'],
             'accessible_curtailment_mw': a['accessible_curt'],
             'charge_blocked_by_constraint_mw': a['charge_blocked_constraint'],
@@ -1612,6 +1806,11 @@ def _run_demonstrator():
             'headroom_curve': DEFAULT_HEADROOM_CURVE,  # TID → Data_inputs/zonal_headroom_by_year.csv
             'ie_reinforcement_pct': 0.0,  # ignored when headroom_curve is set
             'ni_reinforcement_pct': 0.0,
+            'ie_reinforcement_mw_per_year': 0.0, 'ni_reinforcement_mw_per_year': 0.0,
+            'reinforcement_steps': '', 'offshore_connection': DEFAULT_OFFSHORE_CONNECTION,
+            'ic_export_availability': DEFAULT_IC_EXPORT_AVAILABILITY,
+            'ic_import_availability': DEFAULT_IC_IMPORT_AVAILABILITY,
+            'ic_capacity_credit': DEFAULT_IC_CAPACITY_CREDIT,
             'capacity_source': 'rates', 'pipeline_target_year': DEFAULT_PIPELINE_TARGET_YEAR,
             'pipeline_build_pct': DEFAULT_PIPELINE_BUILD_PCT, 'defaulted': [],
         }
@@ -1645,7 +1844,12 @@ def _run_demonstrator():
                                  'transport_demand_growth_twh_per_year', 'units',
                                  'new_build_ie_pct', 'solar_build_rate_gw',
                                  'solar_new_build_ie_pct', 'capacity_source', 'pipeline_target_year',
-                                 'pipeline_build_pct', 'other_curt_pct_2050']
+                                 'pipeline_build_pct', 'other_curt_pct_2050',
+                                 'total_demand_growth_twh_per_year',      # calculated in the workbook; not read
+                                 'offshore_connection', 'celtic_energised_year', 'mares_energised_year',
+                                 'ic_export_availability', 'ic_import_availability', 'ic_capacity_credit',
+                                 'ie_reinforcement_mw_per_year', 'ni_reinforcement_mw_per_year',
+                                 'reinforcement_steps']
         lookup = {key(k): k for k in known}
         # Also accept Build_WIND_OFFSHORE / TID / HeadroomCurve style headers
         lookup[key('Build_WIND_OFFSHORE')] = 'build_rate_wind_offshore'
@@ -1697,7 +1901,13 @@ def _run_demonstrator():
                     'storage_initial_soc_pct': DEFAULT_STORAGE_INITIAL_SOC_PCT,
                     'pc_storage_hybrid': DEFAULT_PC_STORAGE_HYBRID,
                     'pipeline_build_pct': DEFAULT_PIPELINE_BUILD_PCT,
+                    'ic_export_availability': DEFAULT_IC_EXPORT_AVAILABILITY,
+                    'ic_import_availability': DEFAULT_IC_IMPORT_AVAILABILITY,
+                    'ic_capacity_credit': DEFAULT_IC_CAPACITY_CREDIT,
+                    'ie_reinforcement_mw_per_year': 0.0, 'ni_reinforcement_mw_per_year': 0.0,
                     'ie_reinforcement_pct': 0.0, 'ni_reinforcement_pct': 0.0}
+        not_flagged = ('ie_reinforcement_pct', 'ni_reinforcement_pct', 'ie_reinforcement_mw_per_year',
+                       'ni_reinforcement_mw_per_year')
         scenarios = []
         for i, row in table.iterrows():
             name = str(row.get('scenario', '')).strip()
@@ -1706,8 +1916,7 @@ def _run_demonstrator():
             if not name or name.lower() == 'nan':
                 name = f"scenario_{i + 1}"
             sc = {'scenario': re.sub(r'[^A-Za-z0-9_.-]+', '_', name)}
-            sc['defaulted'] = [k for k in defaults if is_blank(row, k)
-                               and k not in ('ie_reinforcement_pct', 'ni_reinforcement_pct')]
+            sc['defaulted'] = [k for k in defaults if is_blank(row, k) and k not in not_flagged]
             # reinforcement %/yr only matters with headroom_curve=reinforcement_pct; flagged there
             for k, default in defaults.items():
                 try:
@@ -1729,6 +1938,11 @@ def _run_demonstrator():
             if pd.isna(hc) or str(hc).strip() == '':
                 hc = DEFAULT_HEADROOM_CURVE
             sc['headroom_curve'] = str(hc).strip()
+            for text_col, text_default in (('offshore_connection', DEFAULT_OFFSHORE_CONNECTION),
+                                           ('reinforcement_steps', '')):
+                sc[text_col] = text_default if is_blank(row, text_col) else str(row.get(text_col)).strip().lower()
+            if is_blank(row, 'offshore_connection'):
+                sc['defaulted'].append('offshore_connection')
             # Capacity source: GW/yr rates (as before) or the ECP-GSS-1 pipeline by zone
             cs = DEFAULT_CAPACITY_SOURCE if is_blank(row, 'capacity_source') else str(row.get('capacity_source')).strip().lower()
             if is_blank(row, 'capacity_source'):
@@ -1769,6 +1983,9 @@ def _run_demonstrator():
         'storage_initial_soc_pct': (0, 100), 'pc_storage_hybrid': (0, 100),
         'pipeline_build_pct': (10, 400),
         'ie_reinforcement_pct': (-10, 50), 'ni_reinforcement_pct': (-10, 50),
+        'ie_reinforcement_mw_per_year': (-500, 5000), 'ni_reinforcement_mw_per_year': (-500, 5000),
+        'ic_export_availability': (0, 1), 'ic_import_availability': (0, 1), 'ic_capacity_credit': (0, 1),
+        'celtic_energised_year': (2026, 2100), 'mares_energised_year': (2026, 2100),
     }
 
     def validate_scenarios(scenarios):
@@ -1788,6 +2005,10 @@ def _run_demonstrator():
             if pd.notna(oc) and not 0 <= oc <= 20:
                 record_check(stage, name, 'inputs within allowed ranges', 'FAIL',
                              f"other_curt_pct_2050={oc:g} (allowed 0-20, blank = hold 2026 value)")
+            if sc['storage_power_build_rate_mw'] > 0 and sc['storage_energy_build_rate_mwh'] < sc['storage_power_build_rate_mw'] * 0.25:
+                record_check(stage, name, 'storage build MWh/MW at least 0.25 h', 'WARN',
+                             f"{sc['storage_power_build_rate_mw']:g} MW/yr with {sc['storage_energy_build_rate_mwh']:g} "
+                             f"MWh/yr: added batteries have (almost) no energy")
             if sc['storage_energy_2026_mwh'] < sc['storage_power_2026_mw'] * 0.25:
                 record_check(stage, name, 'storage 2026 MWh/MW at least 0.25 h', 'WARN',
                              f"{sc['storage_power_2026_mw']:g} MW / {sc['storage_energy_2026_mwh']:g} MWh")
@@ -1813,6 +2034,11 @@ def _run_demonstrator():
                                      f"{years[0]}-{years[-1]}; years outside are held at the nearest year")
                 except FileNotFoundError as e:
                     record_check(stage, name, 'headroom curve found', 'FAIL', str(e))
+                except ValueError as e:
+                    record_check(stage, name, 'reinforcement_steps readable', 'FAIL', str(e))
+            if str(sc.get('offshore_connection', DEFAULT_OFFSHORE_CONNECTION)).lower() not in ('own', 'shared'):
+                record_check(stage, name, 'offshore_connection valid', 'FAIL',
+                             f"'{sc.get('offshore_connection')}'; use own or shared")
             cs = sc['capacity_source']
             if cs not in CAPACITY_SOURCES:
                 record_check(stage, name, 'capacity_source valid', 'FAIL', f"'{cs}'; use one of {CAPACITY_SOURCES}")
@@ -1847,13 +2073,25 @@ def _run_demonstrator():
         each run, reinforcement_pct = compound %/yr on it. Any other CSV is used exactly as written."""
         name = sc.get('headroom_curve', DEFAULT_HEADROOM_CURVE) or DEFAULT_HEADROOM_CURVE
         if is_reinforcement_curve(name):
-            return (reinforcement_headroom_table(headroom_base, sc['ie_reinforcement_pct'], sc['ni_reinforcement_pct']),
-                    f"calibrated 2026 headroom x (1 + IE {sc['ie_reinforcement_pct']:g}% / NI "
-                    f"{sc['ni_reinforcement_pct']:g}%)^years")
-        path = resolve_headroom_curve(name)
-        if os.path.abspath(path) == os.path.abspath(input_path(HEADROOM_FILE)):
-            return default_table, f"{path} path, rebased on the calibrated 2026 headroom"
-        return load_zonal_headroom(path)[0], path
+            table, desc = (reinforcement_headroom_table(headroom_base, sc['ie_reinforcement_pct'], sc['ni_reinforcement_pct']),
+                           f"calibrated 2026 headroom x (1 + IE {sc['ie_reinforcement_pct']:g}% / NI "
+                           f"{sc['ni_reinforcement_pct']:g}%)^years")
+        elif is_reinforcement_mw_curve(name):
+            table, desc = (reinforcement_mw_headroom_table(headroom_base, sc['ie_reinforcement_mw_per_year'],
+                                                           sc['ni_reinforcement_mw_per_year']),
+                           f"calibrated 2026 headroom + IE {sc['ie_reinforcement_mw_per_year']:g} / NI "
+                           f"{sc['ni_reinforcement_mw_per_year']:g} MW per year")
+        else:
+            path = resolve_headroom_curve(name)
+            if os.path.abspath(path) == os.path.abspath(input_path(HEADROOM_FILE)):
+                table, desc = default_table, f"{path} path, rebased on the calibrated 2026 headroom"
+            else:
+                table, desc = load_zonal_headroom(path)[0], path
+        steps = parse_reinforcement_steps(sc.get('reinforcement_steps', ''))
+        if steps:
+            table = apply_reinforcement_steps(table, steps)
+            desc += "; steps " + ", ".join(f"{z} +{mw:g} MW from {y}" for z, y, mw in steps)
+        return table, desc
 
     def pipeline_complete_year(target_year, build_pct):
         """Year the whole pipeline is online: normal speed reaches it at target_year."""
@@ -2003,6 +2241,39 @@ def _run_demonstrator():
         headroom_table, curve_path = headroom_table_for(sc)
         headroom_years = sorted({y for y, _ in headroom_table})
         bw_off = max(0.0, float(sc.get('build_rate_wind_offshore', DEFAULT_BUILD_RATE_WIND_OFFSHORE) or 0.0))
+        offshore_own = str(sc.get('offshore_connection', DEFAULT_OFFSHORE_CONNECTION)).strip().lower() != 'shared'
+        # Zones shown in the readable summaries. With its own connection, offshore is a zone of its own.
+        summary_zones = HEADROOM_ZONES + (['OFFSHORE'] if offshore_own else [])
+        # Interconnectors (issues #5, #8, #9)
+        celtic_year = float(sc.get('celtic_energised_year', DEFAULT_CELTIC_ENERGISED_YEAR))
+        mares_year = float(sc.get('mares_energised_year', DEFAULT_MARES_ENERGISED_YEAR))
+        ic_export_availability = float(sc.get('ic_export_availability', DEFAULT_IC_EXPORT_AVAILABILITY))
+        ic_import_availability = float(sc.get('ic_import_availability', DEFAULT_IC_IMPORT_AVAILABILITY))
+        ic_capacity_credit = float(sc.get('ic_capacity_credit', DEFAULT_IC_CAPACITY_CREDIT))
+
+        def ic_links_for_year(year):
+            """{link: MW in service, averaged over the year} for interconnectors to GB/France."""
+            def in_service(energised):
+                return float(np.clip(year + 1 - energised, 0.0, 1.0))
+            return {'existing': EXISTING_INTERCONNECTOR_CAPACITY_MW,
+                    'Celtic': CELTIC_INTERCONNECTOR_CAPACITY_MW * in_service(celtic_year),
+                    'MaresConnect': MARES_INTERCONNECTOR_CAPACITY_MW * in_service(mares_year)}
+
+        def ic_capacity_for_year(year):
+            return sum(ic_links_for_year(year).values())
+
+        def largest_infeed_mw(year):
+            links = ic_links_for_year(year)
+            single = [LARGEST_UNIT_INFEED_MW]
+            single += [CELTIC_INTERCONNECTOR_CAPACITY_MW] if links['Celtic'] > 0 else []
+            single += [MARES_INTERCONNECTOR_CAPACITY_MW] if links['MaresConnect'] > 0 else []
+            return max(single)
+
+        def ic_dispatch_caps(year):
+            """Usable export and import MW. Applies from 2026, including the 2026 calibration run,
+            so the 'other' curtailment residual is derived on the same basis as the forecast."""
+            cap = ic_capacity_for_year(year)
+            return cap * ic_export_availability, cap * ic_import_availability
         new_build_ie_share = bw_ie / annual_build_rate_gw if annual_build_rate_gw > 0 else base_ie_share
         solar_build_rate_gw = bs_ie + bs_ni
         solar_new_build_ie_share = bs_ie / solar_build_rate_gw if solar_build_rate_gw > 0 else base_solar_ie_share
@@ -2040,11 +2311,11 @@ def _run_demonstrator():
                   f"(normal = all online by {target_year}): added evenly from {PIPELINE_START_YEAR}, complete "
                   f"{complete_year:.1f}, {100 * built_2050:.0f}% online by {final_year}. Once complete the GW/yr "
                   f"and storage MW/yr rates above continue, split like the pipeline. NI uses its GW/yr rate.")
-            print(f">> Offshore wind shares the headroom of its own ECP area's zone; "
+            print(f">> Offshore wind: {'own connection (headroom = installed offshore capacity)' if offshore_own else 'shares the headroom of its own ECP area zone'}; "
                   f"profile scale={OFFSHORE_PROFILE_SCALE}")
         else:
             target_year = complete_year = None
-            print(f">> Capacity source: GW/yr build rates; OFFSHORE shares SE headroom; "
+            print(f">> Capacity source: GW/yr build rates; OFFSHORE {'has its own connection' if offshore_own else 'shares SE headroom'}; "
                   f"profile scale={OFFSHORE_PROFILE_SCALE}")
         defaulted = [k for k in sc.get('defaulted', []) if k != 'description']
         print(f">> Inputs left blank (defaults used): {', '.join(defaulted) if defaulted else 'none'}")
@@ -2287,7 +2558,35 @@ def _run_demonstrator():
                             offshore_caps_for_year(year), solar_caps_for_year(year),
                             snsp_fraction, storage_power_mw, storage_energy_mwh,
                             storage_charge_efficiency, storage_discharge_efficiency,
-                            storage_initial_soc_pct, pc_storage_hybrid, muon_floor_mw=muon_floor_mw)
+                            storage_initial_soc_pct, pc_storage_hybrid, muon_floor_mw=muon_floor_mw,
+                            offshore_own=offshore_own, export_cap_mw=ic_dispatch_caps(year)[0],
+                            import_cap_mw=ic_dispatch_caps(year)[1])
+
+        heat_base_2026_twh = BASE_HEAT_ELECTRICITY_TWH_2025 + DEFAULT_HEAT_DEMAND_GROWTH_TWH_PER_YEAR
+
+        def heat_extra_twh(year):
+            """Heat-pump electricity added since 2026 (TWh/yr), capped at full electrification."""
+            full = ALL_ISLAND_HEAT_DEMAND_TWH / HEAT_COP
+            now = min(full, heat_base_2026_twh + max(0, year - start_year) * heat_demand_growth_rate)
+            return max(0.0, now - heat_base_2026_twh)
+
+        def scenario_demand_mw(df_wy, demand_twh, year):
+            """15-minute demand for a weather year: today's demand shape scaled to the demand less the
+            added heat-pump load, plus that load shaped by heating degree hours / COP(T) where
+            temperature is available (otherwise by the demand shape)."""
+            shape = df_wy['sem_demand'].to_numpy(dtype=float)
+            n = len(shape)
+            if n == 0 or shape.mean() <= 0:
+                return shape
+            extra = min(heat_extra_twh(year), 0.9 * demand_twh)
+            base = shape * ((demand_twh - extra) * 1e6 / 8760.0) / shape.mean()
+            w = df_wy['heat_weight'].to_numpy(dtype=float) if 'heat_weight' in df_wy else np.full(n, np.nan)
+            if extra > 0 and np.isfinite(w).all() and w.sum() > 0:
+                sample_mwh = extra * 1e6 * (n * INTERVAL_HOURS / 8760.0)
+                heat = w / w.sum() * sample_mwh / INTERVAL_HOURS
+            else:
+                heat = shape * (extra * 1e6 / 8760.0) / shape.mean()
+            return base + heat
 
         def run_weather_years(year, demand_twh, snsp_fraction, solar_gw,
                               storage_power_mw, storage_energy_mwh, weather_years=None):
@@ -2299,6 +2598,8 @@ def _run_demonstrator():
             offshore_caps = offshore_caps_for_year(year)
             solar_caps = solar_caps_for_year(year)
             headrooms = headroom_for_year(headroom_table, year, headroom_scale)
+            # The 2026 anchor year runs without interconnector flows, as the calibration did.
+            export_cap_mw, import_cap_mw = ic_dispatch_caps(year)
             rows = []
             selected_weather_years = complete_weather_years if weather_years is None else list(weather_years)
             for wy in selected_weather_years:
@@ -2306,14 +2607,15 @@ def _run_demonstrator():
                 wind_on, wind_off, _, _, _ = wind_avail_for_year(df_wy['spec_avail_mw_per_gw'].values, year)
                 avail = wind_on + wind_off
                 solar = df_wy['solar_avail_mw_per_gw'].values * solar_gw
-                hist_avg = df_wy['sem_demand'].mean()
-                demand = df_wy['sem_demand'].values * ((demand_twh * 1e6 / 8760.0) / hist_avg if hist_avg > 0 else 1.0)
+                demand = scenario_demand_mw(df_wy, demand_twh, year)
 
                 d = dispatch(wind_on, wind_off, solar, demand, headrooms, zone_caps, offshore_caps, solar_caps,
                              snsp_fraction,
                              storage_power_mw, storage_energy_mwh,
                              storage_charge_efficiency, storage_discharge_efficiency,
-                             storage_initial_soc_pct, pc_storage_hybrid, muon_floor_mw=muon_floor_mw)
+                             storage_initial_soc_pct, pc_storage_hybrid, muon_floor_mw=muon_floor_mw,
+                             offshore_own=offshore_own, export_cap_mw=export_cap_mw,
+                             import_cap_mw=import_cap_mw)
                 reg_w = {r: d['reg'][r]['wind'] for r in REGIONS}
                 reg_s = {r: d['reg'][r]['solar'] for r in REGIONS}
                 zone_w = {z: d['zones'][z]['wind'] for z in ALL_GEN_ZONES}
@@ -2349,15 +2651,20 @@ def _run_demonstrator():
                     # Firm generation is the chronological residual after usable wind,
                     # usable solar and battery discharge. Calculating interval by interval
                     # prevents annual renewable surplus from cancelling Dunkelflaute deficits.
-                    'firm_generation_twh': np.maximum(
+                    # Firm (synchronous) generation: residual after domestic wind/solar, BESS and
+                    # imports, plus the synchronous share of export flows when SNSP binds.
+                    'firm_generation_twh': (np.maximum(
                         0.0,
-                        demand - d['usable_w'] - d['usable_s'] - d['discharge_mw']
-                    ).sum() * to_annual_twh,
-                    # Largest single-interval firm residual (MW), before interconnector imports.
-                    'firm_peak_mw': float(np.max(np.maximum(
-                        0.0,
-                        demand - d['usable_w'] - d['usable_s'] - d['discharge_mw']
-                    ))) if len(demand) else 0.0,
+                        demand - d['domestic_vre_mw'] - d['discharge_mw'] - d['import_mw']
+                    ) + d['export_sync_mw']).sum() * to_annual_twh,
+                    # Firm residual before imports (MW): the 15-minute series is kept so the peak
+                    # and a high percentile can be taken over all weather years together.
+                    'firm_residual_series': np.maximum(
+                        0.0, demand - d['domestic_vre_mw'] - d['discharge_mw']),
+                    'import_twh': d['import_mw'].sum() * to_annual_twh,
+                    'export_twh': d['export_mw'].sum() * to_annual_twh,
+                    'export_vre_twh': d['export_vre_mw'].sum() * to_annual_twh,
+                    'export_sync_twh': d['export_sync_mw'].sum() * to_annual_twh,
                     'storage_end_soc_mwh': d['soc_mwh'][-1] if len(d['soc_mwh']) else 0.0,
                     'remaining_curt_combined_pct': 100 * (d['curt_w'].sum() + d['curt_s'].sum()) / (tot_av + tot_sv),
                     'recoverable_grid_constraint_twh': d['recoverable_grid_constraint_mw'].sum() * to_annual_twh,
@@ -2383,18 +2690,22 @@ def _run_demonstrator():
                 # rule that splits it between wind and solar), so the zones add up to the all-island total.
                 off_tot, sol_tot = sum(offshore_caps.values()), sum(solar_caps.values())
                 zav, zcon, zpost = {}, {}, {}
-                for z in HEADROOM_ZONES:
-                    w_av = wind_on * (float(zone_caps.get(z, 0.0)) / onshore_gw if onshore_gw > 0 else 0.0)
-                    if off_tot > 0:
-                        w_av = w_av + wind_off * (float(offshore_caps.get(z, 0.0)) / off_tot)
-                    s_av = solar * (float(solar_caps.get(z, 0.0)) / sol_tot) if sol_tot > 0 else 0.0 * solar
-                    w_con = d['zones'][z]['wind'] + d['zones'][z].get('offshore', 0.0)
-                    s_con = d['zones'][z]['solar']
+                for z in summary_zones:
+                    if z == 'OFFSHORE':           # own connection: offshore reported as its own zone
+                        w_av, s_av = wind_off, 0.0 * solar
+                        w_con, s_con = d['zones']['OFFSHORE']['wind'], 0.0 * solar
+                    else:
+                        w_av = wind_on * (float(zone_caps.get(z, 0.0)) / onshore_gw if onshore_gw > 0 else 0.0)
+                        if off_tot > 0 and not offshore_own:
+                            w_av = w_av + wind_off * (float(offshore_caps.get(z, 0.0)) / off_tot)
+                        s_av = solar * (float(solar_caps.get(z, 0.0)) / sol_tot) if sol_tot > 0 else 0.0 * solar
+                        w_con = d['zones'][z]['wind'] + d['zones'][z].get('offshore', 0.0)
+                        s_con = d['zones'][z]['solar']
                     zav[z], zcon[z] = (w_av, s_av), (w_con, s_con)
                     zpost[z] = (np.maximum(w_av - w_con, 0.0), np.maximum(s_av - s_con, 0.0))
-                post_w_sum = sum(zpost[z][0] for z in HEADROOM_ZONES)
-                post_s_sum = sum(zpost[z][1] for z in HEADROOM_ZONES)
-                for z in HEADROOM_ZONES:
+                post_w_sum = sum(zpost[z][0] for z in summary_zones)
+                post_s_sum = sum(zpost[z][1] for z in summary_zones)
+                for z in summary_zones:
                     w_curt = d['curt_w'] * np.divide(zpost[z][0], post_w_sum, out=np.zeros_like(post_w_sum), where=post_w_sum > 0)
                     s_curt = d['curt_s'] * np.divide(zpost[z][1], post_s_sum, out=np.zeros_like(post_s_sum), where=post_s_sum > 0)
                     for tech, i, curt in (('wind', 0, w_curt), ('solar', 1, s_curt)):
@@ -2414,9 +2725,12 @@ def _run_demonstrator():
                     row[f'all_{key}_con_twh'] = d[f'con_{tech}'].sum() * to_annual_twh
                     row[f'all_{key}_curt_twh'] = d[f'curt_{tech}'].sum() * to_annual_twh
                 rows.append(row)
+            residuals = np.concatenate([r.pop('firm_residual_series') for r in rows])
             out = pd.DataFrame(rows).mean().to_dict()
             # Peak firm residual is the worst interval over all weather years, not the average.
-            out['firm_peak_mw'] = max(r['firm_peak_mw'] for r in rows)
+            out['firm_peak_mw'] = float(residuals.max()) if len(residuals) else 0.0
+            out['firm_p_mw'] = (float(np.percentile(residuals, FIRM_RESIDUAL_PERCENTILE))
+                                if len(residuals) else 0.0)
             out['ie_share'] = ie_share
             out['solar_ie_share'] = s_ie
             out['onshore_gw'] = onshore_gw
@@ -2476,6 +2790,14 @@ def _run_demonstrator():
             run = run_weather_years(yr, yr_demand, snsp_yr, solar_cap,
                                     storage_power_mw, storage_energy_mwh,
                                     weather_years=selected_weather_years)
+            # Firm capacity is an adequacy measure, so its peak is taken over every weather year,
+            # including 2026 (whose energy results use 2026 weather only). Without this the 2026
+            # requirement missed the January 2025 cold, calm peak (7.49 GW demand, ~0.2-0.8 GW wind).
+            if yr == start_year and len(complete_weather_years) > 1:
+                peak_run = run_weather_years(yr, yr_demand, snsp_yr, solar_cap,
+                                             storage_power_mw, storage_energy_mwh,
+                                             weather_years=complete_weather_years)
+                run['firm_peak_mw'], run['firm_p_mw'] = peak_run['firm_peak_mw'], peak_run['firm_p_mw']
 
             avg_raw_curt_pct = other_yr + run['curt_pct']
             sim_constraint_pct = run['cons_pct']
@@ -2517,11 +2839,20 @@ def _run_demonstrator():
                 yr_demand,
                 max(0.0, run['firm_generation_twh'] + other_renewable_loss_twh)
             )
-            firm_capacity_required_gw = (yr_demand / (8760.0 * 0.68 / 1000.0)) * 0.90
-            # Comparison measure: largest 15-minute firm residual (demand less usable wind,
-            # solar and battery discharge) over the weather years. No reserve margin and no
-            # interconnector imports are included.
+            # Firm capacity (issue #8): the largest 15-minute firm residual over all weather years
+            # (demand less domestic wind, solar and battery discharge, before imports), plus the
+            # largest single infeed as reserve. Interconnectors get no credit in the headline
+            # figure (GB is often short at the same time); the figure net of a de-rated
+            # interconnector credit is reported separately. The previous formula,
+            # 0.9 x average demand / 0.68, is kept for comparison.
+            firm_capacity_legacy_gw = (yr_demand / (8760.0 * 0.68 / 1000.0)) * 0.90
             firm_capacity_peak_residual_gw = run['firm_peak_mw'] / 1000.0
+            firm_capacity_p_residual_gw = run['firm_p_mw'] / 1000.0
+            ic_cap_yr_mw = ic_capacity_for_year(yr)
+            reserve_mw = largest_infeed_mw(yr)
+            ic_credit_mw = ic_capacity_credit * ic_cap_yr_mw
+            firm_capacity_required_gw = (run['firm_peak_mw'] + reserve_mw) / 1000.0
+            firm_capacity_net_ic_gw = max(0.0, firm_capacity_required_gw - ic_credit_mw / 1000.0)
             row_out = {
                 'Year': yr,
                 'Wind_Cap_GW': round(cap, 2),
@@ -2542,6 +2873,17 @@ def _run_demonstrator():
                 'Fossil_Firm_Generation_TWh': round(firm_generation_twh, 3),
                 'Firm_Capacity_Required_GW': round(firm_capacity_required_gw, 3),
                 'Firm_Capacity_Peak_Residual_GW': round(firm_capacity_peak_residual_gw, 3),
+                f'Firm_Residual_P{FIRM_RESIDUAL_PERCENTILE:g}_GW': round(firm_capacity_p_residual_gw, 3),
+                'Firm_Reserve_Largest_Infeed_GW': round(reserve_mw / 1000.0, 3),
+                'Interconnector_Capacity_GW': round(ic_cap_yr_mw / 1000.0, 3),
+                'Interconnector_Capacity_Credit_GW': round(ic_credit_mw / 1000.0, 3),
+                'Firm_Capacity_Net_of_IC_Credit_GW': round(firm_capacity_net_ic_gw, 3),
+                'Firm_Capacity_Legacy_Formula_GW': round(firm_capacity_legacy_gw, 3),
+                'Import_TWh': round(run['import_twh'], 3),
+                'Export_TWh': round(run['export_twh'], 3),
+                'Export_Wind_Solar_TWh': round(run['export_vre_twh'], 3),
+                'Export_Synchronous_TWh': round(run['export_sync_twh'], 3),
+                'Net_Import_TWh': round(run['import_twh'] - run['export_twh'], 3),
                 'RawCurt_%': round(avg_raw_curt_pct, 2),
                 'GridCon_%': round(sim_constraint_pct, 2),
                 'TotLoss_%': round(total_loss_pct, 2),
@@ -2602,7 +2944,16 @@ def _run_demonstrator():
                 })
 
             # Readable summaries: all-island figures first, then each metric for every zone side by side
-            Z = HEADROOM_ZONES
+            Z = summary_zones
+            off_total_gw = sum(off_caps.values())
+
+            def wind_zone_gw(z):
+                if z == 'OFFSHORE':
+                    return off_total_gw
+                return zone_caps.get(z, 0.0) + (0.0 if offshore_own else off_caps.get(z, 0.0))
+
+            def zone_limit_mw(z):
+                return OFFSHORE_CONNECTION_RATIO * off_total_gw * 1000.0 if z == 'OFFSHORE' else headrooms_yr[z]
             pct = lambda num, den, extra=0.0: round(100.0 * num / den + extra, 2) if den > 0 else np.nan
             zw = {z: (run[f'z_wind_avail_{z}'], run[f'z_wind_con_{z}'], run[f'z_wind_curt_{z}']) for z in Z}
             zs = {z: (run[f'z_solar_avail_{z}'], run[f'z_solar_con_{z}'], run[f'z_solar_curt_{z}']) for z in Z}
@@ -2616,7 +2967,7 @@ def _run_demonstrator():
                      'Total_Loss_%': pct(w_con + w_curt, run['avail_twh'], other_yr),
                      'Share_of_Demand_%': row_out['Wind_%_SEM'],
                      'Offshore_Constraint_%': row_out['Con_OFFSHORE_%']}
-            w_row.update({f'{z}_capacity_MW': round(1000 * (zone_caps.get(z, 0.0) + off_caps.get(z, 0.0))) for z in Z})
+            w_row.update({f'{z}_capacity_MW': round(1000 * wind_zone_gw(z)) for z in Z})
             w_row.update({f'{z}_constraint_%': pct(zw[z][1], zw[z][0]) for z in Z})
             w_row.update({f'{z}_curtailment_%': pct(zw[z][2], zw[z][0], other_yr) for z in Z})
             s_av = run['solar_avail_twh']
@@ -2643,9 +2994,8 @@ def _run_demonstrator():
                      'Overall_Fossil_Fuel_Pct': row_out.get('Overall_Fossil_Fuel_Pct', np.nan),
                      'Overall_Renewables_Pct': row_out.get('Overall_Renewables_Pct', np.nan),
                      'Overall_Imported_Electricity_Pct': row_out.get('Overall_Imported_Electricity_Pct', np.nan)}
-            t_row.update({f'{z}_limit_MW': round(headrooms_yr[z]) for z in Z})
-            t_row.update({f'{z}_capacity_MW': round(1000 * (zone_caps.get(z, 0.0) + off_caps.get(z, 0.0) + sol_caps.get(z, 0.0)))
-                          for z in Z})
+            t_row.update({f'{z}_limit_MW': round(zone_limit_mw(z)) for z in Z})
+            t_row.update({f'{z}_capacity_MW': round(1000 * (wind_zone_gw(z) + sol_caps.get(z, 0.0))) for z in Z})
             t_row.update({f'{z}_constraint_%': pct(zw[z][1] + zs[z][1], zw[z][0] + zs[z][0]) for z in Z})
             t_row.update({f'{z}_curtailment_%': pct(zw[z][2] + zs[z][2], zw[z][0] + zs[z][0], other_yr) for z in Z})
             # System summary: wind + solar dispatch-down by reason, % of available wind + solar
@@ -2674,57 +3024,56 @@ def _run_demonstrator():
                 (w_curt, run['all_wind_curt_twh']), (s_curt, run['all_solar_curt_twh'])))) if av_ws > 0 else summary_gap
 
         sim_df = pd.DataFrame(sim_results)
-        # Overall Transition Progress: calculate annual shares from actual energy
-        # quantities. Firm generation is the chronological dispatch residual, so
-        # Dunkelflaute fossil use remains visible even in fully electrified scenarios.
-        # Imported Electricity remains the balancing remainder. The agreed 2026
-        # calibration assigns 4% of the three-category total to that remainder.
+        # Overall Transition Progress (issue #7): EU RED gross final energy consumption basis.
+        # Electricity is counted as consumed (TWh_e), heat and transport fuels as final fuel, and
+        # heat-pump ambient heat as renewable (RED Annex VII). The headline split is of energy
+        # consumed in Ireland, so the three shares sum to 100%:
+        #   fossil    = remaining heat fuel + remaining transport fuel + firm electricity consumed
+        #   renewable = ambient heat + domestic wind/solar consumed + BESS discharge
+        #   imported  = interconnector imports (modelled in the dispatch, issue #9)
+        # Avoided transport fuel is not energy and is not counted (fixed earlier under #7).
+        # Firm generation is treated as fossil; bioenergy, hydro, waste and biofuels are not in
+        # scope, so the renewable share is a lower bound against SEAI's published RES.
+        # RES_Overall_RED_% and RES_E_RED_% follow RED Article 7: all domestic renewable
+        # generation, including exported output, over gross final consumption.
         sim_df['Remaining_Heat_Fossil_TWh'] = sim_df['Remaining_Heat_Energy_TWh']
         sim_df['Remaining_Transport_Fossil_TWh'] = sim_df['Remaining_Transport_Energy_TWh']
+        sim_df['Fossil_Electricity_Consumed_TWh'] = (
+            sim_df['Fossil_Firm_Generation_TWh'] - sim_df['Export_Synchronous_TWh']).clip(lower=0.0)
+        sim_df['Renewable_Electricity_Consumed_TWh'] = (
+            sim_df['Wind_Gen_TWh'] + sim_df['Solar_Gen_TWh'] - sim_df['Export_Wind_Solar_TWh']
+            + sim_df['Storage_Discharge_TWh']).clip(lower=0.0)
         sim_df['Total_Fossil_Energy_TWh'] = (
             sim_df['Remaining_Heat_Fossil_TWh']
             + sim_df['Remaining_Transport_Fossil_TWh']
-            + sim_df['Fossil_Firm_Generation_TWh']
+            + sim_df['Fossil_Electricity_Consumed_TWh']
         )
-        # Transport: each TWh of EV electricity displaces TRANSPORT_DISPLACEMENT_FACTOR TWh of
-        # fossil fuel (fuel-to-wheel), which the remaining fossil transport above already
-        # reflects. Only the EV electricity itself is energy used, and it is part of
-        # electricity demand, so its wind/solar share is already in Wind_Gen_TWh +
-        # Solar_Gen_TWh and its fossil share in Fossil_Firm_Generation_TWh. Adding
-        # Transport_Energy_Electrified_TWh here would count avoided fuel as renewable energy.
         # Heat: a heat pump delivers COP x its electricity. The electricity part is already in
-        # electricity demand (wind/solar or firm generation), so only the ambient heat drawn
-        # from air or ground, (COP - 1) x electricity, is added as renewable (EU RED basis).
+        # electricity demand, so only the ambient heat, (COP - 1) x electricity, is added.
         sim_df['Heat_Ambient_Renewable_TWh'] = (
             sim_df['Heat_Energy_Electrified_TWh'] - sim_df['Heat_Electricity_Demand_TWh']
         ).clip(lower=0.0)
         sim_df['Total_Renewable_Energy_TWh'] = (
             sim_df['Heat_Ambient_Renewable_TWh']
-            + sim_df['Wind_Gen_TWh']
-            + sim_df['Solar_Gen_TWh']
+            + sim_df['Renewable_Electricity_Consumed_TWh']
         )
-        domestic_energy_twh = (
+        sim_df['Gross_Final_Energy_TWh'] = (
             sim_df['Total_Fossil_Energy_TWh']
             + sim_df['Total_Renewable_Energy_TWh']
+            + sim_df['Import_TWh']
         )
-        # If domestic fossil + renewable energy is 96% of the overall total, the
-        # balancing imported-electricity category is 4%, matching the agreed anchor.
-        overall_energy_twh = domestic_energy_twh / 0.96
-        sim_df['Overall_Fossil_Fuel_Pct'] = np.where(
-            overall_energy_twh > 0.0,
-            100.0 * sim_df['Total_Fossil_Energy_TWh'] / overall_energy_twh,
-            0.0,
-        )
-        sim_df['Overall_Renewables_Pct'] = np.where(
-            overall_energy_twh > 0.0,
-            100.0 * sim_df['Total_Renewable_Energy_TWh'] / overall_energy_twh,
-            0.0,
-        )
-        sim_df['Overall_Imported_Electricity_Pct'] = (
-            100.0
-            - sim_df['Overall_Fossil_Fuel_Pct']
-            - sim_df['Overall_Renewables_Pct']
-        ).clip(lower=0.0)
+        gfec = sim_df['Gross_Final_Energy_TWh']
+        share = lambda num: np.where(gfec > 0.0, 100.0 * num / gfec, 0.0)
+        sim_df['Overall_Fossil_Fuel_Pct'] = share(sim_df['Total_Fossil_Energy_TWh'])
+        sim_df['Overall_Renewables_Pct'] = share(sim_df['Total_Renewable_Energy_TWh'])
+        sim_df['Overall_Imported_Electricity_Pct'] = share(sim_df['Import_TWh'])
+        red_res_twh = (sim_df['Heat_Ambient_Renewable_TWh'] + sim_df['Wind_Gen_TWh']
+                       + sim_df['Solar_Gen_TWh'] + sim_df['Storage_Discharge_TWh'])
+        sim_df['RES_Overall_RED_%'] = share(red_res_twh)
+        sim_df['RES_E_RED_%'] = np.where(
+            sim_df['Dem_TWh'] > 0.0,
+            100.0 * (sim_df['Wind_Gen_TWh'] + sim_df['Solar_Gen_TWh'] + sim_df['Storage_Discharge_TWh'])
+            / sim_df['Dem_TWh'], 0.0)
         share_check = (
             sim_df['Overall_Fossil_Fuel_Pct']
             + sim_df['Overall_Renewables_Pct']
@@ -2732,21 +3081,29 @@ def _run_demonstrator():
         )
         if not np.allclose(share_check, 100.0, rtol=0.0, atol=1e-8):
             raise RuntimeError('Overall transition shares do not reconcile to 100%.')
+        # Electricity supplied = consumed renewable + firm + imports must match demand.
+        elec_gap = (sim_df['Renewable_Electricity_Consumed_TWh'] + sim_df['Fossil_Electricity_Consumed_TWh']
+                    + sim_df['Import_TWh'] - sim_df['Dem_TWh']).abs() / sim_df['Dem_TWh']
+        record_check('results', scenario_name, 'electricity supply matches demand',
+                     'PASS' if elec_gap.max() <= 0.01 else 'WARN',
+                     f"largest gap {100 * elec_gap.max():.2f}% of demand")
         for c in [
             'Remaining_Heat_Fossil_TWh', 'Remaining_Transport_Fossil_TWh',
-            'Heat_Ambient_Renewable_TWh',
+            'Fossil_Electricity_Consumed_TWh', 'Renewable_Electricity_Consumed_TWh',
+            'Heat_Ambient_Renewable_TWh', 'Gross_Final_Energy_TWh',
             'Total_Fossil_Energy_TWh', 'Total_Renewable_Energy_TWh',
             'Overall_Fossil_Fuel_Pct', 'Overall_Renewables_Pct',
-            'Overall_Imported_Electricity_Pct'
+            'Overall_Imported_Electricity_Pct', 'RES_Overall_RED_%', 'RES_E_RED_%'
         ]:
             sim_df[c] = sim_df[c].round(3 if c.endswith('_TWh') else 2)
         anchor = sim_df.loc[sim_df['Year'] == TRANSITION_BASE_YEAR]
         if not anchor.empty:
             a = anchor.iloc[0]
-            print(f">> 2026 transition check: model fossil {a['Overall_Fossil_Fuel_Pct']:.1f}% "
-                  f"(anchor {BASE_FOSSIL_FUEL_PCT_2026:.1f}%), renewables {a['Overall_Renewables_Pct']:.1f}% "
-                  f"(anchor {BASE_RENEWABLES_PCT_2026:.1f}%), imported electricity "
-                  f"{a['Overall_Imported_Electricity_Pct']:.1f}% (fixed at 4% by construction)")
+            print(f">> 2026 transition shares (RED gross final basis): fossil {a['Overall_Fossil_Fuel_Pct']:.1f}%, "
+                  f"renewables {a['Overall_Renewables_Pct']:.1f}%, imported electricity "
+                  f"{a['Overall_Imported_Electricity_Pct']:.1f}% (modelled); "
+                  f"RED overall RES {a['RES_Overall_RED_%']:.1f}% (SEAI published 17.1% for IE in 2025, "
+                  f"which includes bioenergy and biofuels not modelled here)")
         capacity_df = pd.DataFrame(capacity_rows).round(1)
         capacity_df = capacity_df[(capacity_df['Zone'] != 'UNZONED') | (capacity_df['Battery_MW'].abs() > 0)]
         validate_results(scenario_name, sim_df, capacity_df, balance_err_by_year)
@@ -2773,8 +3130,17 @@ def _run_demonstrator():
             })
         actual_df = pd.DataFrame(actual_rows)
         sim_df['Data_Type'] = 'Forecast'
-        sim_df['GridCon_Low_%'] = (sim_df['GridCon_%'] * (1 - hindcast_band)).round(2)
-        sim_df['GridCon_High_%'] = (sim_df['GridCon_%'] * (1 + hindcast_band)).round(2)
+        # Regional bands (issue #3): IE and NI each use their own hindcast error; the all-island
+        # band adds the two regional bands (GridCon_IE_pts + GridCon_NI_pts = GridCon_%).
+        b_ie, b_ni = hindcast_band_by_region['IE'], hindcast_band_by_region['NI']
+        for reg, b in (('IE', b_ie), ('NI', b_ni)):
+            sim_df[f'Con_{reg}_Low_%'] = (sim_df[f'Con_{reg}_%'] * (1 - b)).clip(lower=0).round(2)
+            sim_df[f'Con_{reg}_High_%'] = (sim_df[f'Con_{reg}_%'] * (1 + b)).round(2)
+        band_low = sim_df['GridCon_IE_pts'] * b_ie + sim_df['GridCon_NI_pts'] * b_ni
+        sim_df['GridCon_Low_%'] = (sim_df['GridCon_%'] - band_low).clip(lower=0).round(2)
+        sim_df['GridCon_High_%'] = (sim_df['GridCon_%'] + band_low).round(2)
+        band_factor_by_year = dict(zip(sim_df['Year'], np.where(sim_df['GridCon_%'] > 0,
+                                                                band_low / sim_df['GridCon_%'], 0.0)))
         sim_df.insert(0, 'Scenario', sc['scenario'])
         sim_df = pd.concat([actual_df, sim_df], ignore_index=True, sort=False).sort_values('Year').reset_index(drop=True)
 
@@ -2839,9 +3205,16 @@ def _run_demonstrator():
             'Remaining_Transport_Energy_TWh', 'Heat_Ambient_Renewable_TWh', 'Firm_Generation_TWh',
             'Fossil_Firm_Generation_TWh', 'Remaining_Heat_Fossil_TWh',
             'Remaining_Transport_Fossil_TWh', 'Total_Fossil_Energy_TWh',
-            'Total_Renewable_Energy_TWh', 'Firm_Capacity_Required_GW',
+            'Fossil_Electricity_Consumed_TWh', 'Renewable_Electricity_Consumed_TWh',
+            'Total_Renewable_Energy_TWh', 'Gross_Final_Energy_TWh', 'Import_TWh', 'Export_TWh',
+            'Export_Wind_Solar_TWh', 'Export_Synchronous_TWh', 'Net_Import_TWh',
+            'Interconnector_Capacity_GW', 'Firm_Capacity_Required_GW',
+            'Firm_Capacity_Peak_Residual_GW', f'Firm_Residual_P{FIRM_RESIDUAL_PERCENTILE:g}_GW',
+            'Firm_Reserve_Largest_Infeed_GW', 'Interconnector_Capacity_Credit_GW',
+            'Firm_Capacity_Net_of_IC_Credit_GW',
+            'Firm_Capacity_Legacy_Formula_GW',
             'Overall_Fossil_Fuel_Pct', 'Overall_Renewables_Pct',
-            'Overall_Imported_Electricity_Pct'
+            'Overall_Imported_Electricity_Pct', 'RES_Overall_RED_%', 'RES_E_RED_%'
         ]
         transition_by_year = sim_df.loc[sim_df['Data_Type'] == 'Forecast', transition_cols].copy()
         for k in ('total', 'system'):
@@ -2849,10 +3222,11 @@ def _run_demonstrator():
             if drop_existing:
                 summaries[k] = summaries[k].drop(columns=drop_existing)
             summaries[k] = summaries[k].merge(transition_by_year, on='Year', how='left')
-        for k in ('wind', 'system'):          # hindcast band on all-island constraint (see METHODOLOGY)
+        for k in ('wind', 'system'):          # regional hindcast bands on all-island constraint (issue #3)
             c = summaries[k]['Constraint_%']
-            summaries[k].insert(summaries[k].columns.get_loc('Constraint_%') + 1, 'Constraint_Low_%', (c * (1 - hindcast_band)).round(2))
-            summaries[k].insert(summaries[k].columns.get_loc('Constraint_Low_%') + 1, 'Constraint_High_%', (c * (1 + hindcast_band)).round(2))
+            fac = summaries[k]['Year'].map(band_factor_by_year).fillna(hindcast_band)
+            summaries[k].insert(summaries[k].columns.get_loc('Constraint_%') + 1, 'Constraint_Low_%', (c * (1 - fac)).clip(lower=0).round(2))
+            summaries[k].insert(summaries[k].columns.get_loc('Constraint_Low_%') + 1, 'Constraint_High_%', (c * (1 + fac)).round(2))
         record_check('results', scenario_name, 'zone summaries add up to the all-island figures',
                      'PASS' if summary_gap <= 0.01 else 'WARN', f"largest gap {summary_gap:.4f} pts of available energy")
         summary_store[scenario_name] = summaries
@@ -2864,7 +3238,7 @@ def _run_demonstrator():
         print(f"\nConstraint and curtailment by zone, wind + solar (% of each zone's available output; "
               f"full tables in summary_wind / summary_solar / summary_total / summary_system.csv):")
         tz = summaries['total'].set_index('Year').loc[[y for y in (2026, 2030, 2040, 2050) if y in simulation_years]]
-        print(tz[[f'{z}_constraint_%' for z in HEADROOM_ZONES] + [f'{z}_curtailment_%' for z in HEADROOM_ZONES]]
+        print(tz[[f'{z}_constraint_%' for z in summary_zones] + [f'{z}_curtailment_%' for z in summary_zones]]
               .rename(columns=lambda c: c.replace('_constraint_%', ' con').replace('_curtailment_%', ' curt')).to_string())
         print("\nSystem dispatch-down by reason (% of available wind + solar; physical and reporting reclassification):")
         print(summaries['system'].set_index('Year').loc[tz.index][['Constraint_%', 'SNSP_Curtailment_%', 'MinGen_Curtailment_%',
@@ -2912,9 +3286,14 @@ def _run_demonstrator():
         print(f">> Installed Solar Capacity (2050)    : {row_2050['Solar_Cap_GW']:.2f} GW")
         print(f">> Wind + Solar Share of Demand (2050): {row_2050['Wind+Solar_%']:.2f}%")
         print(f">> Required Firm Capacity (2050) : {firm_thermal_required_gw:.2f} GW "
-              f"(0.9 x average demand / 0.68; not a peak or Dunkelflaute calculation)")
-        print(f">> Peak Firm Residual (2050)          : {row_2050['Firm_Capacity_Peak_Residual_GW']:.2f} GW "
-              f"(largest 15-min shortfall over the weather years; no reserve margin, no imports)")
+              f"(peak residual {row_2050['Firm_Capacity_Peak_Residual_GW']:.2f} + largest infeed "
+              f"{row_2050['Firm_Reserve_Largest_Infeed_GW']:.2f} GW; net of interconnector credit "
+              f"{row_2050['Firm_Capacity_Net_of_IC_Credit_GW']:.2f} GW; legacy formula "
+              f"{row_2050['Firm_Capacity_Legacy_Formula_GW']:.2f} GW)")
+        print(f">> Firm residual P{FIRM_RESIDUAL_PERCENTILE:g} (2050)      : "
+              f"{row_2050[f'Firm_Residual_P{FIRM_RESIDUAL_PERCENTILE:g}_GW']:.2f} GW")
+        print(f">> Interconnector flows (2050)        : imports {row_2050['Import_TWh']:.2f} TWh, exports "
+              f"{row_2050['Export_TWh']:.2f} TWh ({row_2050['Export_Wind_Solar_TWh']:.2f} wind/solar)")
         print(f">> Actual Firm Generation (2050)      : {row_2050['Firm_Generation_TWh']:.2f} TWh/year")
         print(f">> Applied Build-Out Rate             : {annual_build_rate_gw*1000:.2f} MW/year ({annual_build_rate_gw:.3f} GW/year)")
         print(f">> Applied Forecast SNSP / MUON      : {snsp_limit_pct:.1f}% SNSP; IE {muon_units_ie} + NI {muon_units_ni} = {total_muon_units} units x {MUON_MIN_GEN_PER_UNIT_MW:.0f} MW = {muon_floor_mw:.0f} MW minimum generation")
@@ -2979,7 +3358,7 @@ def _run_demonstrator():
                 wind_on_y, wind_off_y, _, _, _ = wind_avail_for_year(df_wy['spec_avail_mw_per_gw'].values, y)
                 avail_year = wind_on_y + wind_off_y
                 solar_year = df_wy['solar_avail_mw_per_gw'].values * solar_y
-                demand_year = df_wy['sem_demand'].values * scale
+                demand_year = scenario_demand_mw(df_wy, dem_y, y)
                 sp_y, se_y = storage_for_year(y)
                 d_year = dispatch_year(df_wy['spec_avail_mw_per_gw'].values, solar_year, demand_year, y,
                                        snsp_y, sp_y, se_y)
@@ -3068,7 +3447,7 @@ def _run_demonstrator():
             f"Required Firm Capacity: {firm_capacity_2030_gw:.2f} GW\n"
             f"Fossil-Fuel: {fossil_pct_2030:.1f}%\n"
             f"Renewables: {overall_renewables_pct_2030:.1f}%\n"
-            f"Imported Electricity: {imported_pct_2030:.1f}% (fixed)"
+            f"Imported Electricity: {imported_pct_2030:.1f}% (modelled)"
         )
         ax1.text(1.015, 0.50, transition_text1, transform=ax1.transAxes, va='bottom', fontsize=9.0,
                  fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
@@ -3146,7 +3525,7 @@ def _run_demonstrator():
             f"Required Firm Capacity: {firm_thermal_required_gw:.2f} GW\n"
             f"Fossil-Fuel: {fossil_pct_2050:.1f}%\n"
             f"Renewables: {overall_renewables_pct_2050:.1f}%\n"
-            f"Imported Electricity: {imported_pct_2050:.1f}% (fixed)"
+            f"Imported Electricity: {imported_pct_2050:.1f}% (modelled)"
         )
         ax2.text(1.015, 0.49, transition_text2, transform=ax2.transAxes, va='bottom', fontsize=9.0,
                  fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
@@ -3163,8 +3542,7 @@ def _run_demonstrator():
         def generate_daily_chart(target_year, month_num, day_num, output_filename, chart_title_suffix):
             row_yr = sim_df[sim_df['Year'] == target_year].iloc[0]
             demand_twh = float(row_yr['Dem_TWh'])
-            peak_demand_gw = demand_twh / (8760.0 * 0.68 / 1000.0)
-            required_firm_thermal_gw = peak_demand_gw * 0.90
+            required_firm_thermal_gw = float(row_yr['Firm_Capacity_Required_GW'])
             solar_gw_yr, solar_share_yr = solar_setup(row_yr)
             cap_gw = float(row_yr['Wind_Cap_GW'])      # installed wind (onshore + offshore) that year
 
@@ -3176,7 +3554,7 @@ def _run_demonstrator():
             expected_avg_mw = (demand_twh * 1000000.0) / 8760.0
             actual_hist_avg_mw = df_wy['sem_demand'].mean()
             mw_scale = expected_avg_mw / actual_hist_avg_mw if actual_hist_avg_mw > 0 else 1.0
-            df_wy['scaled_demand_mw'] = df_wy['sem_demand'] * mw_scale
+            df_wy['scaled_demand_mw'] = scenario_demand_mw(df_wy, demand_twh, target_year)
 
             # Dispatch the complete chronological weather year first, then extract the
             # requested day. This gives the chart the true SOC carried in from the
@@ -3289,7 +3667,7 @@ def _run_demonstrator():
             daily_dd_pct = (daily_tot_dd_gwh / daily_avail_gwh) * 100.0 if daily_avail_gwh > 0 else 0.0
 
             firm_thermal_line = (
-                f"Required Firm Thermal Plant ({target_year}): {required_firm_thermal_gw:.2f} GW\n"
+                f"Required Firm Capacity ({target_year}): {required_firm_thermal_gw:.2f} GW\n"
                 if 'dunkelflaute' in chart_title_suffix.lower() else ''
             )
             stats_text = (
@@ -3398,8 +3776,7 @@ def _run_demonstrator():
         solar_cycle = df_cycle['solar_avail_mw_per_gw'].to_numpy() * solar_cycle_gw
         expected_cycle_mw = (demand_cycle_twh * 1000000.0) / 8760.0
         hist_cycle_mw = df_cycle['sem_demand'].mean()
-        demand_cycle = df_cycle['sem_demand'].to_numpy() * (
-            expected_cycle_mw / hist_cycle_mw if hist_cycle_mw > 0 else 1.0)
+        demand_cycle = scenario_demand_mw(df_cycle, demand_cycle_twh, target_cycle_year)
         storage_power_cycle, storage_energy_cycle = storage_for_year(target_cycle_year)
         dd_cycle = dispatch_year(df_cycle['spec_avail_mw_per_gw'].to_numpy(), solar_cycle, demand_cycle,
                                  target_cycle_year, snsp_limit_fraction,
@@ -3513,7 +3890,7 @@ def _run_demonstrator():
             f"Required Firm Capacity: {firm_thermal_required_gw:.2f} GW\n"
             f"Fossil-Fuel: {fossil_pct_2050:.1f}%\n"
             f"Renewables: {overall_renewables_pct_2050:.1f}%\n"
-            f"Imported Electricity: {imported_pct_2050:.1f}% (fixed)"
+            f"Imported Electricity: {imported_pct_2050:.1f}% (modelled)"
         )
         ax6.text(1.015, 0.49, transition_text6, transform=ax6.transAxes, va='bottom', fontsize=9.0,
                  fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
@@ -3751,18 +4128,28 @@ def _run_demonstrator():
                     'Pipeline_Complete_Year': (round(pipeline_complete_year(sc['pipeline_target_year'], sc['pipeline_build_pct']), 1)
                                                if sc.get('capacity_source') == 'pipeline' else ''),
                     'Headroom_Note': sc.get('headroom_note', ''),
+                    'Offshore_Connection': sc.get('offshore_connection', DEFAULT_OFFSHORE_CONNECTION),
+                    'Background_Demand_Growth_TWh_yr': sc['background_demand_growth_twh_per_year'],
+                    'Heat_Demand_Growth_TWh_yr': sc['heat_demand_growth_twh_per_year'],
+                    'Transport_Demand_Growth_TWh_yr': sc['transport_demand_growth_twh_per_year'],
                     'Inputs_Defaulted': ' '.join(k for k in sc.get('defaulted', []) if k != 'description'),
                     'Wind_Cap_GW': r['Wind_Cap_GW'], 'Wind_Offshore_GW': r['Wind_Offshore_GW'],
                     'Storage_Power_MW': r['Storage_Power_MW'], 'Storage_Energy_MWh': r['Storage_Energy_MWh'],
                     'Dem_TWh': r['Dem_TWh'],
                     'Firm_Capacity_Required_GW': r['Firm_Capacity_Required_GW'],
                     'Firm_Capacity_Peak_Residual_GW': r['Firm_Capacity_Peak_Residual_GW'],
+                    'Firm_Capacity_Legacy_Formula_GW': r['Firm_Capacity_Legacy_Formula_GW'],
+                    'Firm_Capacity_Net_of_IC_Credit_GW': r['Firm_Capacity_Net_of_IC_Credit_GW'],
+                    'Interconnector_Capacity_GW': r['Interconnector_Capacity_GW'],
+                    'Import_TWh': r['Import_TWh'], 'Export_TWh': r['Export_TWh'],
+                    'Export_Wind_Solar_TWh': r['Export_Wind_Solar_TWh'],
                     'Firm_Generation_TWh': r['Firm_Generation_TWh'],
                     'Total_Fossil_Energy_TWh': r['Total_Fossil_Energy_TWh'],
                     'Total_Renewable_Energy_TWh': r['Total_Renewable_Energy_TWh'],
                     'Overall_Fossil_Fuel_Pct': r['Overall_Fossil_Fuel_Pct'],
                     'Overall_Renewables_Pct': r['Overall_Renewables_Pct'],
                     'Overall_Imported_Electricity_Pct': r['Overall_Imported_Electricity_Pct'],
+                    'RES_Overall_RED_%': r['RES_Overall_RED_%'], 'RES_E_RED_%': r['RES_E_RED_%'],
                     'GridCon_%': r['GridCon_%'], 'GridCon_Low_%': r['GridCon_Low_%'],
                     'GridCon_High_%': r['GridCon_High_%'], 'Con_IE_%': r['Con_IE_%'],
                     'Con_NI_%': r['Con_NI_%'], 'RawCurt_%': r['RawCurt_%'], 'TotLoss_%': r['TotLoss_%'],
