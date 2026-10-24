@@ -1,0 +1,5 @@
+wind_band,exporting,import 0-200,import 200-400,import >400
+low wind,0.4,0.3,0.9,0.1
+mid-low,1.4,1.1,9.4,7.4
+mid-high,5.3,7.5,31.7,22.4
+high wind,22.5,22.2,42.3,35.1
