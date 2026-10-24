@@ -1,0 +1,4 @@
+year,days,days_with_275kV_outage,constraint_%_outage_days,constraint_%_other_days,excess_GWh_on_outage_days,total_constraint_GWh,excess_share_of_year_%
+2024,366,151,25.5,27.1,-37.7,816.7,-4.6
+2025,365,174,17.8,19.5,-35.2,562.5,-6.3
+2026,243,122,20.0,19.5,8.9,435.9,2.0
