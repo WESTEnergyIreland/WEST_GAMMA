@@ -5,12 +5,11 @@ The full methodology is in `Technical_Briefing_README.docx`.
 
 ## How to run
 
-1. Put the EirGrid/SONI `DD-HH-<year>.xlsx` workbooks in `Demo\Raw Data` (2021–2026 so far; 2026 covers January to August).
-2. Run `python build_all_island_dd.py`. It writes `system_dd_hourly_ie.csv`, `system_dd_hourly_ni.csv` and `system_dd_hourly_all_island.csv` into `Demo`.
-3. Keep `Input - capacity, constraints, curtailment.xlsx` and `sem_demand_wind_from_2019.csv` in the same folder as `DemonstratorV2.py`.
-4. Run `python DemonstratorV2.py`.
-   - With `scenarios.csv` present, every scenario runs without prompts and results go to `scenario_outputs/` and `scenario_summary.csv`.
-   - Without it, the script prompts for one scenario and writes `forecast_results.csv` and the charts to the script folder.
+1. Install Python 3.10 or later, then from the repository folder: `pip install -r requirements.txt`.
+2. Inputs live in `Data_inputs/`. Edit scenarios in `Data_inputs/scenariosXLSX.xlsx` (sheet `Scenarios`) and save.
+3. Run `python Gamma.py`. All scenarios run without prompts (about 10 minutes with charts). Outputs go to `scenario_outputs/`: one folder per scenario, `scenario_summary.csv`, `validation_report.csv` and `run_log.txt`. Set `SCENARIO_CHARTS = False` near the top of `Gamma.py` for a faster CSV-only run.
+4. Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py` (outputs in `analysis/output/`).
+5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
 
 ## Gamma V13 issue fixes: 24 October 2026
 
