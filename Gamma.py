@@ -1322,12 +1322,13 @@ def _run_demonstrator():
             post_constraint_vre_mw = max(0.0, post[i])
             available_vre_mw = max(0.0, wind[i] + solar[i])
             unconstrained_vre_fraction = (
-                np.clip(post_constraint_vre_mw / available_vre_mw, 0.0, 1.0)
+                min(1.0, max(0.0, post_constraint_vre_mw / available_vre_mw))
                 if available_vre_mw > 0.0 else 0.0
             )
 
-            no_charge_limit_mw, _, _ = operational_limit(
-                native_demand_mw, 0.0
+            no_charge_limit_mw = min(
+                f * native_demand_mw,
+                max(0.0, native_demand_mw - muon_floor_mw)
             )
             potential_curtailment_mw = max(
                 0.0, post_constraint_vre_mw - no_charge_limit_mw
