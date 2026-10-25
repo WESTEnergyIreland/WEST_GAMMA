@@ -284,7 +284,9 @@ DEFAULT_MUON_UNITS_NI = 2
 MUON_MIN_GEN_PER_UNIT_MW = 150.0
 DEFAULT_MUON_FLOOR_MW = (
     DEFAULT_MUON_UNITS_IE + DEFAULT_MUON_UNITS_NI
-) * MUON_MIN_GEN_PER_UNIT_MW  # 7 x 150 MW = 1,050 MW
+) * MUON_MIN_GEN_PER_UNIT_MW  # e.g. 7 x 150 MW = 1,050 MW
+
+# redbox 4pc fixed 25-10-26
 
 # Standalone, non-hybrid battery defaults. Storage charges only from energy that
 # remains operationally curtailed AFTER regional grid constraints are applied.
@@ -292,8 +294,8 @@ DEFAULT_STORAGE_POWER_BUILD_RATE_MW = 0.0
 DEFAULT_STORAGE_ENERGY_BUILD_RATE_MWH = 0.0
 DEFAULT_STORAGE_POWER_2026_MW = 0.0
 DEFAULT_STORAGE_ENERGY_2026_MWH = 0.0
-DEFAULT_STORAGE_CHARGE_EFFICIENCY = 0.95
-DEFAULT_STORAGE_DISCHARGE_EFFICIENCY = 0.95
+DEFAULT_STORAGE_CHARGE_EFFICIENCY = 0.9
+DEFAULT_STORAGE_DISCHARGE_EFFICIENCY = 0.9
 DEFAULT_STORAGE_INITIAL_SOC_PCT = 50.0
 DEFAULT_PC_STORAGE_HYBRID = 5.0
 
@@ -773,8 +775,8 @@ def write_evaluation_outputs(evaluation_store, historical_evaluation):
         ax.set_title(title, fontsize=11)
         ax.grid(alpha=0.3)
     axes[0, 0].legend(fontsize=7, ncol=2)
-    fig.suptitle('Capacity factors and curtailment by scenario (curtailment excludes grid constraint; '
-                 'solar CF on MEC basis)', fontsize=12)
+    fig.suptitle('Capacity factors and curtailment by scenario\n'
+                 '(curtailment excludes grid constraint; solar CF on MEC basis)', fontsize=12)
     fig.tight_layout()
     fig.savefig(os.path.join(SCENARIO_OUTPUT_DIR, EVALUATION_CHART), dpi=130)
     plt.close(fig)
@@ -2300,9 +2302,18 @@ def _run_demonstrator():
             print(f">> NOTE: {headroom_note}")
 
         def scenario_plot_title(title):
+            """Return a compact two-line plot title.
+
+            The scenario label is always on line 1 and the chart description is
+            always on line 2. Any newline supplied by a caller is collapsed so
+            titles remain exactly two lines and do not widen the plot canvas.
+            """
+            compact_title = ' | '.join(
+                part.strip() for part in str(title).splitlines() if part.strip())
+            scenario_line = scenario_name
             if unconstrained_bound:
-                return f"{scenario_name} [unconstrained-grid bound] | {title}"
-            return f"{scenario_name} | {title}"
+                scenario_line += ' [unconstrained-grid bound]'
+            return f"{scenario_line}\n{compact_title}"
 
         def capacity_box_line(year):
             row = sim_df.loc[sim_df['Year'] == year].iloc[0]
@@ -2600,8 +2611,17 @@ def _run_demonstrator():
             return onshore_gw, offshore_gw, caps
 
         def offshore_caps_for_year(year):
-            """Offshore GW by the zone whose headroom it shares (rates: all SE)."""
+            """Offshore GW by the zone whose headroom it shares (rates: all SE).
+
+            RUN2_Historical_Actual is deliberately hardcoded to build 4.7 GW
+            between 2030 and 2040: ten annual increments of 0.47 GW. Capacity
+            is zero through 2030, reaches 4.7 GW in 2040, and stays flat after.
+            Other scenarios retain their existing offshore treatment.
+            """
             if not use_pipeline:
+                if scenario_name.strip().lower() == 'run2_historical_actual':
+                    completed_build_years = max(0.0, min(float(year), 2040.0) - 2030.0)
+                    return {'SE': completed_build_years * 0.47}
                 return {'SE': max(0, year - start_year) * bw_off}
             frac, after = pipeline_fraction(year), years_after_pipeline(year)
             return {z: frac * pipe_mw['offshore'][z] / 1000.0 + after * bw_off * pipe_share['offshore'][z]
