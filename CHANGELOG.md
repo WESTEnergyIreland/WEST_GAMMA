@@ -11,6 +11,43 @@ The full methodology is in `Technical_Briefing_README.docx`.
 4. Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py` (outputs in `analysis/output/`).
 5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
 
+## Validation2 calibration to EirGrid and RUN1 post-2035 reinforcement: 25 October 2026
+
+Proposed for group review. Scenario numbering: 1 Validation1 (TIMES), 2 Validation2 (EirGrid ECP), 3 RUN1_Planned, 4 RUN2_Historical_Actual. Validation1 and RUN2 are unchanged.
+
+### Why Validation2 did not match EirGrid
+- The TID path adds only about 5% to IE headroom by 2035 (0.56%/yr). EirGrid's 2035 cases assume about 40 reinforcement projects alongside the ECP portfolio. With 4.9 GW new onshore and 12.5 GW new solar on the TID path, Gamma gave 25.4% IE wind + solar constraint in 2035 (solar 45.6%), against 6–12.5% in EirGrid's 2035 cases.
+- The ECP-GSS-2 batch (+0.7 GW onshore, +0.5 GW solar, +0.2 GW batteries) was in the build-rate sheet but not in the pipeline Gamma reads (GSS-1 list only).
+- Gamma averaged weather 2014–2026 (onshore available CF 28%); EirGrid uses 2020 profiles (about 36%).
+
+### Code (`Gamma.py`)
+- `pipeline_extra_mw`: capacity added to the GSS-1 pipeline, split over IE zones like that technology's GSS-1 MW. Negative values allowed (used to remove offshore for a calibration case).
+- `headroom_pipeline_cover_pct`: with `tid_to_2035_then_pct` and `capacity_source = pipeline`, IE zonal headroom also grows by this % of connected pipeline onshore wind + solar MW in that zone, phased like the pipeline. The 2036–2050 %/yr compounds from the resulting 2035 headroom (previously from the TID 2035 value).
+- `weather_years`: restricts forecast weather years (firm-capacity peak still uses all years).
+- `interconnector_dispatch`: per-scenario override of `INTERCONNECTOR_DISPATCH`. Blank follows the global setting (off).
+
+### Calibration (2020 weather, interconnector dispatch off, IE only, % of available wind + solar)
+| Case | k | Gamma constraint (applied first) | Gamma curtailment | Gamma total | EirGrid constraint (applied last) | EirGrid total |
+|---|---|---|---|---|---|---|
+| GSS-1 2035 100% ECP, no offshore | 15% | 19.0 | 8.4 | 27.2 | 12.5 | 28.8 |
+| GSS-1 2035 66% ECP + 4.7 GW offshore | 15% | 11.4 | 17.4 | 28.7 | 6.0 | 28.5 |
+- 10% and 20% bracket both totals; 15% chosen. Gamma's constraint stays above EirGrid's in every case, as it should with constraint applied before curtailment.
+- With interconnector dispatch on (0.7 export availability) Gamma's 2035 surplus is several points below EirGrid's, so totals undershoot at any k. EirGrid's published flows show net imports in surplus hours for the smaller portfolios.
+- 2030 is not matched: Validation2 uses scalar SNSP 100% and no minimum sets from 2027, while EirGrid's 2030 studies use 95% SNSP and 2 + 1 minimum sets plus two Dublin must-run units.
+
+### Scenario inputs
+- Validation2: `pipeline_extra_mw = wind:700; solar:500; battery:200; battery_mwh:540`, `headroom_pipeline_cover_pct = 15`, `weather_years = 2020`, `interconnector_dispatch = no`, background demand 0.5 → 0.73 TWh/yr (all-island 2035 about 52.8 TWh: IE 44.3 TWh per ECP-2.5 plus NI), NI wind 0.022 → 0.07 and NI solar 0.132 → 0.025 GW/yr (about 2.0 GW and 0.4 GW by 2035, ECP-2.5 NI ECP case).
+- Validation2 result, 2035, IE: constraint 15.2%, curtailment 21.6%, total 36.6% (ECP-2.5 2035 ECP + 5 GW offshore: 32.7%).
+- RUN1: same GSS-2 extra and 15% cover to 2035; post-2035 IE 0.56 → 3.0%/yr and NI 0.93 → 1.6%/yr. These continue the calibrated relationship: headroom grows by 15% of the onshore wind + solar added 2035–2050 (IE 28.0 GW, NI 2.7 GW).
+- RUN1 2050 total dispatch down is 54.8% at 0.56%/yr, 54.2% at 2%, 53.8% at 3% and 53.4% at 4%. Constraint falls (27.3 → 17.8% IE) but surplus curtailment rises by nearly as much. After 2035 the limit is demand, storage and export, not the network.
+
+### Open points
+- GSS-2's own Future Grid result should replace the GSS-1 targets once extracted (the workbook could not be downloaded from this session).
+- RUN1 post-2035 build rates are 0.539 GW/yr onshore and 1.386 GW/yr solar (GSS-2 ÷ 9); the Input Recommendations sheet gives 0.4 and 0.9. One of them needs changing.
+- RUN1 NI solar 0.132 GW/yr gives about 1.2 GW more NI solar by 2035 than EirGrid's NI ECP case.
+- `storage_power_2026_mw = 550` in all scenarios; EirGrid's Initial case has 1,018 MW IE + 200 MW NI.
+- Saving the workbook with openpyxl converted Excel threaded comments to plain notes (text kept).
+
 ## Gamma V13 issue fixes: 24 October 2026
 
 Changes to `Gamma.py` and `Data_inputs/scenariosXLSX.xlsx` for the open GitHub issues. Decisions on approach were agreed by Niall on 24 October; values marked PLACEHOLDER still need group agreement.

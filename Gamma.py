@@ -1974,7 +1974,10 @@ def _run_demonstrator():
                                  'offshore_connection', 'celtic_energised_year', 'mares_energised_year',
                                  'ic_export_availability', 'ic_import_availability', 'ic_capacity_credit',
                                  'ie_reinforcement_mw_per_year', 'ni_reinforcement_mw_per_year',
-                                 'reinforcement_steps']
+                                 'reinforcement_steps',
+                                 # Validation / calibration inputs (25 Oct 2026)
+                                 'pipeline_extra_mw', 'headroom_pipeline_cover_pct', 'weather_years',
+                                 'interconnector_dispatch']
         lookup = {key(k): k for k in known}
         # Also accept Build_WIND_OFFSHORE / TID / HeadroomCurve style headers
         lookup[key('Build_WIND_OFFSHORE')] = 'build_rate_wind_offshore'
@@ -2030,9 +2033,10 @@ def _run_demonstrator():
                     'ic_import_availability': DEFAULT_IC_IMPORT_AVAILABILITY,
                     'ic_capacity_credit': DEFAULT_IC_CAPACITY_CREDIT,
                     'ie_reinforcement_mw_per_year': 0.0, 'ni_reinforcement_mw_per_year': 0.0,
-                    'ie_reinforcement_pct': 0.0, 'ni_reinforcement_pct': 0.0}
+                    'ie_reinforcement_pct': 0.0, 'ni_reinforcement_pct': 0.0,
+                    'headroom_pipeline_cover_pct': 0.0}
         not_flagged = ('ie_reinforcement_pct', 'ni_reinforcement_pct', 'ie_reinforcement_mw_per_year',
-                       'ni_reinforcement_mw_per_year')
+                       'ni_reinforcement_mw_per_year', 'headroom_pipeline_cover_pct')
         scenarios = []
         for i, row in table.iterrows():
             name = str(row.get('scenario', '')).strip()
@@ -2064,7 +2068,9 @@ def _run_demonstrator():
                 hc = DEFAULT_HEADROOM_CURVE
             sc['headroom_curve'] = str(hc).strip()
             for text_col, text_default in (('offshore_connection', DEFAULT_OFFSHORE_CONNECTION),
-                                           ('reinforcement_steps', '')):
+                                           ('reinforcement_steps', ''), ('pipeline_extra_mw', ''),
+                                           ('weather_years', ''),
+                                           ('interconnector_dispatch', 'yes' if INTERCONNECTOR_DISPATCH else 'no')):
                 sc[text_col] = text_default if is_blank(row, text_col) else str(row.get(text_col)).strip().lower()
             if is_blank(row, 'offshore_connection'):
                 sc['defaulted'].append('offshore_connection')
@@ -2111,6 +2117,7 @@ def _run_demonstrator():
         'ie_reinforcement_mw_per_year': (-500, 5000), 'ni_reinforcement_mw_per_year': (-500, 5000),
         'ic_export_availability': (0, 1), 'ic_import_availability': (0, 1), 'ic_capacity_credit': (0, 1),
         'celtic_energised_year': (2026, 2100), 'mares_energised_year': (2026, 2100),
+        'headroom_pipeline_cover_pct': (0, 200),
     }
 
     def validate_scenarios(scenarios):
@@ -2193,6 +2200,38 @@ def _run_demonstrator():
                     record_check(stage, name, 'pipeline settings used', 'WARN',
                                  f"{ignored} ignored because capacity_source=rates")
 
+    def parse_pipeline_extra(text):
+        """'wind:700; solar:500; battery:200; battery_mwh:540' -> {key: MW or MWh}. Blank -> {}."""
+        out = {}
+        for part in re.split(r'[;,]', str(text or '')):
+            part = part.strip()
+            if not part:
+                continue
+            k, _, v = part.partition(':')
+            out[k.strip().lower()] = float(v)
+        return out
+
+    def scenario_pipeline(sc):
+        """ECP-GSS-1 pipeline plus the scenario's pipeline_extra_mw (e.g. the ECP-GSS-2 batch:
+        wind:700; solar:500; battery:200; battery_mwh:540). Each extra is split over the IE zones
+        in proportion to that technology's GSS-1 due-to-connect MW (battery_mwh by GSS-1 MWh)."""
+        if pipe_mw is None:
+            return None, None
+        extra = parse_pipeline_extra(sc.get('pipeline_extra_mw', ''))
+        mw = {t: dict(v) for t, v in pipe_mw.items()}
+        mwh = dict(pipe_mwh)
+        for t in ('wind', 'solar', 'offshore', 'battery'):
+            add = extra.get(t, 0.0)
+            tot = sum(mw[t].values())
+            if add and tot > 0:
+                for z in IE_ZONES:
+                    mw[t][z] += add * mw[t][z] / tot
+        add, tot = extra.get('battery_mwh', 0.0), sum(mwh.values())
+        if add and tot > 0:
+            for z in IE_ZONES:
+                mwh[z] += add * mwh[z] / tot
+        return mw, mwh
+
     def headroom_table_for(sc):
         """(table, description) for a scenario's headroom_curve. Every built-in option starts from the
         calibrated 2026 headroom: TID / default = the published path rebased on it
@@ -2206,12 +2245,28 @@ def _run_demonstrator():
             # Use the published/rebased TID zonal path exactly through 2035. From 2036 onward,
             # simplify to compound annual growth from each zone's 2035 headroom.
             table = {(y, z): v for (y, z), v in default_table.items() if y <= 2035}
+            # Optional ECP calibration: IE zonal headroom also grows by headroom_pipeline_cover_pct
+            # of the onshore wind + solar MW connected in that zone from the pipeline, phased like
+            # the pipeline. Represents the network reinforcements EirGrid assumes alongside the ECP
+            # portfolio, located where the new capacity connects. Calibrated in Validation2 against
+            # EirGrid's ECP constraint studies; offshore has its own connection and is excluded.
+            cover = float(sc.get('headroom_pipeline_cover_pct', 0.0) or 0.0) / 100.0
+            cover_desc = ''
+            if cover > 0 and sc.get('capacity_source') == 'pipeline' and pipe_mw is not None:
+                pm, _ = scenario_pipeline(sc)
+                done = pipeline_complete_year(int(sc['pipeline_target_year']), float(sc['pipeline_build_pct']))
+                for (y, z) in list(table):
+                    if z in IE_ZONES:
+                        frac = float(np.clip((y - 2026) / (done - 2026), 0.0, 1.0))
+                        table[(y, z)] += cover * frac * (pm['wind'][z] + pm['solar'][z])
+                cover_desc = (f" + {100 * cover:g}% of connected pipeline onshore wind + solar MW "
+                              f"by IE zone")
             for z in HEADROOM_ZONES:
-                base_2035 = headroom_for_year(default_table, 2035, 1.0)[z]
+                base_2035 = headroom_for_year(table, 2035, 1.0)[z]
                 rate = (sc['ni_reinforcement_pct'] if z == 'NI' else sc['ie_reinforcement_pct']) / 100.0
                 for y in range(2036, 2051):
                     table[(y, z)] = base_2035 * (1.0 + rate) ** (y - 2035)
-            desc = (f"published TID path rebased on calibrated 2026 headroom through 2035; "
+            desc = (f"published TID path rebased on calibrated 2026 headroom{cover_desc} through 2035; "
                     f"then IE {sc['ie_reinforcement_pct']:g}% / NI {sc['ni_reinforcement_pct']:g}% per year to 2050")
         elif is_reinforcement_mw_curve(name):
             table, desc = (reinforcement_mw_headroom_table(headroom_base, sc['ie_reinforcement_mw_per_year'],
@@ -2386,6 +2441,7 @@ def _run_demonstrator():
         headroom_scale = float(sc.get('headroom_scale', DEFAULT_HEADROOM_SCALE) or DEFAULT_HEADROOM_SCALE)
         headroom_curve_name = sc.get('headroom_curve', DEFAULT_HEADROOM_CURVE) or DEFAULT_HEADROOM_CURVE
         headroom_table, curve_path = headroom_table_for(sc)
+        pipe_mw, pipe_mwh = scenario_pipeline(sc)   # GSS-1 pipeline + scenario pipeline_extra_mw
         headroom_years = sorted({y for y, _ in headroom_table})
         bw_off = max(0.0, float(sc.get('build_rate_wind_offshore', DEFAULT_BUILD_RATE_WIND_OFFSHORE) or 0.0))
         offshore_own = str(sc.get('offshore_connection', DEFAULT_OFFSHORE_CONNECTION)).strip().lower() != 'shared'
@@ -2397,6 +2453,14 @@ def _run_demonstrator():
         ic_export_availability = float(sc.get('ic_export_availability', DEFAULT_IC_EXPORT_AVAILABILITY))
         ic_import_availability = float(sc.get('ic_import_availability', DEFAULT_IC_IMPORT_AVAILABILITY))
         ic_capacity_credit = float(sc.get('ic_capacity_credit', DEFAULT_IC_CAPACITY_CREDIT))
+        # Per-scenario override of INTERCONNECTOR_DISPATCH (validation against EirGrid's studies,
+        # which dispatch interconnectors). Blank follows the global setting.
+        ic_dispatch_on = str(sc.get('interconnector_dispatch', 'yes' if INTERCONNECTOR_DISPATCH else 'no')
+                             ).strip().lower() in ('yes', 'y', 'true', '1', 'on')
+        # Weather years for the forecast energy results (validation: EirGrid uses 2020 profiles).
+        # Blank = every complete weather year. Firm-capacity peak still uses every year.
+        scenario_weather_years = [int(float(w)) for w in re.split(r'[;,\s]+', str(sc.get('weather_years', '') or ''))
+                                  if w.strip()]
 
         def ic_links_for_year(year):
             """{link: MW in service, averaged over the year} for interconnectors to GB/France."""
@@ -2419,7 +2483,7 @@ def _run_demonstrator():
         def ic_dispatch_caps(year):
             """Usable export and import MW. Zero unless INTERCONNECTOR_DISPATCH is True (reversed
             24 Oct 2026: interconnectors are shown only in the chart-only sensitivities)."""
-            if not INTERCONNECTOR_DISPATCH:
+            if not ic_dispatch_on:
                 return 0.0, 0.0
             cap = ic_capacity_for_year(year)
             return cap * ic_export_availability, cap * ic_import_availability
@@ -2965,7 +3029,9 @@ def _run_demonstrator():
             snsp_yr = HISTORICAL_SNSP_PCT / 100.0 if yr == start_year else snsp_limit_fraction
             solar_cap = solar_capacity_for_year(yr)
             storage_power_mw, storage_energy_mwh = storage_for_year(yr)
-            selected_weather_years = [2026] if yr == 2026 else complete_weather_years
+            selected_weather_years = ([2026] if yr == 2026 else
+                                      [w for w in scenario_weather_years if w in complete_weather_years]
+                                      or complete_weather_years)
             run = run_weather_years(yr, yr_demand, snsp_yr, solar_cap,
                                     storage_power_mw, storage_energy_mwh,
                                     weather_years=selected_weather_years)
