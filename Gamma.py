@@ -170,6 +170,7 @@ REINFORCEMENT_CURVE = "reinforcement_pct"   # V8-style: 2026 headroom x (1 + ie/
 # Issue #2: build-path alternative. 2026 headroom + years x ie/ni_reinforcement_mw_per_year (the IE
 # MW/yr is split over the IE zones in proportion to their 2026 headroom).
 REINFORCEMENT_MW_CURVE = "reinforcement_mw"
+HYBRID_TID_2035_CURVE = "tid_to_2035_then_pct"  # published TID path through 2035, then scenario %/yr
 # Named one-off steps, applied on top of any built-in headroom curve. Scenario column
 # reinforcement_steps, e.g. "NI:2032:950" or "NI:2032:950; SE:2030:400" (zone:first year:+MW).
 # Example: North-South interconnector, 300 to 1,250 MW from October 2031 (SEAI NEP26), as +950 MW
@@ -279,7 +280,7 @@ MAX_DAILY_BESS_GROSS_THROUGHPUT_PER_MWH = 1.0  # compatibility only; Gamma code 
 # Default SEM requirement: 4 conventional units in IE plus 3 in NI.
 # Each online unit is assumed to operate at a minimum stable output of 150 MW.
 DEFAULT_MUON_UNITS_IE = 4
-DEFAULT_MUON_UNITS_NI = 3
+DEFAULT_MUON_UNITS_NI = 2
 MUON_MIN_GEN_PER_UNIT_MW = 150.0
 DEFAULT_MUON_FLOOR_MW = (
     DEFAULT_MUON_UNITS_IE + DEFAULT_MUON_UNITS_NI
@@ -540,6 +541,10 @@ def is_reinforcement_curve(name):
 
 def is_reinforcement_mw_curve(name):
     return re.sub(r'[^a-z0-9]', '', str(name).lower()) == re.sub(r'[^a-z0-9]', '', REINFORCEMENT_MW_CURVE)
+
+def is_hybrid_tid_2035_curve(name):
+    """Published/rebased TID headroom to 2035, then compound scenario reinforcement rates."""
+    return re.sub(r'[^a-z0-9]', '', str(name).lower()) == re.sub(r'[^a-z0-9]', '', HYBRID_TID_2035_CURVE)
 
 
 def reinforcement_mw_headroom_table(base, ie_mw_per_year, ni_mw_per_year, last_year=2050):
@@ -2130,11 +2135,12 @@ def _run_demonstrator():
             if sc['storage_energy_2026_mwh'] < sc['storage_power_2026_mw'] * 0.25:
                 record_check(stage, name, 'storage 2026 MWh/MW at least 0.25 h', 'WARN',
                              f"{sc['storage_power_2026_mw']:g} MW / {sc['storage_energy_2026_mwh']:g} MWh")
-            if is_reinforcement_curve(sc['headroom_curve']):
-                growth = {r: (1 + sc[f'{r.lower()}_reinforcement_pct'] / 100.0) ** (2050 - 2026) for r in REGIONS}
+            if is_reinforcement_curve(sc['headroom_curve']) or is_hybrid_tid_2035_curve(sc['headroom_curve']):
+                exponent = (2050 - 2035) if is_hybrid_tid_2035_curve(sc['headroom_curve']) else (2050 - 2026)
+                growth = {r: (1 + sc[f'{r.lower()}_reinforcement_pct'] / 100.0) ** exponent for r in REGIONS}
                 record_check(stage, name, 'headroom from ie/ni_reinforcement_pct', 'PASS',
-                             f"IE {sc['ie_reinforcement_pct']:g}%/yr (x{growth['IE']:.1f} by 2050), "
-                             f"NI {sc['ni_reinforcement_pct']:g}%/yr (x{growth['NI']:.1f} by 2050)")
+                             f"IE {sc['ie_reinforcement_pct']:g}%/yr (x{growth['IE']:.1f} over the simplified period), "
+                             f"NI {sc['ni_reinforcement_pct']:g}%/yr (x{growth['NI']:.1f} over the simplified period)")
                 if max(growth.values()) > 20:
                     record_check(stage, name, 'reinforcement keeps some constraint', 'WARN',
                                  f"headroom grows x{max(growth.values()):,.0f} by 2050: constraint will "
@@ -2194,6 +2200,17 @@ def _run_demonstrator():
             table, desc = (reinforcement_headroom_table(headroom_base, sc['ie_reinforcement_pct'], sc['ni_reinforcement_pct']),
                            f"calibrated 2026 headroom x (1 + IE {sc['ie_reinforcement_pct']:g}% / NI "
                            f"{sc['ni_reinforcement_pct']:g}%)^years")
+        elif is_hybrid_tid_2035_curve(name):
+            # Use the published/rebased TID zonal path exactly through 2035. From 2036 onward,
+            # simplify to compound annual growth from each zone's 2035 headroom.
+            table = {(y, z): v for (y, z), v in default_table.items() if y <= 2035}
+            for z in HEADROOM_ZONES:
+                base_2035 = headroom_for_year(default_table, 2035, 1.0)[z]
+                rate = (sc['ni_reinforcement_pct'] if z == 'NI' else sc['ie_reinforcement_pct']) / 100.0
+                for y in range(2036, 2051):
+                    table[(y, z)] = base_2035 * (1.0 + rate) ** (y - 2035)
+            desc = (f"published TID path rebased on calibrated 2026 headroom through 2035; "
+                    f"then IE {sc['ie_reinforcement_pct']:g}% / NI {sc['ni_reinforcement_pct']:g}% per year to 2050")
         elif is_reinforcement_mw_curve(name):
             table, desc = (reinforcement_mw_headroom_table(headroom_base, sc['ie_reinforcement_mw_per_year'],
                                                            sc['ni_reinforcement_mw_per_year']),
@@ -2419,8 +2436,8 @@ def _run_demonstrator():
         print(">> BESS charging is included in demand before SNSP/MUON curtailment is calculated.")
         print(f">> Headroom curve '{headroom_curve_name}' → {curve_path} "
               f"({headroom_years[0]}-{headroom_years[-1]}, scale={headroom_scale:.2f})")
-        if not is_reinforcement_curve(headroom_curve_name):
-            print(f">> ie/ni_reinforcement_pct not used (only with headroom_curve={REINFORCEMENT_CURVE})")
+        if not (is_reinforcement_curve(headroom_curve_name) or is_hybrid_tid_2035_curve(headroom_curve_name)):
+            print(f">> ie/ni_reinforcement_pct not used (only with headroom_curve={REINFORCEMENT_CURVE} or {HYBRID_TID_2035_CURVE})")
         capacity_source = sc.get('capacity_source', DEFAULT_CAPACITY_SOURCE)
         use_pipeline = capacity_source == 'pipeline'
         if use_pipeline:
@@ -4351,8 +4368,8 @@ def _run_demonstrator():
                     'Storage_Energy_2026_MWh': sc['storage_energy_2026_mwh'],
                     'Headroom_Curve': sc.get('headroom_curve', DEFAULT_HEADROOM_CURVE),
                     'Headroom_Scale': sc.get('headroom_scale', DEFAULT_HEADROOM_SCALE),
-                    'IE_Reinf_%_yr': sc['ie_reinforcement_pct'] if is_reinforcement_curve(sc.get('headroom_curve', '')) else '',
-                    'NI_Reinf_%_yr': sc['ni_reinforcement_pct'] if is_reinforcement_curve(sc.get('headroom_curve', '')) else '',
+                    'IE_Reinf_%_yr': sc['ie_reinforcement_pct'] if (is_reinforcement_curve(sc.get('headroom_curve', '')) or is_hybrid_tid_2035_curve(sc.get('headroom_curve', ''))) else '',
+                    'NI_Reinf_%_yr': sc['ni_reinforcement_pct'] if (is_reinforcement_curve(sc.get('headroom_curve', '')) or is_hybrid_tid_2035_curve(sc.get('headroom_curve', ''))) else '',
                     'Build_Wind_Offshore_GW_yr': round(sc.get('build_rate_wind_offshore', 0.0), 3),
                     'Capacity_Source': sc.get('capacity_source', DEFAULT_CAPACITY_SOURCE),
                     'Pipeline_Target_Year': sc['pipeline_target_year'] if sc.get('capacity_source') == 'pipeline' else '',
