@@ -1,0 +1,73 @@
+year,scenario,group,alloc,installed_MW,avail_GWh,surplus%,curt%,constr%,TDD%
+2030,100% ECP,all,Grandfathering,21708,43698,22.8,2.4,8.2,33.4
+2030,100% ECP Maintenance Sensitivity,all,Grandfathering,21708,43698,22.8,2.4,7.1,32.2
+2030,33% ECP,all,Grandfathering,12408,27695,10.0,2.3,8.0,20.2
+2030,33% ECP + 1.3 GW Offshore,all,Grandfathering,13258,31256,14.0,2.4,7.0,23.4
+2030,33% ECP + 2.6 GW Offshore,all,Grandfathering,14283,35483,18.7,2.4,5.7,26.8
+2030,33% ECP + 2.6 GW Offshore andReduced BESS Sensitivity,all,Grandfathering,14283,35483,20.4,2.5,6.4,29.3
+2030,33% ECP Maintenance Sensitivity,all,Grandfathering,12408,27695,10.0,2.3,6.0,18.2
+2030,Initial,all,Grandfathering,7716,19639,5.4,2.2,10.0,17.6
+2035,100% ECP,all,Grandfathering,21708,43698,15.6,0.7,12.5,28.8
+2035,66% ECP,all,Grandfathering,17101,35751,11.6,0.6,11.3,23.5
+2035,66% ECP + 4.7 GW Offshore,all,Grandfathering,20288,48917,21.5,0.9,6.0,28.5
+2035,66% ECP Maintenance Sensitivity,all,Grandfathering,17101,35751,11.6,0.6,8.9,21.1
+2030,100% ECP,wind,Grandfathering,8863,27845,17.7,2.5,8.8,29.0
+2030,100% ECP Maintenance Sensitivity,wind,Grandfathering,8863,27845,17.7,2.5,7.3,27.5
+2030,33% ECP,wind,Grandfathering,6431,20335,8.6,2.4,8.7,19.7
+2030,33% ECP + 1.3 GW Offshore,wind,Grandfathering,7281,23896,13.2,2.5,7.6,23.3
+2030,33% ECP + 2.6 GW Offshore,wind,Grandfathering,8306,28123,18.5,2.5,5.9,27.0
+2030,33% ECP + 2.6 GW Offshore andReduced BESS Sensitivity,wind,Grandfathering,8306,28123,19.9,2.6,6.6,29.0
+2030,33% ECP Maintenance Sensitivity,wind,Grandfathering,6431,20335,8.6,2.4,6.6,17.6
+2030,Initial,wind,Grandfathering,5215,16580,4.9,2.4,10.6,17.9
+2035,100% ECP,wind,Grandfathering,8863,27845,11.8,0.6,13.2,25.6
+2035,66% ECP,wind,Grandfathering,7647,24090,9.8,0.5,11.5,21.8
+2035,66% ECP + 4.7 GW Offshore,wind,Grandfathering,10834,37257,21.3,0.9,5.3,27.6
+2035,66% ECP Maintenance Sensitivity,wind,Grandfathering,7647,24090,9.8,0.5,9.1,19.4
+2030,100% ECP,solar,Grandfathering,12845,15852,31.6,2.2,7.3,41.1
+2030,100% ECP Maintenance Sensitivity,solar,Grandfathering,12845,15852,31.6,2.2,6.6,40.4
+2030,33% ECP,solar,Grandfathering,5977,7359,13.7,1.9,5.9,21.4
+2030,33% ECP + 1.3 GW Offshore,solar,Grandfathering,5977,7359,16.7,1.9,5.0,23.6
+2030,33% ECP + 2.6 GW Offshore,solar,Grandfathering,5977,7359,19.5,1.9,4.8,26.1
+2030,33% ECP + 2.6 GW Offshore andReduced BESS Sensitivity,solar,Grandfathering,5977,7359,22.6,2.1,6.0,30.8
+2030,33% ECP Maintenance Sensitivity,solar,Grandfathering,5977,7359,13.7,1.9,4.2,19.7
+2030,Initial,solar,Grandfathering,2500,3058,8.1,1.3,6.7,16.1
+2035,100% ECP,solar,Grandfathering,12845,15852,22.2,0.9,11.3,34.4
+2035,66% ECP,solar,Grandfathering,9454,11660,15.5,0.7,10.8,27.1
+2035,66% ECP + 4.7 GW Offshore,solar,Grandfathering,9454,11660,22.2,0.9,8.4,31.4
+2035,66% ECP Maintenance Sensitivity,solar,Grandfathering,9454,11660,15.5,0.7,8.3,24.6
+2030,100% ECP,all,Pro-rata,21708,43698,22.8,2.4,8.2,33.4
+2030,100% ECP Maintenance Sensitivity,all,Pro-rata,21708,43698,22.8,2.4,7.1,32.2
+2030,33% ECP,all,Pro-rata,12408,27695,10.0,2.3,8.0,20.2
+2030,33% ECP + 1.3 GW Offshore,all,Pro-rata,13258,31256,14.0,2.4,7.0,23.4
+2030,33% ECP + 2.6 GW Offshore,all,Pro-rata,14283,35483,18.7,2.4,5.7,26.8
+2030,33% ECP + 2.6 GW Offshore andReduced BESS Sensitivity,all,Pro-rata,14283,35483,20.4,2.5,6.4,29.3
+2030,33% ECP Maintenance Sensitivity,all,Pro-rata,12408,27695,10.0,2.3,6.0,18.2
+2030,Initial,all,Pro-rata,7716,19639,5.4,2.2,10.0,17.6
+2035,100% ECP,all,Pro-rata,21708,43698,15.6,0.7,12.5,28.8
+2035,66% ECP,all,Pro-rata,17101,35751,11.6,0.6,11.3,23.5
+2035,66% ECP + 4.7 GW Offshore,all,Pro-rata,20288,48917,21.5,0.9,6.1,28.5
+2035,66% ECP Maintenance Sensitivity,all,Pro-rata,17101,35751,11.6,0.6,8.9,21.1
+2030,100% ECP,wind,Pro-rata,8863,27845,17.7,2.5,8.8,29.0
+2030,100% ECP Maintenance Sensitivity,wind,Pro-rata,8863,27845,17.7,2.5,7.3,27.5
+2030,33% ECP,wind,Pro-rata,6431,20335,8.6,2.4,8.7,19.7
+2030,33% ECP + 1.3 GW Offshore,wind,Pro-rata,7281,23896,13.2,2.5,7.6,23.3
+2030,33% ECP + 2.6 GW Offshore,wind,Pro-rata,8306,28123,18.5,2.5,5.9,27.0
+2030,33% ECP + 2.6 GW Offshore andReduced BESS Sensitivity,wind,Pro-rata,8306,28123,19.9,2.6,6.6,29.0
+2030,33% ECP Maintenance Sensitivity,wind,Pro-rata,6431,20335,8.6,2.4,6.6,17.6
+2030,Initial,wind,Pro-rata,5215,16580,4.9,2.4,10.6,17.9
+2035,100% ECP,wind,Pro-rata,8863,27845,11.8,0.6,13.2,25.6
+2035,66% ECP,wind,Pro-rata,7647,24090,9.8,0.5,11.5,21.8
+2035,66% ECP + 4.7 GW Offshore,wind,Pro-rata,10834,37257,21.3,0.9,5.3,27.6
+2035,66% ECP Maintenance Sensitivity,wind,Pro-rata,7647,24090,9.8,0.5,9.1,19.4
+2030,100% ECP,solar,Pro-rata,12845,15852,31.6,2.2,7.3,41.1
+2030,100% ECP Maintenance Sensitivity,solar,Pro-rata,12845,15852,31.6,2.2,6.6,40.4
+2030,33% ECP,solar,Pro-rata,5977,7359,13.7,1.9,5.9,21.4
+2030,33% ECP + 1.3 GW Offshore,solar,Pro-rata,5977,7359,16.7,1.9,5.0,23.6
+2030,33% ECP + 2.6 GW Offshore,solar,Pro-rata,5977,7359,19.5,1.9,4.8,26.1
+2030,33% ECP + 2.6 GW Offshore andReduced BESS Sensitivity,solar,Pro-rata,5977,7359,22.6,2.1,6.0,30.8
+2030,33% ECP Maintenance Sensitivity,solar,Pro-rata,5977,7359,13.7,1.9,4.2,19.7
+2030,Initial,solar,Pro-rata,2500,3058,8.1,1.3,6.7,16.1
+2035,100% ECP,solar,Pro-rata,12845,15852,22.2,0.9,11.3,34.4
+2035,66% ECP,solar,Pro-rata,9454,11660,15.5,0.7,10.8,27.1
+2035,66% ECP + 4.7 GW Offshore,solar,Pro-rata,9454,11660,22.2,0.9,8.4,31.4
+2035,66% ECP Maintenance Sensitivity,solar,Pro-rata,9454,11660,15.5,0.7,8.3,24.6
