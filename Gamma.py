@@ -4332,6 +4332,12 @@ def _run_demonstrator():
     summary_path = os.path.join(SCENARIO_OUTPUT_DIR, SCENARIO_SUMMARY_CSV)
     if os.path.exists(scenario_file):
         scenarios = load_scenarios(scenario_file)
+        if len(sys.argv) > 1:
+            name = sys.argv[1].lower()
+            scenarios = [s for s in scenarios if s['scenario'].lower() == name]
+            if not scenarios:
+                raise ValueError(f"Scenario not found: {sys.argv[1]}")
+
         stop_on_failures('scenarios', SCENARIO_OUTPUT_DIR)
         print(f"\n>> Running {len(scenarios)} scenarios from '{scenario_file}' "
               f"(charts {'on' if SCENARIO_CHARTS else 'off'})")
