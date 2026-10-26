@@ -338,7 +338,7 @@ DEFAULT_SOLAR_BUILD_RATE_GW = 0.0         # GW/yr when a scenario leaves it blan
 # projects are already in the 2026 base; "due to connected" projects are added evenly from
 # PIPELINE_START_YEAR. At pipeline_build_pct = 100 (normal) the whole pipeline is online by
 # pipeline_target_year (default 2050); 150 builds 1.5x as fast, 75 at three-quarter speed (so
-# only 75% is online by 2050). Once the pipeline is complete the scenario's GW/yr (and storage
+# only 75% is online by {target_year}). Once the pipeline is complete the scenario's GW/yr (and storage
 # MW/yr) build rates carry on, split across zones like the pipeline.
 # Offshore wind shares the headroom of the zone its own area maps to. NI is not in the list,
 # so NI keeps its GW/yr rates. Pipeline batteries are reported by zone; dispatch stays all-island.
@@ -794,7 +794,7 @@ def _run_demonstrator():
     print("      (Zonal headroom; ECP pipeline by zone; hindcast + charts)")
     print("=" * 90)
     say("=" * 72)
-    say(" GAMMA -  wind, solar & storage, zonal constraint, 2026-2050")
+    say(" GAMMA -  wind, solar & storage, zonal constraint, 2026-Target")
     say("=" * 72)
     t_step = time.time()
     say("[1/5] Loading history, weather and capacity ...", end=' ')
@@ -1900,6 +1900,7 @@ def _run_demonstrator():
         print("\n(No scenariosXLSX.xlsx found: running one scenario from prompts.)")
         return {
             'scenario': 'interactive',
+            'target_year': int(ask_float("Enter final simulation year", 2050)),
             'build_rate_wind_ie': ask_float("Enter annual WIND build-out rate in IE/ROI, GW/year",
                                             round(DEFAULT_BUILD_RATE_GW * base_ie_share, 3)),
             'build_rate_wind_ni': ask_float("Enter annual WIND build-out rate in NI, GW/year",
@@ -1974,7 +1975,7 @@ def _run_demonstrator():
                                  'offshore_connection', 'celtic_energised_year', 'mares_energised_year',
                                  'ic_export_availability', 'ic_import_availability', 'ic_capacity_credit',
                                  'ie_reinforcement_mw_per_year', 'ni_reinforcement_mw_per_year',
-                                 'reinforcement_steps']
+                                 'reinforcement_steps', 'target_year']
         lookup = {key(k): k for k in known}
         # Also accept Build_WIND_OFFSHORE / TID / HeadroomCurve style headers
         lookup[key('Build_WIND_OFFSHORE')] = 'build_rate_wind_offshore'
@@ -2030,7 +2031,7 @@ def _run_demonstrator():
                     'ic_import_availability': DEFAULT_IC_IMPORT_AVAILABILITY,
                     'ic_capacity_credit': DEFAULT_IC_CAPACITY_CREDIT,
                     'ie_reinforcement_mw_per_year': 0.0, 'ni_reinforcement_mw_per_year': 0.0,
-                    'ie_reinforcement_pct': 0.0, 'ni_reinforcement_pct': 0.0}
+                    'ie_reinforcement_pct': 0.0, 'ni_reinforcement_pct': 0.0, 'target_year': 2050.0}
         not_flagged = ('ie_reinforcement_pct', 'ni_reinforcement_pct', 'ie_reinforcement_mw_per_year',
                        'ni_reinforcement_mw_per_year')
         scenarios = []
@@ -2111,6 +2112,7 @@ def _run_demonstrator():
         'ie_reinforcement_mw_per_year': (-500, 5000), 'ni_reinforcement_mw_per_year': (-500, 5000),
         'ic_export_availability': (0, 1), 'ic_import_availability': (0, 1), 'ic_capacity_credit': (0, 1),
         'celtic_energised_year': (2026, 2100), 'mares_energised_year': (2026, 2100),
+        'target_year': (2050, 2100),
     }
 
     def validate_scenarios(scenarios):
@@ -2138,14 +2140,15 @@ def _run_demonstrator():
                 record_check(stage, name, 'storage 2026 MWh/MW at least 0.25 h', 'WARN',
                              f"{sc['storage_power_2026_mw']:g} MW / {sc['storage_energy_2026_mwh']:g} MWh")
             if is_reinforcement_curve(sc['headroom_curve']) or is_hybrid_tid_2035_curve(sc['headroom_curve']):
-                exponent = (2050 - 2035) if is_hybrid_tid_2035_curve(sc['headroom_curve']) else (2050 - 2026)
+                target_year = int(sc.get('target_year', 2050))
+                exponent = (target_year - 2035) if is_hybrid_tid_2035_curve(sc['headroom_curve']) else (target_year - 2026)
                 growth = {r: (1 + sc[f'{r.lower()}_reinforcement_pct'] / 100.0) ** exponent for r in REGIONS}
                 record_check(stage, name, 'headroom from ie/ni_reinforcement_pct', 'PASS',
                              f"IE {sc['ie_reinforcement_pct']:g}%/yr (x{growth['IE']:.1f} over the simplified period), "
                              f"NI {sc['ni_reinforcement_pct']:g}%/yr (x{growth['NI']:.1f} over the simplified period)")
                 if max(growth.values()) > 20:
                     record_check(stage, name, 'reinforcement keeps some constraint', 'WARN',
-                                 f"headroom grows x{max(growth.values()):,.0f} by 2050: constraint will "
+                                 f"headroom grows x{max(growth.values()):,.0f} by {target_year}: constraint will "
                                  f"effectively disappear (unconstrained-grid case)")
             else:
                 try:
@@ -2155,8 +2158,8 @@ def _run_demonstrator():
                     missing = [z for z in HEADROOM_ZONES if z not in zones]
                     record_check(stage, name, 'headroom curve has every zone', 'FAIL' if missing else 'PASS',
                                  f"'{sc['headroom_curve']}' missing {missing}" if missing else os.path.basename(label))
-                    if len(years) > 1 and (years[0] > 2026 or years[-1] < 2050):   # one year = held flat on purpose
-                        record_check(stage, name, 'headroom curve covers 2026-2050', 'WARN',
+                    if len(years) > 1 and (years[0] > 2026 or years[-1] < int(sc.get('target_year', 2050))):   # one year = held flat on purpose
+                        record_check(stage, name, 'headroom curve covers 2026-target year', 'WARN',
                                      f"{years[0]}-{years[-1]}; years outside are held at the nearest year")
                 except FileNotFoundError as e:
                     record_check(stage, name, 'headroom curve found', 'FAIL', str(e))
@@ -2179,9 +2182,9 @@ def _run_demonstrator():
                     done = pipeline_complete_year(sc['pipeline_target_year'], sc['pipeline_build_pct'])
                     if done > 2050:
                         built = 100 * (2050 - 2026) / (done - 2026)
-                        record_check(stage, name, 'pipeline complete by 2050', 'WARN',
+                        record_check(stage, name, f'pipeline complete by {target_year}', 'WARN',
                                      f"at {sc['pipeline_build_pct']:g}% only {built:.0f}% of the pipeline is "
-                                     f"online by 2050 (complete {done:.1f})")
+                                     f"online by {target_year} (complete {done:.1f})")
                 if gen_list is None:
                     record_check(stage, name, 'generator list available', 'FAIL',
                                  f"'{GENERATION_LIST_FILE}' not found in {INPUT_DIR}")
@@ -2199,7 +2202,7 @@ def _run_demonstrator():
         each run, reinforcement_pct = compound %/yr on it. Any other CSV is used exactly as written."""
         name = sc.get('headroom_curve', DEFAULT_HEADROOM_CURVE) or DEFAULT_HEADROOM_CURVE
         if is_reinforcement_curve(name):
-            table, desc = (reinforcement_headroom_table(headroom_base, sc['ie_reinforcement_pct'], sc['ni_reinforcement_pct']),
+            table, desc = (reinforcement_headroom_table(headroom_base, sc['ie_reinforcement_pct'], sc['ni_reinforcement_pct'], int(sc.get('target_year', 2050))),
                            f"calibrated 2026 headroom x (1 + IE {sc['ie_reinforcement_pct']:g}% / NI "
                            f"{sc['ni_reinforcement_pct']:g}%)^years")
         elif is_hybrid_tid_2035_curve(name):
@@ -2209,13 +2212,13 @@ def _run_demonstrator():
             for z in HEADROOM_ZONES:
                 base_2035 = headroom_for_year(default_table, 2035, 1.0)[z]
                 rate = (sc['ni_reinforcement_pct'] if z == 'NI' else sc['ie_reinforcement_pct']) / 100.0
-                for y in range(2036, 2051):
+                for y in range(2036, int(sc.get('target_year', 2050)) + 1):
                     table[(y, z)] = base_2035 * (1.0 + rate) ** (y - 2035)
             desc = (f"published TID path rebased on calibrated 2026 headroom through 2035; "
-                    f"then IE {sc['ie_reinforcement_pct']:g}% / NI {sc['ni_reinforcement_pct']:g}% per year to 2050")
+                    f"then IE {sc['ie_reinforcement_pct']:g}% / NI {sc['ni_reinforcement_pct']:g}% per year to {int(sc.get('target_year', 2050))}")
         elif is_reinforcement_mw_curve(name):
             table, desc = (reinforcement_mw_headroom_table(headroom_base, sc['ie_reinforcement_mw_per_year'],
-                                                           sc['ni_reinforcement_mw_per_year']),
+                                                           sc['ni_reinforcement_mw_per_year'], int(sc.get('target_year', 2050))),
                            f"calibrated 2026 headroom + IE {sc['ie_reinforcement_mw_per_year']:g} / NI "
                            f"{sc['ni_reinforcement_mw_per_year']:g} MW per year")
         else:
@@ -2283,11 +2286,13 @@ def _run_demonstrator():
         # every plot filename and title. load_scenarios() has already converted
         # spaces and filename-unsafe characters to underscores.
         scenario_name = str(sc['scenario'])
+        final_year = int(round(float(sc.get('target_year', 2050))))
+        target_year = final_year
 
         def scenario_plot_filename(suffix):
             return f"{scenario_name}_{suffix}"
 
-        # Compound reinforcement that grows headroom more than 20x by 2050 removes network
+        # Compound reinforcement that grows headroom more than 20x by {target_year} removes network
         # constraint altogether: label such scenarios as an unconstrained-grid bound.
         if is_reinforcement_curve(sc.get('headroom_curve', '')):
             headroom_growth_2050 = max((1 + float(sc[f'{r.lower()}_reinforcement_pct']) / 100.0) ** (2050 - 2026)
@@ -2295,7 +2300,7 @@ def _run_demonstrator():
         else:
             headroom_growth_2050 = 1.0
         unconstrained_bound = headroom_growth_2050 > 20
-        headroom_note = (f"Unconstrained-grid bound (headroom x{headroom_growth_2050:,.0f} by 2050), not a build path"
+        headroom_note = (f"Unconstrained-grid bound (headroom x{headroom_growth_2050:,.0f} by {target_year}), not a build path"
                          if unconstrained_bound else '')
         sc['headroom_note'] = headroom_note
         if unconstrained_bound:
@@ -2331,7 +2336,6 @@ def _run_demonstrator():
         print(f" 3. SCENARIO '{sc['scenario']}': DEMAND, BUILD-RATE & SNSP CONFIGURATION")
         print("====================================================================")
         start_year = 2026
-        final_year = 2050
         hzn = final_year - start_year
     
         # The 2026 baseline uses a full-year estimate derived from 2025 because
@@ -2357,7 +2361,7 @@ def _run_demonstrator():
         # applies from 2027 onward.
         demand_increase_2026_twh = 0.9
         base_demand_twh = demand_2025_twh + demand_increase_2026_twh
-        tot_demand_2050 = base_demand_twh + (hzn * annual_demand_growth_rate)
+        tot_demand_final = base_demand_twh + (hzn * annual_demand_growth_rate)
     
         # Build rates by technology and region (GW/yr). The model uses the total per technology
         # and the IE share of it, which sets where the new capacity connects.
@@ -2433,7 +2437,7 @@ def _run_demonstrator():
         print(f">> Heat-Sector Electricity Growth from 2027: {heat_demand_growth_rate:.2f} TWh/year")
         print(f">> Transport-Sector Electricity Growth from 2027: {transport_demand_growth_rate:.2f} TWh/year")
         print(f">> Total Scenario Demand Growth from 2027: {annual_demand_growth_rate:.2f} TWh/year")
-        print(f">> Projected Total Demand in {final_year}: {tot_demand_2050:.2f} TWh")
+        print(f">> Projected Total Demand in {final_year}: {tot_demand_final:.2f} TWh")
         print(f">> Wind build-out: IE onshore {bw_ie:.3f} + NI {bw_ni:.3f} + offshore {bw_off:.3f} GW/year")
         print(f">> Solar build-out: IE {bs_ie:.3f} + NI {bs_ni:.3f} = {solar_build_rate_gw:.3f} GW/year")
         print(f">> Capacity: {final_2026_wind_capacity_gw:.2f} GW onshore in 2026; offshore build from 2027")
@@ -2477,7 +2481,7 @@ def _run_demonstrator():
         print("====================================================================")
         base_capacity_gw = final_2026_wind_capacity_gw
     
-        simulation_years = list(range(2026, 2051))
+        simulation_years = list(range(start_year, final_year + 1))
         sim_results = []
         # Complete October-December 2026 using explicit all-island SEM monthly
         # wind-generation forecasts. No 2020 wind-volume assumption is used.
@@ -2615,13 +2619,14 @@ def _run_demonstrator():
 
             RUN2_Historical_Actual is deliberately hardcoded to build 4.7 GW
             between 2030 and 2040: ten annual increments of 0.47 GW. Capacity
-            is zero through 2030, reaches 4.7 GW in 2040, and stays flat after.
+            is zero through 2030, reaches 4.7 GW in 2040, then the scenario's configured offshore background rate resumes after 2040.
             Other scenarios retain their existing offshore treatment.
             """
             if not use_pipeline:
                 if scenario_name.strip().lower() == 'run2_historical_actual':
                     completed_build_years = max(0.0, min(float(year), 2040.0) - 2030.0)
-                    return {'SE': completed_build_years * 0.47}
+                    background_years = max(0.0, float(year) - 2040.0)
+                    return {'SE': completed_build_years * 0.47 + background_years * bw_off}
                 return {'SE': max(0, year - start_year) * bw_off}
             frac, after = pipeline_fraction(year), years_after_pipeline(year)
             return {z: frac * pipe_mw['offshore'][z] / 1000.0 + after * bw_off * pipe_share['offshore'][z]
@@ -3467,7 +3472,7 @@ def _run_demonstrator():
                 print(f">> Could not save summary_{k}.csv: {e}")
         print(f"\nConstraint and curtailment by zone, wind + solar (% of each zone's available output; "
               f"full tables in summary_wind / summary_solar / summary_total / summary_system.csv):")
-        tz = summaries['total'].set_index('Year').loc[[y for y in (2026, 2030, 2040, 2050) if y in simulation_years]]
+        tz = summaries['total'].set_index('Year').loc[[y for y in (2026, 2030, 2040, final_year) if y in simulation_years]]
         print(tz[[f'{z}_constraint_%' for z in summary_zones] + [f'{z}_curtailment_%' for z in summary_zones]]
               .rename(columns=lambda c: c.replace('_constraint_%', ' con').replace('_curtailment_%', ' curt')).to_string())
         print("\nSystem dispatch-down by reason (% of available wind + solar; physical and reporting reclassification):")
@@ -3480,18 +3485,18 @@ def _run_demonstrator():
             print(f">> Could not save '{CAPACITY_BY_ZONE_CSV}': {e}")
 
         print("\n====================================================================")
-        print(f" SCENARIO '{scenario_name}': 2050 MODEL OUTCOME SUMMARY")
+        print(f" SCENARIO '{scenario_name}': {final_year} MODEL OUTCOME SUMMARY")
         print("====================================================================")
-        row_2050 = sim_df[sim_df['Year'] == 2050].iloc[0]
-        actual_cap_gw = row_2050['Wind_Cap_GW']
-        actual_dem_twh = row_2050['Dem_TWh']
-        actual_wind_pct = row_2050['Wind_%_SEM']
+        row_final = sim_df[sim_df['Year'] == final_year].iloc[0]
+        actual_cap_gw = row_final['Wind_Cap_GW']
+        actual_dem_twh = row_final['Dem_TWh']
+        actual_wind_pct = row_final['Wind_%_SEM']
         actual_gen_twh = max(0.0, actual_dem_twh * (actual_wind_pct / 100.0))
     
-        firm_thermal_required_gw = float(row_2050['Firm_Capacity_Required_GW'])
-        fossil_pct_2050 = float(row_2050['Overall_Fossil_Fuel_Pct'])
-        overall_renewables_pct_2050 = float(row_2050['Overall_Renewables_Pct'])
-        imported_pct_2050 = float(row_2050['Overall_Imported_Electricity_Pct'])
+        firm_thermal_required_gw = float(row_final['Firm_Capacity_Required_GW'])
+        fossil_pct_final = float(row_final['Overall_Fossil_Fuel_Pct'])
+        overall_renewables_pct_final = float(row_final['Overall_Renewables_Pct'])
+        imported_pct_final = float(row_final['Overall_Imported_Electricity_Pct'])
 
         # Long-term chart databox metrics. Total dispatch-down uses the final
         # year's mutually exclusive reporting categories: recoverable grid
@@ -3501,30 +3506,30 @@ def _run_demonstrator():
             raise RuntimeError("2035 forecast row is required for the long-term chart databox.")
         row_2035 = row_2035_matches.iloc[0]
         wind_pct_2035 = float(row_2035['Wind_%_SEM'])
-        wind_pct_2050 = float(row_2050['Wind_%_SEM'])
-        wind_cf_2050 = float(row_2050['Wind_Fleet_CF_%_SEM'])
-        solar_cf_2050 = float(row_2050['Solar_CF_%'])
-        total_dispatch_down_2050_twh = float(
-            row_2050['Recoverable_Grid_Constraint_TWh']
-            + row_2050['Operational_Curtailment_Oversupply_TWh']
+        wind_pct_final = float(row_final['Wind_%_SEM'])
+        wind_cf_final = float(row_final['Wind_Fleet_CF_%_SEM'])
+        solar_cf_final = float(row_final['Solar_CF_%'])
+        total_dispatch_down_final_twh = float(
+            row_final['Recoverable_Grid_Constraint_TWh']
+            + row_final['Operational_Curtailment_Oversupply_TWh']
         )
     
-        print(f">> Total Projected Demand (2050)      : {actual_dem_twh:.2f} TWh")
-        print(f">> Usable Wind Generation (2050)      : {actual_gen_twh:.2f} TWh ({actual_wind_pct:.2f}% of demand)")
-        print(f">> Installed Wind Capacity (2050)     : {actual_cap_gw:.2f} GW")
-        print(f">> Usable Solar Generation (2050)     : {row_2050['Solar_Gen_TWh']:.2f} TWh ({row_2050['Solar_%']:.2f}% of demand)")
-        print(f">> Installed Solar Capacity (2050)    : {row_2050['Solar_Cap_GW']:.2f} GW")
-        print(f">> Wind + Solar Share of Demand (2050): {row_2050['Wind+Solar_%']:.2f}%")
-        print(f">> Required Firm Capacity (2050) : {firm_thermal_required_gw:.2f} GW "
-              f"(peak residual {row_2050['Firm_Capacity_Peak_Residual_GW']:.2f} + reserve (largest infeed + operating) "
-              f"{row_2050['Firm_Reserve_GW']:.2f} GW; net of interconnector credit "
-              f"{row_2050['Firm_Capacity_Net_of_IC_Credit_GW']:.2f} GW; legacy formula "
-              f"{row_2050['Firm_Capacity_Legacy_Formula_GW']:.2f} GW)")
-        print(f">> Firm residual P{FIRM_RESIDUAL_PERCENTILE:g} (2050)      : "
-              f"{row_2050[f'Firm_Residual_P{FIRM_RESIDUAL_PERCENTILE:g}_GW']:.2f} GW")
-        print(f">> Interconnector flows (2050)        : imports {row_2050['Import_TWh']:.2f} TWh, exports "
-              f"{row_2050['Export_TWh']:.2f} TWh ({row_2050['Export_Wind_Solar_TWh']:.2f} wind/solar)")
-        print(f">> Actual Firm Generation (2050)      : {row_2050['Firm_Generation_TWh']:.2f} TWh/year")
+        print(f">> Total Projected Demand ({final_year})      : {actual_dem_twh:.2f} TWh")
+        print(f">> Usable Wind Generation ({final_year})      : {actual_gen_twh:.2f} TWh ({actual_wind_pct:.2f}% of demand)")
+        print(f">> Installed Wind Capacity ({final_year})     : {actual_cap_gw:.2f} GW")
+        print(f">> Usable Solar Generation ({final_year})     : {row_final['Solar_Gen_TWh']:.2f} TWh ({row_final['Solar_%']:.2f}% of demand)")
+        print(f">> Installed Solar Capacity ({final_year})    : {row_final['Solar_Cap_GW']:.2f} GW")
+        print(f">> Wind + Solar Share of Demand ({final_year}): {row_final['Wind+Solar_%']:.2f}%")
+        print(f">> Required Firm Capacity ({final_year}) : {firm_thermal_required_gw:.2f} GW "
+              f"(peak residual {row_final['Firm_Capacity_Peak_Residual_GW']:.2f} + reserve (largest infeed + operating) "
+              f"{row_final['Firm_Reserve_GW']:.2f} GW; net of interconnector credit "
+              f"{row_final['Firm_Capacity_Net_of_IC_Credit_GW']:.2f} GW; legacy formula "
+              f"{row_final['Firm_Capacity_Legacy_Formula_GW']:.2f} GW)")
+        print(f">> Firm residual P{FIRM_RESIDUAL_PERCENTILE:g} ({final_year})      : "
+              f"{row_final[f'Firm_Residual_P{FIRM_RESIDUAL_PERCENTILE:g}_GW']:.2f} GW")
+        print(f">> Interconnector flows ({final_year})        : imports {row_final['Import_TWh']:.2f} TWh, exports "
+              f"{row_final['Export_TWh']:.2f} TWh ({row_final['Export_Wind_Solar_TWh']:.2f} wind/solar)")
+        print(f">> Actual Firm Generation ({final_year})      : {row_final['Firm_Generation_TWh']:.2f} TWh/year")
         print(f">> Applied Build-Out Rate             : {annual_build_rate_gw*1000:.2f} MW/year ({annual_build_rate_gw:.3f} GW/year)")
         print(f">> Applied Forecast SNSP / MUON      : {snsp_limit_pct:.1f}% SNSP; IE {muon_units_ie} + NI {muon_units_ni} = {total_muon_units} units x {MUON_MIN_GEN_PER_UNIT_MW:.0f} MW = {muon_floor_mw:.0f} MW minimum generation")
 
@@ -3691,10 +3696,10 @@ def _run_demonstrator():
         # GRAPH 2: LONG-TERM FORECAST STACKED OVERVIEW (JAN 2045 - DEC 2050)
         # -------------------------------------------------------------------------
         print("\n====================================================================")
-        print(" 6. GENERATING GRAPH 2: LONG-TERM FORECAST (2045 - 2050)")
+        print(f" 6. GENERATING GRAPH 2: LONG-TERM FORECAST ({max(start_year, final_year - 5)} - {final_year})")
         print("====================================================================")
     
-        df_monthly2 = pd.DataFrame(monthly_series(range(2045, 2051)))
+        df_monthly2 = pd.DataFrame(monthly_series(range(max(start_year, final_year - 5), final_year + 1)))
         df_monthly2['date'] = pd.to_datetime(df_monthly2[['year', 'month']].assign(day=1))
         df_monthly2 = df_monthly2.sort_values('date')
 
@@ -3720,9 +3725,9 @@ def _run_demonstrator():
         p_d2 = np.poly1d(z_d2)
         ax2.plot(df_monthly2['date'], p_d2(x_nums2), color='#555555', linestyle='--', linewidth=1.2, label='Demand Trend')
 
-        ax2.plot([], [], ' ', label=f'2050 Wind % of Demand: {actual_wind_pct:.1f}%')
+        ax2.plot([], [], ' ', label=f'{final_year} Wind % of Demand: {actual_wind_pct:.1f}%')
 
-        ax2.set_title(scenario_plot_title('Ireland (All-Island) Energy Transition Forecast (Jan 2045 to Dec 2050)'), fontsize=14, fontweight='bold', color='#000080', pad=15)
+        ax2.set_title(scenario_plot_title(f'Ireland (All-Island) Energy Transition Forecast (Jan {max(start_year, final_year - 5)} to Dec {final_year})'), fontsize=14, fontweight='bold', color='#000080', pad=15)
         ax2.set_ylabel('Monthly Electricity GWh', fontsize=11, fontweight='bold')
         ax2.set_xlabel('Year', fontsize=11, fontweight='bold')
         ax2.grid(True, linestyle=':', alpha=0.6, color='#CCCCCC')
@@ -3733,16 +3738,16 @@ def _run_demonstrator():
 
         ax2.legend(loc='upper left', bbox_to_anchor=(1.015, 1.00), frameon=True, facecolor='white', edgecolor='#D3D3D3', fontsize=8.5)
 
-        renewables_2050_pct = renewables_including_storage_pct(2050)
+        renewables_final_pct = renewables_including_storage_pct(final_year)
         stats_text2 = (
-            f"2050 Demand: {actual_dem_twh:.2f} TWh\n"
-            f"2050 Renewables (incl. Storage): {renewables_2050_pct:.1f}%\n"
-            f"Total Dispatch Down (2050): {total_dispatch_down_2050_twh:.2f} TWh/yr\n"
+            f"{final_year} Demand: {actual_dem_twh:.2f} TWh\n"
+            f"{final_year} Renewables (incl. Storage): {renewables_final_pct:.1f}%\n"
+            f"Total Dispatch Down ({final_year}): {total_dispatch_down_final_twh:.2f} TWh/yr\n"
             f"Wind as % of Demand (2035): {wind_pct_2035:.1f}%\n"
-            f"Wind as % of Demand (2050): {wind_pct_2050:.1f}%\n"
-            f"2050 Wind Capacity Factor: {wind_cf_2050:.1f}%\n"
-            f"2050 Solar Capacity Factor: {solar_cf_2050:.1f}%\n"
-            f"{capacity_box_line(2050)}\n"
+            f"Wind as % of Demand ({final_year}): {wind_pct_final:.1f}%\n"
+            f"{final_year} Wind Capacity Factor: {wind_cf_final:.1f}%\n"
+            f"{final_year} Solar Capacity Factor: {solar_cf_final:.1f}%\n"
+            f"{capacity_box_line(final_year)}\n"
             f"Wind Build Rate: {annual_build_rate_gw*1000:.1f} MW/yr\n"
             f"Solar Build Rate: {solar_build_rate_gw*1000:.1f} MW/yr\n"
             f"SNSP: {snsp_limit_pct:.1f}% | MUON: {muon_floor_mw:.0f} MW"
@@ -3750,17 +3755,17 @@ def _run_demonstrator():
         ax2.text(1.015, 0.03, stats_text2, transform=ax2.transAxes, va='bottom', fontsize=8.7, fontweight='bold', color='#000080',
                  bbox=dict(boxstyle='round,pad=0.6', facecolor='#F0F4FF', edgecolor='#B0C4DE', alpha=0.9))
         transition_text2 = (
-            "Overall Transition Progress 2050\n"
+            f"Overall Transition Progress {final_year}\n"
             f"Required Firm Capacity: {firm_thermal_required_gw:.2f} GW\n"
-            f"Fossil-Fuel: {fossil_pct_2050:.1f}%\n"
-            f"Renewables: {overall_renewables_pct_2050:.1f}%"
+            f"Fossil-Fuel: {fossil_pct_final:.1f}%\n"
+            f"Renewables: {overall_renewables_pct_final:.1f}%"
         )
         ax2.text(1.015, 0.49, transition_text2, transform=ax2.transAxes, va='bottom', fontsize=9.0,
                  fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
                  facecolor='#FFF2F2', edgecolor='#8B0000', alpha=0.95))
 
         plt.tight_layout()
-        g2_png = scenario_plot_filename("Forecast_2045_2050_Overview.png")
+        g2_png = scenario_plot_filename(f"Forecast_{max(start_year, final_year - 5)}_{final_year}_Overview.png")
         plt.savefig(os.path.join(out_dir, g2_png), bbox_inches='tight', pad_inches=0.08)
         print(f">> Graph 2 saved as '{g2_png}'!")
 
@@ -3922,14 +3927,23 @@ def _run_demonstrator():
         # -------------------------------------------------------------------------
         # GENERATE DAILY DISPATCH PROFILES (GRAPHS 3, 4, 5, 6)
         # -------------------------------------------------------------------------
+        late_showcase_year = max(start_year, final_year - 2)
         print("\n====================================================================")
-        print(" 7. GENERATING DAILY SHOWCASE PROFILES (2033 & 2048)")
+        print(f" 7. GENERATING DAILY SHOWCASE PROFILES (2033 & {late_showcase_year})")
         print("====================================================================")
         
-        # 2048 Calculations (Storm, Typical Low, Winter Dunkelflaute)
-        wy_2048 = hist_weather_map[2048]
+        # Late-horizon showcase calculations. Use two years before the selected
+        # final year, preserving the old 2048 behaviour when target_year is 2050.
+        # Choosing this from sim_df guarantees that chart lookups remain in range.
+        if late_showcase_year not in set(sim_df['Year'].astype(int)):
+            available_years = sim_df['Year'].astype(int)
+            late_showcase_year = int(available_years.iloc[(available_years - late_showcase_year).abs().argmin()])
+        wy_2048 = hist_weather_map.get(
+            late_showcase_year,
+            complete_weather_years[late_showcase_year % len(complete_weather_years)]
+        )
         df_wy_2048 = merged[merged['year'] == wy_2048].copy()
-        row_2048 = sim_df[sim_df['Year'] == 2048].iloc[0]
+        row_2048 = sim_df[sim_df['Year'] == late_showcase_year].iloc[0]
         wind_gw_2048 = float(row_2048['Wind_Cap_GW'])
         solar_gw_2048, _ = solar_setup(row_2048)
         df_wy_2048['scaled_avail_mw'] = df_wy_2048['spec_avail_mw_per_gw'] * wind_gw_2048
@@ -3950,7 +3964,7 @@ def _run_demonstrator():
         # wind and solar percentile ranks. The average rank breaks close ties.
         winter_days = daily_sums_2048[daily_sums_2048['month'].isin([11, 12, 1])].copy()
         if winter_days.empty:
-            raise ValueError("No November-January days are available for the 2048 weather reference year.")
+            raise ValueError(f"No November-January days are available for the {late_showcase_year} weather reference year.")
         winter_days['wind_rank'] = winter_days['wind_mwh'].rank(method='average', pct=True)
         winter_days['solar_rank'] = winter_days['solar_mwh'].rank(method='average', pct=True)
         winter_days['dunkelflaute_score'] = (
@@ -3973,15 +3987,15 @@ def _run_demonstrator():
         
         avg_day_2033 = daily_sums_2033.iloc[int(len(daily_sums_2033) * 0.50)] # 50th percentile (Median average)
         
-        # Generate Graph 3 (Storm 2048)
-        generate_daily_chart(2048, int(storm_day['month']), int(storm_day['day']), "Daily_Absolute_Storm_2048.png", "Absolute Peak Wind Storm Event")
+        # Generate Graph 3 (Storm {late_showcase_year})
+        generate_daily_chart(late_showcase_year, int(storm_day['month']), int(storm_day['day']), f"Daily_Absolute_Storm_{late_showcase_year}.png", "Absolute Peak Wind Storm Event")
         
-        # Generate Graph 4 (Typical Low 2048)
-        generate_daily_chart(2048, int(low_avg_day['month']), int(low_avg_day['day']), "Daily_Typical_Low_Average_2048.png", "Typical Low-Average Wind Day")
+        # Generate Graph 4 (Typical Low {late_showcase_year})
+        generate_daily_chart(late_showcase_year, int(low_avg_day['month']), int(low_avg_day['day']), f"Daily_Typical_Low_Average_{late_showcase_year}.png", "Typical Low-Average Wind Day")
         
-        # Generate Graph 5 (Winter Dunkelflaute 2048: jointly low wind and solar)
-        generate_daily_chart(2048, int(dunkel_day['month']), int(dunkel_day['day']),
-                             "Daily_Dunkelflaute_2048.png",
+        # Generate Graph 5 (Winter Dunkelflaute {late_showcase_year}: jointly low wind and solar)
+        generate_daily_chart(late_showcase_year, int(dunkel_day['month']), int(dunkel_day['day']),
+                             f"Daily_Dunkelflaute_{late_showcase_year}.png",
                              "Winter Dunkelflaute: Joint Low Wind and Solar Event")
         
         # Generate Graph 6 (Average 2033)
@@ -4049,7 +4063,7 @@ def _run_demonstrator():
         # GRAPH 7: GRAND MASTER OVERVIEW (JAN 2019 - DEC 2050)
         # -------------------------------------------------------------------------
         print("\n====================================================================")
-        print(" 8. GENERATING GRAPH 7: GRAND MASTER OVERVIEW (2019 - 2050)")
+        print(f" 8. GENERATING GRAPH 7: GRAND MASTER OVERVIEW (2019 - {final_year})")
         print("====================================================================")
     
         # Extract Maximum Wind % Attained and the Year it occurred for the stats box
@@ -4058,7 +4072,7 @@ def _run_demonstrator():
         max_wind_year = int(max_wind_row['Year'])
 
         df_grand = pd.DataFrame(monthly_series(hist_chart_years, historical=True)
-                                + monthly_series(range(2026, 2051)))
+                                + monthly_series(range(start_year, final_year + 1)))
 
         df_grand['date'] = pd.to_datetime(df_grand[['year', 'month']].assign(day=1))
         df_grand = df_grand.sort_values('date').drop_duplicates(subset=['date'], keep='first')
@@ -4085,28 +4099,28 @@ def _run_demonstrator():
         p_d6 = np.poly1d(z_d6)
         ax6.plot(df_grand['date'], p_d6(x_nums6), color='#555555', linestyle='--', linewidth=1.2, label='Demand Trend')
 
-        ax6.set_title(scenario_plot_title('Ireland (All-Island) Grand Energy Transition Timeline & Wind Penetration (Jan 2019 to Dec 2050)'), fontsize=14, fontweight='bold', color='#000080', pad=15)
+        ax6.set_title(scenario_plot_title(f'Ireland (All-Island) Grand Energy Transition Timeline & Wind Penetration (Jan 2019 to Dec {final_year})'), fontsize=14, fontweight='bold', color='#000080', pad=15)
         ax6.set_ylabel('Monthly Electricity GWh', fontsize=11, fontweight='bold')
         ax6.set_xlabel('Year', fontsize=11, fontweight='bold')
         ax6.grid(True, linestyle=':', alpha=0.6, color='#CCCCCC')
 
-        ax6.xaxis.set_major_locator(mdates.YearLocator(2))
+        ax6.xaxis.set_major_locator(mdates.YearLocator(max(2, int(np.ceil((final_year - 2019) / 16.0)))))
         ax6.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
         ax6.set_xlim(df_grand['date'].iloc[0], df_grand['date'].iloc[-1])
 
         ax6.legend(loc='upper left', bbox_to_anchor=(1.015, 1.00), frameon=True, facecolor='white', edgecolor='#D3D3D3', fontsize=8.2, ncol=1)
 
         # Added Max Wind % Attained (and the year) to the stats box
-        renewables_2050_pct = renewables_including_storage_pct(2050)
+        renewables_final_pct = renewables_including_storage_pct(final_year)
         stats_text6 = (
-            f"2050 Demand: {actual_dem_twh:.1f} TWh\n"
-            f"2050 Renewables (incl. Storage): {renewables_2050_pct:.1f}%\n"
-            f"Total Dispatch Down (2050): {total_dispatch_down_2050_twh:.2f} TWh/yr\n"
+            f"{final_year} Demand: {actual_dem_twh:.1f} TWh\n"
+            f"{final_year} Renewables (incl. Storage): {renewables_final_pct:.1f}%\n"
+            f"Total Dispatch Down ({final_year}): {total_dispatch_down_final_twh:.2f} TWh/yr\n"
             f"Wind as % of Demand (2035): {wind_pct_2035:.1f}%\n"
-            f"Wind as % of Demand (2050): {wind_pct_2050:.1f}%\n"
-            f"2050 Wind Capacity Factor: {wind_cf_2050:.1f}%\n"
-            f"2050 Solar Capacity Factor: {solar_cf_2050:.1f}%\n"
-            f"{capacity_box_line(2050)}\n"
+            f"Wind as % of Demand ({final_year}): {wind_pct_final:.1f}%\n"
+            f"{final_year} Wind Capacity Factor: {wind_cf_final:.1f}%\n"
+            f"{final_year} Solar Capacity Factor: {solar_cf_final:.1f}%\n"
+            f"{capacity_box_line(final_year)}\n"
             f"Wind Build Rate: {annual_build_rate_gw*1000:.0f} MW/yr\n"
             f"Solar Build Rate: {solar_build_rate_gw*1000:.0f} MW/yr\n"
             f"SNSP: {snsp_limit_pct:.0f}% | MUON: {muon_floor_mw:.0f} MW"
@@ -4114,17 +4128,17 @@ def _run_demonstrator():
         ax6.text(1.015, 0.03, stats_text6, transform=ax6.transAxes, va='bottom', fontsize=8.7, fontweight='bold', color='#000080',
                  bbox=dict(boxstyle='round,pad=0.6', facecolor='#F0F4FF', edgecolor='#B0C4DE', alpha=0.9))
         transition_text6 = (
-            "Overall Transition Progress 2050\n"
+            f"Overall Transition Progress {final_year}\n"
             f"Required Firm Capacity: {firm_thermal_required_gw:.2f} GW\n"
-            f"Fossil-Fuel: {fossil_pct_2050:.1f}%\n"
-            f"Renewables: {overall_renewables_pct_2050:.1f}%"
+            f"Fossil-Fuel: {fossil_pct_final:.1f}%\n"
+            f"Renewables: {overall_renewables_pct_final:.1f}%"
         )
         ax6.text(1.015, 0.49, transition_text6, transform=ax6.transAxes, va='bottom', fontsize=9.0,
                  fontweight='bold', color='#8B0000', bbox=dict(boxstyle='round,pad=0.6',
                  facecolor='#FFF2F2', edgecolor='#8B0000', alpha=0.95))
 
         plt.tight_layout()
-        g6_png = scenario_plot_filename("Grand_Overview_2019_2050.png")
+        g6_png = scenario_plot_filename(f"Grand_Overview_2019_{final_year}.png")
         plt.savefig(os.path.join(out_dir, g6_png), bbox_inches='tight', pad_inches=0.08)
         print(f">> Grand Overview chart saved as '{g6_png}'!")
 
@@ -4277,9 +4291,9 @@ def _run_demonstrator():
 
             print(">> Generating chart-only interconnector extreme sensitivities for this scenario.")
             plot_ic_overview(df_grand, 2030, '50pct_Import', 'Historical_2019_2030_Overview')
-            plot_ic_overview(df_grand, 2050, '50pct_Import', 'Grand_Overview_2019_2050')
+            plot_ic_overview(df_grand, final_year, '50pct_Import', 'Grand_Overview_2019_2050')
             plot_ic_overview(df_grand, 2030, 'Max_Export', 'Historical_2019_2030_Overview')
-            plot_ic_overview(df_grand, 2050, 'Max_Export', 'Grand_Overview_2019_2050')
+            plot_ic_overview(df_grand, final_year, 'Max_Export', 'Grand_Overview_2019_2050')
 
         # -------------------------------------------------------------------------
         # GRAPH 8: CONSTRAINT BACKCAST & FORECAST BY REGION
@@ -4370,13 +4384,14 @@ def _run_demonstrator():
             sy = summary_store[sc['scenario']]['system'].set_index('Year')
             tw = summary_store[sc['scenario']]['total'].set_index('Year')
             say(f" done ({fmt_secs(time.time() - t_sc)})")
-            say(f"      2050: constraint {sy.loc[2050, 'Constraint_%']:.1f}% "
-                f"[{sy.loc[2050, 'Constraint_Low_%']:.1f}-{sy.loc[2050, 'Constraint_High_%']:.1f}], "
-                f"curtailment {sy.loc[2050, 'SNSP_Curtailment_%'] + sy.loc[2050, 'MinGen_Curtailment_%'] + sy.loc[2050, 'Other_incl_RoCoF_%']:.1f}%, "
-                f"wind+solar {tw.loc[2050, 'Share_of_Demand_%']:.0f}% of demand")
+            sc_final_year = int(sc.get('target_year', 2050))
+            say(f"      {sc_final_year}: constraint {sy.loc[sc_final_year, 'Constraint_%']:.1f}% "
+                f"[{sy.loc[sc_final_year, 'Constraint_Low_%']:.1f}-{sy.loc[sc_final_year, 'Constraint_High_%']:.1f}], "
+                f"curtailment {sy.loc[sc_final_year, 'SNSP_Curtailment_%'] + sy.loc[sc_final_year, 'MinGen_Curtailment_%'] + sy.loc[sc_final_year, 'Other_incl_RoCoF_%']:.1f}%, "
+                f"wind+solar {tw.loc[sc_final_year, 'Share_of_Demand_%']:.0f}% of demand")
             say_checks('results', sc['scenario'])
             all_results.append(res)
-            for yr in (2030, 2040, 2050):
+            for yr in sorted(set((2030, 2040, int(sc.get('target_year', 2050))))):
                 r = res[res['Year'] == yr]
                 if r.empty:
                     continue
@@ -4455,7 +4470,7 @@ def _run_demonstrator():
         print("\n====================================================================")
         print(" SCENARIO SUMMARY")
         print("====================================================================")
-        print(summary[summary['Year'] == 2050][['Scenario', 'Headroom_Curve', 'GridCon_%', 'GridCon_Low_%',
+        print(summary[summary['Year'] == summary['Year'].max()][['Scenario', 'Headroom_Curve', 'GridCon_%', 'GridCon_Low_%',
                                                 'GridCon_High_%', 'Con_IE_%', 'Con_NI_%', 'RawCurt_%',
                                                 'Wind_%_SEM', 'Solar_Cap_GW', 'Solar_GridCon_%',
                                                 'Solar_RawCurt_%', 'Solar_%', 'Wind+Solar_%']].to_string(index=False))
@@ -4477,7 +4492,7 @@ def _run_demonstrator():
         say(f"   {'scenario':<26} {'year':>4}  {'constraint':>17}  {'SNSP':>5}  {'min gen':>7}  {'other':>5}  {'total':>6}  {'RES share':>9}")
         for name, v in summary_store.items():
             sy, tw = v['system'].set_index('Year'), v['total'].set_index('Year')
-            for y in (2030, 2040, 2050):
+            for y in sorted(set((2030, 2040, int(next(s['target_year'] for s in scenarios if s['scenario'] == name))))):
                 band = f"{sy.loc[y, 'Constraint_%']:.1f} [{sy.loc[y, 'Constraint_Low_%']:.1f}-{sy.loc[y, 'Constraint_High_%']:.1f}]"
                 say(f"   {name if y == 2030 else '':<26} {y:>4}  {band:>17}  {sy.loc[y, 'SNSP_Curtailment_%']:>5.1f}  "
                     f"{sy.loc[y, 'MinGen_Curtailment_%']:>7.1f}  {sy.loc[y, 'Other_incl_RoCoF_%']:>5.1f}  "
@@ -4489,7 +4504,7 @@ def _run_demonstrator():
                 f"{'wind curt':>9}  {'solar curt':>10}")
             for name, ev_df in evaluation_store.items():
                 e = ev_df[ev_df['Data_Type'] == 'Forecast'].set_index('Year')
-                for y in (2030, 2040, 2050):
+                for y in sorted(set((2030, 2040, int(next(s['target_year'] for s in scenarios if s['scenario'] == name))))):
                     say(f"   {name if y == 2030 else '':<26} {y:>4}  "
                         f"{e.loc[y, 'Wind_Available_CF_%']:>9.1f} / {e.loc[y, 'Wind_Delivered_CF_%']:>5.1f}%  "
                         f"{e.loc[y, 'Solar_Available_CF_%']:>10.1f} / {e.loc[y, 'Solar_Delivered_CF_%']:>5.1f}%  "
