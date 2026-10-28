@@ -1,0 +1,10 @@
+# Gamma prediction for EirGrid ECP-GSS-2 Future Grid (2035) cases, Ireland, made 28 October 2026,
+# before EirGrid publishes GSS-2 results (due 15 December 2026). Inputs: scenario_paths/eirgrid_gss2_*.csv.
+# Wind + solar dispatch down, % of available energy. 'published path' = network headroom on the TID path;
+# 'cover 40%' = headroom also grows by 40% of new IE onshore wind + solar MW, the reinforcement that
+# reproduced EirGrid's GSS-1 constraint. Central prediction = cover 40% (matched GSS-1 2035 total to 0.2 pts).
+case,network,gamma_constraint_pct,gamma_curtailment_pct,gamma_total_pct,ie_headroom_mw
+100% ECP,published path,34.4,5.3,39.8,5376
+100% ECP,cover 40%,10.0,13.5,23.4,11686
+100% ECP + 4.7 GW offshore,published path,26.5,15.0,41.5,5376
+100% ECP + 4.7 GW offshore,cover 40%,7.7,26.5,34.2,11686

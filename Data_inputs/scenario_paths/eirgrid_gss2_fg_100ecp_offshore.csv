@@ -1,0 +1,13 @@
+# EirGrid ECP-GSS-2 Future Grid (2035) case '100% ECP + 4.7 GW offshore'. All-island values.
+# Purpose: a prediction made before EirGrid publishes its GSS-2 results (due 15 December 2026).
+# IE capacity: ECP-GSS-2 Constraint Analysis Excel Report (data freeze 02/10/2026), RES & Battery Generation
+#   Table, connected + due to connect: onshore wind 9,889 MW, solar 12,647 MW, batteries 6,017 MW
+#   (= 28.5 GW, the '100% ECP' total in Assumptions Document Figure 3); offshore 4.699 GW.
+# NI: GSS-2 says NI data 'to be added'; as the GSS-1 2035 path (onshore 1,723 MW, solar 268 MW) and
+#   ECP-2.5 Table 4 '50%' batteries (645 MW). VERIFY when EirGrid publishes NI data.
+# Storage MWh: mostly unpublished in the list; 2.7 h assumed for additions (as GSS-1).
+# Demand: AIRAA 2026-2035 median, as the GSS-1 2035 path (51.4 TWh all-island).
+# Operating rules, GSS-2 Assumptions Table 2, Future Grid: SNSP 100%, minimum sets IE 0 + NI 0,
+#   1 Dublin unit for voltage control (modelled as 1 IE unit). Weather: 2022 profiles (GSS-2 Table 1).
+year,ie_onshore_gw,ni_onshore_gw,offshore_gw,ie_solar_gw,ni_solar_gw,storage_mw,demand_twh,snsp_pct,muon_units_ie,muon_units_ni
+2035,9.889,1.723,4.699,12.647,0.268,6662,51.4,100,1,0
