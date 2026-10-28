@@ -1,0 +1,15 @@
+# Historical-trend run: dated items that a constant yearly rate cannot represent. All-island values.
+# Offshore wind: none has been built since Arklow Bank (25 MW, 2004). This run assumes only projects
+#   holding ORESS contracts are built, three to four years later than planned:
+#   ORESS 1 (Codling, Dublin Array, North Irish Sea Array, Sceirde Rocks; about 3.1 GW) in service
+#   2032-2035, and Tonn Nua (0.9 GW, ORESS Tonn Nua 2025) in 2037. No further offshore after that.
+# SNSP: 55% (2016) to 75% (2022, unchanged since); the ten-year trend (about 2 points a year) is continued
+#   from 75% in 2026 to 100% in 2039.
+# Minimum units: 8 (to 2023) to 6 (IE 4 + NI 2, April 2026), about half a unit a year; continued to 0 by 2038.
+year,offshore_gw,snsp_pct,muon_units_ie,muon_units_ni
+2031,0.0,,,
+2035,3.1,,,
+2036,3.1,,,
+2037,4.0,,,
+2038,,,0,0
+2039,,100,,

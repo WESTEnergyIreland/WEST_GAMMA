@@ -11,6 +11,13 @@ The full methodology is in `Technical_Briefing_README.docx`.
 4. Validation against EirGrid: `python analysis/eirgrid_validation.py` (after step 3). Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py`. Outputs in `analysis/output/`.
 5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
 
+## Paper revision 9 changes: 28 October 2026
+
+- `CHART_DPI = 600` near the top of `Gamma.py`; every saved chart uses it (was 130 to 300). Runs take about a minute longer.
+- `storage_initial_soc_pct` removed from the scenario workbook and the Field Guide. It only affects the first day of each weather year; the code keeps 50% as a fixed default and no longer asks for it or flags it as missing.
+- `Historical_Trend`: SNSP and minimum units now follow the TSO roadmap, the same values as the EirGrid runs (SNSP 95% in 2030, 100% from 2035; units IE 4 + NI 1 in 2030, IE 1 + NI 0 from 2035). Operating rules are policy, not a build trend. The old slower ramp is kept as `scenario_paths/historical_trend_slow_ops.csv`. Effect: dispatch down differs by at most 1.4 points (2035), fossil share by at most 0.3 points; 2050 fossil share 74.6% (was 74.5%).
+- EirGrid runs unchanged (results identical).
+
 ## Reinforcement implied by EirGrid's results: 28 October 2026 (sensitivity)
 
 Ported from closed PR #19 as a sensitivity only (PR #21).
