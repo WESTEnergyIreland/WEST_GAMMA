@@ -1,0 +1,10 @@
+# EirGrid ECP-GSS-1 constraint study, 2030 Initial portfolio (S1). All-island values.
+# IE capacity: ECP-GSS-1 Assumptions Document (17/04/2026), Table 2 'Initial'.
+# NI capacity: GSS-1 gives no NI table; NI onshore 1,656 MW from the GSS-1 workbook area tables,
+#   NI solar and batteries from ECP-2.5 Assumptions (final update 24/02/2026), Table 4 'Initial'.  VERIFY
+# Storage = IE 1,238 MW + NI 200 MW; MWh not published, 2.7 h assumed for additions.
+# Demand: IE 40.0 TWh in 2030 (AIRAA median as transcribed in Data_inputs/Eirgrid ECP Parameters Used.xlsx; VERIFY)
+#   + NI 7.1 TWh (2025 recorded, held flat).
+# Operating rules, GSS-1 Table 2, 2030: SNSP 95%; minimum sets IE 2 + NI 1, plus 2 Dublin must-run units (IE).
+year,ie_onshore_gw,ni_onshore_gw,offshore_gw,ie_solar_gw,ni_solar_gw,storage_mw,demand_twh,snsp_pct,muon_units_ie,muon_units_ni
+2030,5.678,1.656,0.025,2.500,0.156,1438,47.1,95,4,1

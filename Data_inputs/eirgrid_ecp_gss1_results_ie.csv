@@ -1,0 +1,12 @@
+# EirGrid ECP-GSS-1 constraint analysis, Ireland totals, % of available controllable wind and solar energy.
+# Source: EirGrid ECP-GSS-1 Constraint Analysis Excel Report (data freeze 27/03/2026, results Q3 2026),
+# node rows summed (WEST project extract claude/ecp-constraint-forecast-extract.md, 25 Oct 2026).
+# Weather 2020 for all cases. Gamma's validation runs use the same weather year.
+case,year,description,surplus_pct,curtailment_pct,constraint_pct,total_pct,gamma_scenario
+S1,2030,Initial,5.4,2.2,10.0,17.6,EirGrid_Validation_2030_Initial
+S2,2030,33% ECP,10.0,2.3,8.0,20.2,
+S4,2030,33% ECP + 2.6 GW offshore,18.7,2.4,5.7,26.8,EirGrid_Validation_2030_2035
+S6,2030,100% ECP,22.8,2.4,8.2,33.4,
+S7,2035,66% ECP,11.6,0.6,11.3,23.5,
+S8,2035,66% ECP + 4.7 GW offshore,21.5,0.9,6.0,28.5,EirGrid_Validation_2030_2035
+S9,2035,100% ECP,15.6,0.7,12.5,28.8,
