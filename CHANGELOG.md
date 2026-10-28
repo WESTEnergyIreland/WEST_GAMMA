@@ -11,6 +11,26 @@ The full methodology is in `Technical_Briefing_README.docx`.
 4. Validation against EirGrid: `python analysis/eirgrid_validation.py` (after step 3). Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py`. Outputs in `analysis/output/`.
 5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
 
+## Reinforcement implied by EirGrid's results: 28 October 2026 (sensitivity)
+
+Ported from closed PR #19 as a sensitivity only (PR #21).
+- New scenario input `headroom_pipeline_cover_pct` (default 0): each IE zone's headroom also grows by this % of the onshore wind + solar MW connected there since 2026.
+- Two runs use 40%: `Sensitivity_EirGrid_Reinforcement_2035` (as the validation run) and `Sensitivity_EirGrid_Reinforcement_2050` (as EirGrid_Extended, to 2050). Every other run uses 0.
+- 40% is the value at which Gamma's Ireland constraint matches EirGrid GSS-1 (tested 15, 30, 40, 50, 80%). PR #19 had 15% on an older setup; on the current model 15% gives 11.6% constraint in 2035, not 6%.
+
+| Ireland, % of available wind + solar | constraint | curtailment and surplus | total |
+|---|---|---|---|
+| EirGrid GSS-1 2030 (33% ECP + 2.6 GW offshore) | 5.7 | 21.1 | 26.8 |
+| Gamma validation run, 2030 | 15.0 | 11.8 | 26.8 |
+| Gamma with 40% cover, 2030 | 6.3 | 16.7 | 23.0 |
+| EirGrid GSS-1 2035 (66% ECP + 4.7 GW offshore) | 6.0 | 22.4 | 28.5 |
+| Gamma validation run, 2035 | 19.0 | 14.6 | 33.6 |
+| Gamma with 40% cover, 2035 | 6.0 | 22.3 | 28.3 |
+
+Findings for the paper:
+- EirGrid's constraint forecasts imply Ireland's zonal network capacity rises from about 5.1 GW (2026) to about 9.7 GW by 2035. The published TID path gives about 5.4 GW.
+- More reinforcement mostly moves losses from constraint to curtailment. In 2050 (EirGrid_Extended), the extra 10 GW of IE headroom cuts Ireland's constraint from 26.4% to 6.0% but raises curtailment from 19.2% to 33.0%; total dispatch down falls from 45.6% to 38.9%. Fossil share of primary energy in 2050: 67.3% -> 64.6%.
+
 ## EirGrid validation, historical trend and primary energy: 28 October 2026
 
 Agreed in the group on 27-28 October: drop the TIM comparison, validate against EirGrid, add a run on recorded trends, report primary energy, and call the gap between renewables and demand 'firm'. Values marked VERIFY in the inputs still need checking.
