@@ -3,13 +3,15 @@
 #   holding ORESS contracts are built, three to four years later than planned:
 #   ORESS 1 (Codling, Dublin Array, North Irish Sea Array, Sceirde Rocks; about 3.1 GW) in service
 #   2032-2035, and Tonn Nua (0.9 GW, ORESS Tonn Nua 2025) in 2037. No further offshore after that.
-# SNSP: 55% (2016) to 75% (2022, unchanged since); the ten-year trend (about 2 points a year) is continued
-#   from 75% in 2026 to 100% in 2039.
-# Minimum units: 8 (to 2023) to 6 (IE 4 + NI 2, April 2026), about half a unit a year; continued to 0 by 2038.
+# Operating rules (SNSP, minimum units) follow the same TSO roadmap values as the EirGrid runs
+#   (Operational Policy Roadmap 2025-2035; ECP-GSS-1 study rules): SNSP 75% (2026) to 95% (2030) and
+#   100% from 2035; minimum units IE 4 + NI 2 (2026), IE 4 + NI 1 (2030, incl. 2 Dublin must-run),
+#   IE 1 + NI 0 from 2035. Linear between named years. These are policy decisions, not build trends,
+#   so both pathways share them and differ only in build, demand and network (group decision, rev9).
+#   Previous slower ramp (SNSP 100% in 2039, units 0 in 2038) is kept as historical_trend_slow_ops.csv.
 year,offshore_gw,snsp_pct,muon_units_ie,muon_units_ni
+2030,,95,4,1
 2031,0.0,,,
-2035,3.1,,,
+2035,3.1,100,1,0
 2036,3.1,,,
 2037,4.0,,,
-2038,,,0,0
-2039,,100,,

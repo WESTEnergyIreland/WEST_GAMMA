@@ -311,7 +311,8 @@ DEFAULT_STORAGE_POWER_2026_MW = 0.0
 DEFAULT_STORAGE_ENERGY_2026_MWH = 0.0
 DEFAULT_STORAGE_CHARGE_EFFICIENCY = 0.9
 DEFAULT_STORAGE_DISCHARGE_EFFICIENCY = 0.9
-DEFAULT_STORAGE_INITIAL_SOC_PCT = 50.0
+DEFAULT_STORAGE_INITIAL_SOC_PCT = 50.0  # fixed; not a scenario input (affects only the first day of each weather year)
+CHART_DPI = 600  # resolution of saved PNG charts; 600 suits print journals (files are larger, runs slightly slower)
 DEFAULT_PC_STORAGE_HYBRID = 5.0
 
 # 15-minute demand / wind / solar series. The first file found is used.
@@ -845,7 +846,7 @@ def write_evaluation_outputs(evaluation_store, historical_evaluation):
     fig.suptitle('Capacity factors and curtailment by scenario\n'
                  '(curtailment excludes grid constraint; solar CF on MEC basis)', fontsize=12)
     fig.tight_layout()
-    fig.savefig(os.path.join(SCENARIO_OUTPUT_DIR, EVALUATION_CHART), dpi=130)
+    fig.savefig(os.path.join(SCENARIO_OUTPUT_DIR, EVALUATION_CHART), dpi=CHART_DPI)
     plt.close(fig)
 
 
@@ -1988,7 +1989,7 @@ def _run_demonstrator():
             'storage_energy_2026_mwh': ask_float("Enter installed standalone storage energy in 2026, MWh", 0.0),
             'storage_charge_efficiency': ask_float("Enter storage charge efficiency (0-1)", DEFAULT_STORAGE_CHARGE_EFFICIENCY),
             'storage_discharge_efficiency': ask_float("Enter storage discharge efficiency (0-1)", DEFAULT_STORAGE_DISCHARGE_EFFICIENCY),
-            'storage_initial_soc_pct': ask_float("Enter initial battery state of charge (%)", DEFAULT_STORAGE_INITIAL_SOC_PCT),
+            'storage_initial_soc_pct': DEFAULT_STORAGE_INITIAL_SOC_PCT,
             'pc_storage_hybrid': ask_float("Enter hybrid/co-located storage share (%)", DEFAULT_PC_STORAGE_HYBRID),
             'celtic_energised_year': DEFAULT_CELTIC_ENERGISED_YEAR,
             'mares_energised_year': DEFAULT_MARES_ENERGISED_YEAR,
@@ -2102,7 +2103,8 @@ def _run_demonstrator():
                     'ie_reinforcement_pct': 0.0, 'ni_reinforcement_pct': 0.0, 'target_year': 2050.0,
                     'headroom_pipeline_cover_pct': 0.0}
         not_flagged = ('ie_reinforcement_pct', 'ni_reinforcement_pct', 'ie_reinforcement_mw_per_year',
-                       'ni_reinforcement_mw_per_year', 'headroom_pipeline_cover_pct')
+                       'ni_reinforcement_mw_per_year', 'headroom_pipeline_cover_pct',
+                       'storage_initial_soc_pct')
         scenarios = []
         for i, row in table.iterrows():
             name = str(row.get('scenario', '')).strip()
@@ -3841,7 +3843,7 @@ def _run_demonstrator():
         df_g1['date'] = pd.to_datetime(df_g1[['year', 'month']].assign(day=1))
         df_g1 = df_g1.sort_values('date').drop_duplicates(subset=['date'], keep='first')
 
-        fig1, ax1 = plt.subplots(figsize=(13.3, 6.5), dpi=300)
+        fig1, ax1 = plt.subplots(figsize=(13.3, 6.5), dpi=100)
         fig1.subplots_adjust(right=0.73)
 
         ax1.fill_between(df_g1['date'], 0, df_g1['usable_wind_gwh'], color='#90EE90', edgecolor='#2CA02C', linewidth=0.8, label='Wind Gen (GWh)', alpha=0.9)
@@ -3909,7 +3911,7 @@ def _run_demonstrator():
 
         plt.tight_layout()
         g1_png = scenario_plot_filename("Historical_2019_2030_Overview.png")
-        plt.savefig(os.path.join(out_dir, g1_png), bbox_inches='tight', pad_inches=0.08)
+        plt.savefig(os.path.join(out_dir, g1_png), dpi=CHART_DPI, bbox_inches='tight', pad_inches=0.08)
         print(f">> Graph 1 saved as '{g1_png}'!")
 
         # -------------------------------------------------------------------------
@@ -3923,7 +3925,7 @@ def _run_demonstrator():
         df_monthly2['date'] = pd.to_datetime(df_monthly2[['year', 'month']].assign(day=1))
         df_monthly2 = df_monthly2.sort_values('date')
 
-        fig2, ax2 = plt.subplots(figsize=(13.3, 6.5), dpi=300)
+        fig2, ax2 = plt.subplots(figsize=(13.3, 6.5), dpi=100)
         fig2.subplots_adjust(right=0.73)
 
         ax2.fill_between(df_monthly2['date'], 0, df_monthly2['usable_wind_gwh'], color='#90EE90', edgecolor='#2CA02C', linewidth=0.8, label='Wind Gen (GWh)', alpha=0.9)
@@ -3984,7 +3986,7 @@ def _run_demonstrator():
 
         plt.tight_layout()
         g2_png = scenario_plot_filename(f"Forecast_{max(start_year, final_year - 5)}_{final_year}_Overview.png")
-        plt.savefig(os.path.join(out_dir, g2_png), bbox_inches='tight', pad_inches=0.08)
+        plt.savefig(os.path.join(out_dir, g2_png), dpi=CHART_DPI, bbox_inches='tight', pad_inches=0.08)
         print(f">> Graph 2 saved as '{g2_png}'!")
 
         # -------------------------------------------------------------------------
@@ -4057,7 +4059,7 @@ def _run_demonstrator():
             usable_tot_mw = usable_w_mw + usable_s_mw
             total_dispatch_down_mw = grid_constraint_mw + snsp_curtailed_mw
 
-            fig, ax = plt.subplots(figsize=(13.3, 6.5), dpi=300)
+            fig, ax = plt.subplots(figsize=(13.3, 6.5), dpi=100)
             fig.subplots_adjust(right=0.73)
 
             ax.plot(time_hours, total_avail_mw, color='#2CA02C', linewidth=2.0, linestyle='--', label='Available Wind + Solar (MW)')
@@ -4139,7 +4141,7 @@ def _run_demonstrator():
 
             plt.tight_layout()
             output_filename = scenario_plot_filename(output_filename)
-            plt.savefig(os.path.join(out_dir, output_filename), bbox_inches='tight', pad_inches=0.08)
+            plt.savefig(os.path.join(out_dir, output_filename), dpi=CHART_DPI, bbox_inches='tight', pad_inches=0.08)
             print(f">> Chart saved as '{output_filename}' for {day_num} {month_name} {target_year}!")
 
         # -------------------------------------------------------------------------
@@ -4295,7 +4297,7 @@ def _run_demonstrator():
         df_grand['date'] = pd.to_datetime(df_grand[['year', 'month']].assign(day=1))
         df_grand = df_grand.sort_values('date').drop_duplicates(subset=['date'], keep='first')
 
-        fig6, ax6 = plt.subplots(figsize=(14.5, 7), dpi=300)
+        fig6, ax6 = plt.subplots(figsize=(14.5, 7), dpi=100)
         fig6.subplots_adjust(right=0.75)
 
         ax6.fill_between(df_grand['date'], 0, df_grand['usable_wind_gwh'], color='#90EE90', edgecolor='#2CA02C', linewidth=0.8, label='Usable Wind Gen (GWh)', alpha=0.9)
@@ -4355,7 +4357,7 @@ def _run_demonstrator():
 
         plt.tight_layout()
         g6_png = scenario_plot_filename(f"Grand_Overview_2019_{final_year}.png")
-        plt.savefig(os.path.join(out_dir, g6_png), bbox_inches='tight', pad_inches=0.08)
+        plt.savefig(os.path.join(out_dir, g6_png), dpi=CHART_DPI, bbox_inches='tight', pad_inches=0.08)
         print(f">> Grand Overview chart saved as '{g6_png}'!")
 
         # -------------------------------------------------------------------------
@@ -4412,7 +4414,7 @@ def _run_demonstrator():
             def plot_ic_overview(base_df, year_end, mode, stem):
                 x = build_ic_variant(base_df, mode)
                 x = x[x['year'] <= year_end].copy()
-                fig, ax = plt.subplots(figsize=(14.5 if year_end > 2030 else 13.3, 7), dpi=300)
+                fig, ax = plt.subplots(figsize=(14.5 if year_end > 2030 else 13.3, 7), dpi=100)
                 fig.subplots_adjust(right=0.75)
                 wind_top = x['usable_wind_gwh'].fillna(0.0)
                 solar_top = wind_top + x['usable_solar_gwh'].fillna(0.0)
@@ -4501,7 +4503,7 @@ def _run_demonstrator():
                         facecolor='#FFF2F2', edgecolor='#8B0000', alpha=0.95))
                 plt.tight_layout()
                 filename = scenario_plot_filename(f"{stem}_interconnector_{mode}.png")
-                plt.savefig(os.path.join(out_dir, filename), bbox_inches='tight', pad_inches=0.08)
+                plt.savefig(os.path.join(out_dir, filename), dpi=CHART_DPI, bbox_inches='tight', pad_inches=0.08)
                 plt.close(fig)
                 print(f">> Interconnector sensitivity chart saved as '{filename}'!")
 
@@ -4550,7 +4552,7 @@ def _run_demonstrator():
                       fontsize=14, fontweight='bold', color='#000080')
         plt.tight_layout()
         g8_png = scenario_plot_filename("Constraint_Backcast_Forecast.png")
-        plt.savefig(os.path.join(out_dir, g8_png))
+        plt.savefig(os.path.join(out_dir, g8_png), dpi=CHART_DPI)
         print(f">> Backcast chart saved as '{g8_png}'!")
 
         plt.close('all')
