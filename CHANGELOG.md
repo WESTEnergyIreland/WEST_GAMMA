@@ -34,6 +34,10 @@ Agreed in the group on 27-28 October: drop the TIM comparison, validate against 
 - Charts: the area between renewables and demand is filled and labelled 'Firm (dispatchable: gas today)' in the daily and monthly charts. Chart-only interconnector sensitivities removed.
 - Summary years: 2030, 2035, 2040, 2050, 2075, 2100 (up to the run's end).
 
+### Validation result and open point
+- Ireland total dispatch down, Gamma against EirGrid GSS-1 (`analysis/eirgrid_validation.py`): 2030 Initial 15.2 vs 17.6%; 2030 33% ECP + 2.6 GW offshore 26.8 vs 26.8%; 2035 66% ECP + 4.7 GW offshore 33.6 vs 28.5%.
+- The split differs: Gamma constraint 10-19%, EirGrid 6-10%. Two causes: Gamma applies network constraint before system curtailment (EirGrid removes surplus first), and the TID path grows IE headroom only about 5% by 2035 while EirGrid connects the pipeline with its reinforcements. PR #19 showed that letting IE headroom grow by 15% of connected pipeline MW reproduces EirGrid's 2035 split. That was fitted to EirGrid, so it is not used in the validation runs; it is recorded here as the size of reinforcement EirGrid's results imply. PR #19 closed as superseded by this change.
+
 ## Gamma V13 issue fixes: 24 October 2026
 
 Changes to `Gamma.py` and `Data_inputs/scenariosXLSX.xlsx` for the open GitHub issues. Decisions on approach were agreed by Niall on 24 October; values marked PLACEHOLDER still need group agreement.
