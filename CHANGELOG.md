@@ -7,9 +7,32 @@ The full methodology is in `Technical_Briefing_README.docx`.
 
 1. Install Python 3.10 or later, then from the repository folder: `pip install -r requirements.txt`.
 2. Inputs live in `Data_inputs/`. Edit scenarios in `Data_inputs/scenariosXLSX.xlsx` (sheet `Scenarios`) and save.
-3. Run `python Gamma.py`. All scenarios run without prompts (about 10 minutes with charts). Outputs go to `scenario_outputs/`: one folder per scenario, `scenario_summary.csv`, `all_scenarios_evaluation_curtailment_cf.csv` (curtailment and capacity factors, with actuals), `evaluation_curtailment_cf.png`, `validation_report.csv` and `run_log.txt`. Set `SCENARIO_CHARTS = False` near the top of `Gamma.py` for a faster CSV-only run.
-4. Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py` (outputs in `analysis/output/`).
+3. Run `python Gamma.py` (or `python Gamma.py <scenario>` for one). All scenarios run without prompts (about 25 minutes with charts; the runs to 2100 take longest). Outputs go to `scenario_outputs/`: one folder per scenario, `scenario_summary.csv`, `all_scenarios_evaluation_curtailment_cf.csv` (curtailment and capacity factors, with actuals), `evaluation_curtailment_cf.png`, `validation_report.csv` and `run_log.txt`. Set `SCENARIO_CHARTS = False` near the top of `Gamma.py` for a faster CSV-only run.
+4. Validation against EirGrid: `python analysis/eirgrid_validation.py` (after step 3). Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py`. Outputs in `analysis/output/`.
 5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
+
+## EirGrid validation, historical trend and primary energy: 28 October 2026
+
+Agreed in the group on 27-28 October: drop the TIM comparison, validate against EirGrid, add a run on recorded trends, report primary energy, and call the gap between renewables and demand 'firm'. Values marked VERIFY in the inputs still need checking.
+
+### Scenarios (Data_inputs/scenariosXLSX.xlsx)
+- Removed: Validation1_TIMES_CopperPlate, Validation2_EirGrid_ECP_GSS2, RUN1_Planned, RUN2_Historical_Actual, and the 'AIRAA ECP-GSS2 2035' sheet.
+- **EirGrid_Validation_2030_Initial** and **EirGrid_Validation_2030_2035**: EirGrid's ECP-GSS-1 study portfolios (Initial; 33% ECP + 2.6 GW offshore in 2030; 66% ECP + 4.7 GW offshore in 2035), EirGrid's operating rules (2030: SNSP 95%, IE 2 + 2 Dublin must-run, NI 1; 2035: SNSP 100%, 1 Dublin unit) and EirGrid's 2020 weather. `python analysis/eirgrid_validation.py` compares their Ireland results with the published study.
+- **EirGrid_Extended**: the same portfolios to 2035, then EirGrid's 2030-2035 build and demand rates carried on to 2100, all weather years.
+- **Historical_Trend**: recorded 2019-2025 rates for onshore wind, solar, batteries and demand; offshore only for projects holding ORESS contracts, three to four years late; SNSP and minimum units on their ten-year trends; 0.5%/yr reinforcement plus the North-South interconnector; to 2100.
+- 2026 batteries 550 MW / 1,330 MWh -> 1,000 MW / 1,600 MWh (over 800 MW connected in Ireland by June 2026, plus NI). VERIFY.
+- 'Input Recommendations' rewritten with the source of every value. 'Field Guide' has the two new columns.
+- Data_inputs/Eirgrid ECP Parameters Used.xlsx: Cian's sheet kept as 'Cian original'; 'Corrected GSS-1' gives the published GSS-1 inputs and results; 'What was corrected' lists the errors (results were ECP-2.5 and rounded down; wind/solar capacity split wrong; 2025 actuals).
+
+### Code (Gamma.py)
+- New scenario column `scenario_path`: year-by-year capacities, storage, demand, SNSP and minimum units from Data_inputs/scenario_paths/<name>.csv (straight lines between listed years; rates carry on afterwards). Replaces the hard-coded RUN2 offshore build.
+- New scenario column `weather_years` (blank = all).
+- Runs may end in any year from 2030 to 2100. Runs ending before 2050 write CSVs only.
+- Headline shares (red box, `Overall_*_Pct`) are now **primary energy**, excluding aviation and marine: firm electricity counts as the gas burnt to make it (50% efficiency); wind, solar and heat-pump ambient heat count as delivered. The previous final-energy shares are kept as `Final_*_Pct`.
+- Red box now shows: primary energy shares, firm capacity, firm generation (gas today) and the extra electricity needed to run that firm plant on green hydrogen (`Firm_On_H2_Electrolysis_TWh` = firm / (0.50 x 0.70)). Physical quantities only; costs are for paper 2.
+- `Full_Decarbonisation_Year`: first year fossil is at or below 10% of primary energy (also 5%), in scenario_summary.csv.
+- Charts: the area between renewables and demand is filled and labelled 'Firm (dispatchable: gas today)' in the daily and monthly charts. Chart-only interconnector sensitivities removed.
+- Summary years: 2030, 2035, 2040, 2050, 2075, 2100 (up to the run's end).
 
 ## Gamma V13 issue fixes: 24 October 2026
 
