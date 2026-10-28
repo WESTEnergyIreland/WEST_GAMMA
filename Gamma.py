@@ -2042,7 +2042,8 @@ def _run_demonstrator():
                                  'offshore_connection', 'celtic_energised_year', 'mares_energised_year',
                                  'ic_export_availability', 'ic_import_availability', 'ic_capacity_credit',
                                  'ie_reinforcement_mw_per_year', 'ni_reinforcement_mw_per_year',
-                                 'reinforcement_steps', 'target_year', 'scenario_path', 'weather_years']
+                                 'reinforcement_steps', 'target_year', 'scenario_path', 'weather_years',
+                                 'headroom_pipeline_cover_pct']
         lookup = {key(k): k for k in known}
         # Also accept Build_WIND_OFFSHORE / TID / HeadroomCurve style headers
         lookup[key('Build_WIND_OFFSHORE')] = 'build_rate_wind_offshore'
@@ -2098,9 +2099,10 @@ def _run_demonstrator():
                     'ic_import_availability': DEFAULT_IC_IMPORT_AVAILABILITY,
                     'ic_capacity_credit': DEFAULT_IC_CAPACITY_CREDIT,
                     'ie_reinforcement_mw_per_year': 0.0, 'ni_reinforcement_mw_per_year': 0.0,
-                    'ie_reinforcement_pct': 0.0, 'ni_reinforcement_pct': 0.0, 'target_year': 2050.0}
+                    'ie_reinforcement_pct': 0.0, 'ni_reinforcement_pct': 0.0, 'target_year': 2050.0,
+                    'headroom_pipeline_cover_pct': 0.0}
         not_flagged = ('ie_reinforcement_pct', 'ni_reinforcement_pct', 'ie_reinforcement_mw_per_year',
-                       'ni_reinforcement_mw_per_year')
+                       'ni_reinforcement_mw_per_year', 'headroom_pipeline_cover_pct')
         scenarios = []
         for i, row in table.iterrows():
             name = str(row.get('scenario', '')).strip()
@@ -2180,7 +2182,7 @@ def _run_demonstrator():
         'ie_reinforcement_mw_per_year': (-500, 5000), 'ni_reinforcement_mw_per_year': (-500, 5000),
         'ic_export_availability': (0, 1), 'ic_import_availability': (0, 1), 'ic_capacity_credit': (0, 1),
         'celtic_energised_year': (2026, 2100), 'mares_energised_year': (2026, 2100),
-        'target_year': (2030, 2100),
+        'target_year': (2030, 2100), 'headroom_pipeline_cover_pct': (0, 200),
     }
 
     def validate_scenarios(scenarios):
@@ -2839,6 +2841,27 @@ def _run_demonstrator():
             wind_on = np.asarray(spec_mw_per_gw, dtype=float) * onshore_gw
             wind_off = np.asarray(spec_mw_per_gw, dtype=float) * offshore_gw * OFFSHORE_PROFILE_SCALE
             return wind_on, wind_off, onshore_gw, offshore_gw, zone_caps
+
+        # Optional sensitivity (headroom_pipeline_cover_pct, default 0): each IE zone's headroom also
+        # grows by this % of the onshore wind + solar MW connected in that zone since 2026. It stands
+        # for reinforcement built alongside new connections. About 40% reproduces Ireland's constraint
+        # in EirGrid's GSS-1 2030 and 2035 cases (about 6%), so it measures the reinforcement EirGrid's
+        # results imply. It is fitted to EirGrid, so it is never used in the validation runs.
+        headroom_cover = float(sc.get('headroom_pipeline_cover_pct', 0.0) or 0.0) / 100.0
+        if headroom_cover > 0:
+            _, _, wind_2026 = zone_caps_for_year(start_year)
+            solar_2026 = solar_caps_for_year(start_year)
+            headroom_table = dict(headroom_table)
+            for (y, z) in list(headroom_table):
+                if z in IE_ZONES and y > start_year:
+                    _, _, wind_y = zone_caps_for_year(y)
+                    solar_y = solar_caps_for_year(y)
+                    new_mw = 1000.0 * max(0.0, wind_y[z] - wind_2026[z] + solar_y.get(z, 0.0) - solar_2026.get(z, 0.0))
+                    headroom_table[(y, z)] += headroom_cover * new_mw
+            added = sum(headroom_table[(min(final_year, max(y for y, _ in headroom_table)), z)]
+                        for z in IE_ZONES) - sum(headroom_for_year(headroom_table, start_year, 1.0)[z] for z in IE_ZONES)
+            print(f">> Headroom sensitivity: IE zones also gain {100 * headroom_cover:g}% of new onshore wind + "
+                  f"solar MW; IE headroom up {added:,.0f} MW by {final_year}")
 
         def demand_for_year(year):
             """All-island demand (TWh): 2026 anchor, then the scenario path or the growth rate."""
@@ -4597,6 +4620,7 @@ def _run_demonstrator():
                     'Full_Decarbonisation_Year': sc.get('Full_Decarbonisation_Year', ''),
                     'Full_Decarbonisation_Year_5pct': sc.get('Full_Decarbonisation_Year_5pct', ''),
                     'Scenario_Path': sc.get('scenario_path', ''), 'Weather_Years': sc.get('weather_years', '') or 'all',
+                    'Headroom_Pipeline_Cover_%': sc.get('headroom_pipeline_cover_pct', 0.0),
                     'Build_Wind_IE_GW_yr': round(sc['build_rate_wind_ie'], 3),
                     'Build_Wind_NI_GW_yr': round(sc['build_rate_wind_ni'], 3),
                     'Build_Solar_IE_GW_yr': round(sc['build_rate_solar_ie'], 3),
