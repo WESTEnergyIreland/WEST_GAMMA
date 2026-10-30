@@ -11,6 +11,27 @@ The full methodology is in `Technical_Briefing_README.docx`.
 4. Validation against EirGrid: `python analysis/eirgrid_validation.py` (after step 3). Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py`. Outputs in `analysis/output/`.
 5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
 
+## Residual curtailment on the delivered basis; sensitivity study: 30 October 2026
+
+Group decision: the corrected residual curtailment is now the default (PRs #24 and #25 merged).
+- Residual curtailment κ (the recorded high frequency and minimum generation curtailment the rules do not simulate) was a fixed share of available energy. That share grew without limit as capacity was added, so in faster-build runs adding wind and solar reduced delivered output. It is now the same 2026 energy, held in later years as a share of the energy the operating rules would otherwise deliver. 2026 results are identical. `GAMMA_RESIDUAL_BASIS=available` reproduces the old basis.
+- Heat and transport demand now stops growing once those sectors are fully electrified (no effect on the paper's scenarios, which stay below the caps).
+- New `analysis/sensitivity_study.py`: heat and transport electrification pace, and wind, solar and battery build rate, each +50%, +100% and +150% on EirGrid_Extended; tables and charts in `analysis/output/sensitivity/` (old basis in `sensitivity_available/`).
+- Effect on the paper's results (old → new):
+
+| Result | Old | New |
+|---|---|---|
+| EirGrid validation, Gamma total 2030 Initial / 2030 / 2035 (% IE) | 15.2 / 26.8 / 33.6 | 15.0 / 26.0 / 32.6 |
+| Largest difference from EirGrid (points) | 5.1 | 4.1 |
+| 40% reinforcement, 2035 total (% IE; EirGrid 28.5) | 28.3 | 27.5 |
+| GSS-2 central prediction, 100% ECP / with offshore (% IE) | 23.4 / 34.2 | 22.6 / 33.0 |
+| EirGrid_Extended fossil share 2050 / 2100 (%) | 67.3 / 38.9 | 66.3 / 34.4 |
+| Historical_Trend fossil share 2050 / 2100 (%) | 74.6 / 63.8 | 74.4 / 62.9 |
+| EirGrid_Extended dispatch down 2050 / 2100 (%) | 44.2 / 59.4 | 42.5 / 56.8 |
+| Firm capacity 2050 / 2100 (GW) | 12.7 / 21.3 | unchanged |
+
+- `analysis/gss2_prediction_2035.csv` keeps the 28 October prediction and adds the revised rows, both made before EirGrid publishes.
+
 ## ECP-GSS-2 prediction: 28 October 2026
 
 - GSS-2 assumptions (Q4 2026) and generation list (data freeze 2 October 2026) added: `Data_inputs/ECP-GSS-2-IE-Generation-List.xlsx`. EirGrid publishes GSS-2 results on 15 December 2026; until then validation stays on GSS-1.

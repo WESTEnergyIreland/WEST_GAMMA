@@ -1,4 +1,4 @@
 case,year,portfolio,eirgrid_constraint_pct,eirgrid_curtailment_pct,eirgrid_total_pct,gamma_constraint_pct,gamma_curtailment_pct,gamma_total_pct,total_difference_pts
-S1,2030,Initial,10.0,7.6000000000000005,17.6,10.5,4.7,15.2,-2.4
-S4,2030,33% ECP + 2.6 GW offshore,5.7,21.099999999999998,26.8,15.0,11.8,26.8,0.0
-S8,2035,66% ECP + 4.7 GW offshore,6.0,22.4,28.5,19.0,14.6,33.6,5.1
+S1,2030,Initial,10.0,7.6000000000000005,17.6,10.5,4.6,15.0,-2.6
+S4,2030,33% ECP + 2.6 GW offshore,5.7,21.099999999999998,26.8,15.0,11.0,26.0,-0.8
+S8,2035,66% ECP + 4.7 GW offshore,6.0,22.4,28.5,19.0,13.6,32.6,4.1
