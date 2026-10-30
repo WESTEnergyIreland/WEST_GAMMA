@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 analysis/sensitivity_run/
 analysis/sensitivity_run_*/
+analysis/grid_run_*/
