@@ -11,6 +11,14 @@ The full methodology is in `Technical_Briefing_README.docx`.
 4. Validation against EirGrid: `python analysis/eirgrid_validation.py` (after step 3). Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py`. Outputs in `analysis/output/`.
 5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
 
+## Grid reinforcement study: 30 October 2026 (analysis only, no result changes)
+
+- `analysis/headroom_history.py`: effective headroom that reproduces each year's recorded constraint. IE 4,469 MW (2021) to 4,323 MW (2025), trend −0.4% a year. Zone values move by up to 20% a year either way and do not support a zonal growth rate.
+- `analysis/grid_reinforcement_study.py`: EirGrid_Extended to 2050 at 0, 1, 2, 4 and 7.3% a year IE headroom growth, each with and without interconnector flows; wind, solar and battery build x1.5 and x2.0 at 0% and 7.3%; Historical_Trend at 0% and 0.5%. Results and tables in `analysis/output/grid_reinforcement/`.
+- `Gamma.py`: `GAMMA_IC_DISPATCH=1` and `GAMMA_CHARTS=0` environment switches. Defaults unchanged.
+- Findings: in 2050, 103.1 of 119.6 TWh of fossil energy is unelectrified heat and transport, the same in every run. Headroom growth from 0 to 7.3% a year moves the fossil share from 66.7% to 63.9%; with interconnector flows, 65.0% to 63.1%. The next 10.5 GW of wind and solar delivers 0.27 TWh/GW against a fleet average of 1.01 TWh/GW.
+- For group decision: Historical_Trend uses 0.5% a year headroom growth; the recorded rate is about 0%. At 0% its 2050 fossil share is 74.8% (74.4% now).
+
 ## Residual curtailment on the delivered basis; sensitivity study: 30 October 2026
 
 Group decision: the corrected residual curtailment is now the default (PRs #24 and #25 merged).

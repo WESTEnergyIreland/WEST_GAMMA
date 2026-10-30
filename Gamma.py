@@ -208,7 +208,7 @@ SCENARIO_SUMMARY_CSV = "scenario_summary.csv"   # written inside SCENARIO_OUTPUT
 EVALUATION_CSV = "evaluation_curtailment_cf.csv"
 EVALUATION_CHART = "evaluation_curtailment_cf.png"
 DD_ALL_ISLAND_FILES = {'Wind': "system_dd_hourly_all_island.csv", 'Solar': "system_dd_hourly_all_island_solar.csv"}
-SCENARIO_CHARTS = True  # set False for faster CSV-only runs
+SCENARIO_CHARTS = os.environ.get('GAMMA_CHARTS', '1') == '1'  # set False (or GAMMA_CHARTS=0) for faster CSV-only runs
 DEFAULT_BUILD_RATE_GW = 1.87 / (8760 * 0.40 / 1000.0)   # ~0.534 GW/yr
 DEFAULT_SNSP_PCT = 75.0
 DEFAULT_DEMAND_RATE_TWH_PER_YEAR = 1.87  # legacy fallback only
@@ -242,7 +242,8 @@ INTERVAL_HOURS = 0.25
 # Interconnector flows in the 15-minute dispatch. False (decision of 24 Oct 2026): no imports or
 # exports in the dispatch; firm plant covers every shortfall and surplus is curtailed, as before
 # issue #5. Interconnectors appear only in the chart-only sensitivities (50% import / max export).
-INTERCONNECTOR_DISPATCH = False
+# GAMMA_IC_DISPATCH=1 turns them on for a sensitivity run without editing this file.
+INTERCONNECTOR_DISPATCH = os.environ.get('GAMMA_IC_DISPATCH', '0') == '1'
 # Imported electricity in the Overall Transition Progress shares: fixed share of the total, with
 # fossil and renewables scaled to the remainder (100% - this).
 FIXED_IMPORT_SHARE_PCT = 4.0
