@@ -11,6 +11,13 @@ The full methodology is in `Technical_Briefing_README.docx`.
 4. Validation against EirGrid: `python analysis/eirgrid_validation.py` (after step 3). Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py`. Outputs in `analysis/output/`.
 5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
 
+## ECP-GSS-2 prediction: 28 October 2026
+
+- GSS-2 assumptions (Q4 2026) and generation list (data freeze 2 October 2026) added: `Data_inputs/ECP-GSS-2-IE-Generation-List.xlsx`. EirGrid publishes GSS-2 results on 15 December 2026; until then validation stays on GSS-1.
+- Four prediction runs for the two GSS-2 Future Grid (2035) cases that the generation list fully specifies, `100% ECP` and `100% ECP + 4.7 GW offshore`, each on the published network path and with the 40% headroom cover: `GSS2_Prediction_2035_*`, paths `eirgrid_gss2_fg_100ecp*.csv`. GSS-2 rules: SNSP 100%, no minimum sets, 1 Dublin unit; 2022 weather.
+- Results in `analysis/gss2_prediction_2035.csv`. Central prediction (cover 40%): Ireland total dispatch down 23.4% (100% ECP) and 34.2% (with offshore).
+- New IE capacity is still split between zones by the GSS-1 list; GSS-2 zone shares are within 2 points of GSS-1 for wind and solar.
+
 ## Paper revision 9 changes: 28 October 2026
 
 - `CHART_DPI = 600` near the top of `Gamma.py`; every saved chart uses it (was 130 to 300). Runs take about a minute longer.
