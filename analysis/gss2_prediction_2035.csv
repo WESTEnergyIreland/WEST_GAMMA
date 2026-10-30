@@ -3,8 +3,15 @@
 # Wind + solar dispatch down, % of available energy. 'published path' = network headroom on the TID path;
 # 'cover 40%' = headroom also grows by 40% of new IE onshore wind + solar MW, the reinforcement that
 # reproduced EirGrid's GSS-1 constraint. Central prediction = cover 40% (matched GSS-1 2035 total to 0.2 pts).
-case,network,gamma_constraint_pct,gamma_curtailment_pct,gamma_total_pct,ie_headroom_mw
-100% ECP,published path,34.4,5.3,39.8,5376
-100% ECP,cover 40%,10.0,13.5,23.4,11686
-100% ECP + 4.7 GW offshore,published path,26.5,15.0,41.5,5376
-100% ECP + 4.7 GW offshore,cover 40%,7.7,26.5,34.2,11686
+# Revised 30 October 2026, still before publication: residual curtailment on the delivered basis (PR #25). On the revised model
+# cover 40% gives 27.5% against EirGrid's 28.5% for GSS-1 2035.
+# The 28 October rows are kept as first recorded (model_version = 2026-10-28).
+case,network,gamma_constraint_pct,gamma_curtailment_pct,gamma_total_pct,ie_headroom_mw,model_version
+100% ECP,published path,34.4,5.3,39.8,5376,2026-10-28
+100% ECP,cover 40%,10.0,13.5,23.4,11686,2026-10-28
+100% ECP + 4.7 GW offshore,published path,26.5,15.0,41.5,5376,2026-10-28
+100% ECP + 4.7 GW offshore,cover 40%,7.7,26.5,34.2,11686,2026-10-28
+100% ECP,published path,34.4,4.0,38.4,5376,2026-10-30
+100% ECP,cover 40%,10.0,12.7,22.6,11686,2026-10-30
+100% ECP + 4.7 GW offshore,published path,26.5,13.5,40.0,5376,2026-10-30
+100% ECP + 4.7 GW offshore,cover 40%,7.7,25.3,33.0,11686,2026-10-30

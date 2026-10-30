@@ -1,3 +1,5 @@
 scenario_outputs/
 __pycache__/
 *.pyc
+analysis/sensitivity_run/
+analysis/sensitivity_run_*/

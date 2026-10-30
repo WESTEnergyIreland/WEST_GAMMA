@@ -312,6 +312,12 @@ DEFAULT_STORAGE_ENERGY_2026_MWH = 0.0
 DEFAULT_STORAGE_CHARGE_EFFICIENCY = 0.9
 DEFAULT_STORAGE_DISCHARGE_EFFICIENCY = 0.9
 DEFAULT_STORAGE_INITIAL_SOC_PCT = 50.0  # fixed; not a scenario input (affects only the first day of each weather year)
+# Residual ('other') curtailment basis. 'available': kappa x available energy (original; grows without
+# limit as capacity is overbuilt, so delivered output can fall when capacity is added). 'delivered':
+# the same 2026 energy, held as a share of the energy the rules would otherwise deliver, so it can
+# never exceed what is left to curtail. Both give identical 2026 results. Default 'delivered' from
+# 30 October 2026 (group decision); set GAMMA_RESIDUAL_BASIS=available to reproduce earlier results.
+RESIDUAL_CURTAILMENT_BASIS = os.environ.get('GAMMA_RESIDUAL_BASIS', 'delivered')
 CHART_DPI = 600  # resolution of saved PNG charts; 600 suits print journals (files are larger, runs slightly slower)
 DEFAULT_PC_STORAGE_HYBRID = 5.0
 
@@ -2870,8 +2876,18 @@ def _run_demonstrator():
             if year <= start_year:
                 return base_demand_twh
             if path_has('demand_twh'):
-                return path_value('demand_twh', year, base_demand_twh, annual_demand_growth_rate)
-            return base_demand_twh + (year - start_year) * annual_demand_growth_rate
+                d = path_value('demand_twh', year, base_demand_twh, annual_demand_growth_rate)
+            else:
+                d = base_demand_twh + (year - start_year) * annual_demand_growth_rate
+            # Heat and transport growth stops once those sectors are fully electrified: electricity
+            # beyond the caps would displace no fossil fuel, so it is not added to demand.
+            n = year - start_year
+            heat_0 = BASE_HEAT_ELECTRICITY_TWH_2025 + DEFAULT_HEAT_DEMAND_GROWTH_TWH_PER_YEAR
+            trans_0 = BASE_TRANSPORT_ELECTRICITY_TWH_2025 + DEFAULT_TRANSPORT_DEMAND_GROWTH_TWH_PER_YEAR
+            heat_over = max(0.0, heat_0 + n * heat_demand_growth_rate - ALL_ISLAND_HEAT_DEMAND_TWH / HEAT_COP)
+            trans_over = max(0.0, trans_0 + n * transport_demand_growth_rate
+                             - ALL_ISLAND_TRANSPORT_DEMAND_TWH / TRANSPORT_DISPLACEMENT_FACTOR)
+            return d - heat_over - trans_over
 
         def snsp_fraction_for_year(year):
             """SNSP limit: the 2026 limit in the anchor year, then the path or the scenario value."""
@@ -3140,6 +3156,7 @@ def _run_demonstrator():
         evaluation_rows = []
         summary_rows_by_kind = {'wind': [], 'solar': [], 'total': [], 'system': []}
         summary_gap = 0.0          # largest gap between zone sums and the all-island figures (% pts)
+        resid_ratio_w = resid_ratio_s = None   # 2026 available/delivered ratios ('delivered' residual basis)
         for yr in simulation_years:
             say(str(yr) if yr in (2026, 2030, 2040, 2050) else '.', end='')     # progress on the console
             other_yr = other_curt_for_year(yr)
@@ -3168,6 +3185,15 @@ def _run_demonstrator():
                                              weather_years=complete_weather_years)
                 run['firm_peak_mw'], run['firm_p_mw'] = peak_run['firm_peak_mw'], peak_run['firm_p_mw']
 
+            if RESIDUAL_CURTAILMENT_BASIS == 'delivered':
+                if yr == start_year:
+                    resid_ratio_w = run['avail_twh'] / run['dispatch_twh'] if run['dispatch_twh'] > 0 else 1.0
+                    resid_ratio_s = (run['solar_avail_twh'] / run['solar_dispatch_twh']
+                                     if run['solar_dispatch_twh'] > 0 else 1.0)
+                if run['avail_twh'] > 0:
+                    other_yr = other_yr * resid_ratio_w * run['dispatch_twh'] / run['avail_twh']
+                if run['solar_avail_twh'] > 0:
+                    other_s_yr = other_s_yr * resid_ratio_s * run['solar_dispatch_twh'] / run['solar_avail_twh']
             avg_raw_curt_pct = other_yr + run['curt_pct']
             sim_constraint_pct = run['cons_pct']
             total_loss_pct = min(100.0, avg_raw_curt_pct + sim_constraint_pct)
@@ -3821,8 +3847,12 @@ def _run_demonstrator():
                 sp_y, se_y = storage_for_year(y)
                 d_year = dispatch_year(df_wy['spec_avail_mw_per_gw'].values, solar_year, demand_year, y,
                                        snsp_y, sp_y, se_y)
-                usable_w_year = np.maximum(0.0, d_year['usable_w'] - (other_curt_for_year(y) / 100.0) * avail_year)
-                usable_s_year = np.maximum(0.0, d_year['usable_s'] - (solar_other_for_year(y) / 100.0) * solar_year)
+                if RESIDUAL_CURTAILMENT_BASIS == 'delivered' and resid_ratio_w is not None:
+                    usable_w_year = d_year['usable_w'] * (1.0 - other_curt_for_year(y) / 100.0 * resid_ratio_w)
+                    usable_s_year = d_year['usable_s'] * (1.0 - solar_other_for_year(y) / 100.0 * resid_ratio_s)
+                else:
+                    usable_w_year = np.maximum(0.0, d_year['usable_w'] - (other_curt_for_year(y) / 100.0) * avail_year)
+                    usable_s_year = np.maximum(0.0, d_year['usable_s'] - (solar_other_for_year(y) / 100.0) * solar_year)
                 months_year = df_wy['month'].to_numpy()
                 for m in sorted(df_wy['month'].dropna().unique()):
                     mask = months_year == m
