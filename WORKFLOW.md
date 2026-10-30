@@ -7,7 +7,8 @@ Status: draft for group agreement, 30 October 2026.
 ## Code (this repository)
 
 1. Never commit straight to `main`. Make a branch, push it and open a pull request.
-2. One other member reviews and merges.
+2. Post the pull request in the Teams chat and ask for a review. The author may merge without waiting for it.
+   A review after the merge is still welcome; any fix goes in a new pull request.
 3. Any change that moves a result gets a `CHANGELOG.md` entry with an old and new value table, as for 30 October 2026.
 4. Do not commit `scenario_outputs/` or other generated output, except files the paper cites directly.
 5. Pull `main` before starting work. Keep pull requests small and on one topic.
