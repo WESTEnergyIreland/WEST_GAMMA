@@ -315,8 +315,9 @@ DEFAULT_STORAGE_INITIAL_SOC_PCT = 50.0  # fixed; not a scenario input (affects o
 # Residual ('other') curtailment basis. 'available': kappa x available energy (original; grows without
 # limit as capacity is overbuilt, so delivered output can fall when capacity is added). 'delivered':
 # the same 2026 energy, held as a share of the energy the rules would otherwise deliver, so it can
-# never exceed what is left to curtail. Both give identical 2026 results.
-RESIDUAL_CURTAILMENT_BASIS = os.environ.get('GAMMA_RESIDUAL_BASIS', 'available')
+# never exceed what is left to curtail. Both give identical 2026 results. Default 'delivered' from
+# 30 October 2026 (group decision); set GAMMA_RESIDUAL_BASIS=available to reproduce earlier results.
+RESIDUAL_CURTAILMENT_BASIS = os.environ.get('GAMMA_RESIDUAL_BASIS', 'delivered')
 CHART_DPI = 600  # resolution of saved PNG charts; 600 suits print journals (files are larger, runs slightly slower)
 DEFAULT_PC_STORAGE_HYBRID = 5.0
 
