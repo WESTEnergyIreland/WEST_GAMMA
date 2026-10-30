@@ -1669,7 +1669,7 @@ def _run_demonstrator():
             'charge', 'discharge', 'soc', 'curt', 'direct', 'limit',
             'snspceil', 'muonceil', 'snsppct', 'potential_curt',
             'accessible_curt', 'charge_blocked_constraint',
-            'export', 'export_vre', 'export_sync', 'imp'
+            'export', 'export_vre', 'export_sync', 'imp', 'surplus', 'surplus_pre'
         ]
         a = {name: np.zeros(n, dtype=float) for name in names}
 
@@ -1766,6 +1766,16 @@ def _run_demonstrator():
                 curtailment_mw = max(0.0, vre_after_charge_mw - direct_vre_mw - export_vre_mw)
                 effective_demand_mw = native_demand_mw + charge_mw + export_mw
 
+            # Surplus (EirGrid's ECP definition): wind and solar left over after native demand,
+            # battery charging and exports, which no operating limit could release. It is the part
+            # of curtailment_mw that remains at SNSP 100% with no minimum units; the rest is
+            # operational curtailment.
+            surplus_mw = min(curtailment_mw,
+                             max(0.0, vre_after_charge_mw - native_demand_mw - export_vre_mw))
+            # The same quantity on available output before the network is applied, which is the
+            # order EirGrid uses (surplus first, then curtailment, then constraint). Diagnostic only.
+            surplus_pre_mw = max(0.0, available_vre_mw - charge_mw - native_demand_mw - export_vre_mw)
+
             discharge_mw = 0.0
             if charge_mw <= 1e-9 and soc_mwh_now > 0.0:
                 # Wind and solar always dispatch first. BESS can then use only the
@@ -1809,6 +1819,8 @@ def _run_demonstrator():
             a['soc'][i] = soc_mwh_now
             a['direct'][i] = direct_vre_mw
             a['curt'][i] = curtailment_mw
+            a['surplus'][i] = surplus_mw
+            a['surplus_pre'][i] = surplus_pre_mw
             a['accessible_curt'][i] = charge_mw
             a['limit'][i] = limit_mw
             a['snspceil'][i] = snsp_ceiling_mw
@@ -1943,6 +1955,8 @@ def _run_demonstrator():
             'recovered_constraint_mw': recovered_constraint_mw,
             'curt_w': a['curt'] * post_wind_fraction,
             'curt_s': a['curt'] * (1.0 - post_wind_fraction),
+            'surplus_mw': a['surplus'],
+            'surplus_pre_mw': a['surplus_pre'],
             # usable = wind/solar generated and dispatched, including the part exported
             'usable_w': (a['direct'] + a['export_vre']) * post_wind_fraction,
             'usable_s': (a['direct'] + a['export_vre']) * (1.0 - post_wind_fraction),
@@ -3082,6 +3096,8 @@ def _run_demonstrator():
                 muon_binds = d['muon_ceiling_mw'] < d['snsp_ceiling_mw']
                 to_hours = 0.25 * (365.25 / (len(avail) / 96.0))
                 row['sys_curt_snsp_twh'] = curt_all[~muon_binds].sum() * to_annual_twh
+                row['sys_curt_surplus_twh'] = d['surplus_mw'].sum() * to_annual_twh
+                row['sys_surplus_pre_twh'] = d['surplus_pre_mw'].sum() * to_annual_twh
                 for tech, key in (('w', 'wind'), ('s', 'solar')):
                     row[f'{key}_curt_snsp_twh'] = d[f'curt_{tech}'][~muon_binds].sum() * to_annual_twh
                     row[f'{key}_curt_mingen_twh'] = d[f'curt_{tech}'][muon_binds].sum() * to_annual_twh
@@ -3420,6 +3436,7 @@ def _run_demonstrator():
                      'Available_TWh': round(av_ws, 2),
                      'Generation_TWh': round(row_out['Wind_Gen_TWh'] + row_out['Solar_Gen_TWh'], 2),
                      'Constraint_%': pct(con_ws, av_ws), 'Curtailment_%': pct(curt_ws, av_ws, other_ws_yr),
+                     'Surplus_%': pct(run['sys_curt_surplus_twh'], av_ws),
                      'Total_Loss_%': pct(con_ws + curt_ws, av_ws, other_ws_yr),
                      'Share_of_Demand_%': row_out['Wind+Solar_%'],
                      'Storage_Power_MW': row_out['Storage_Power_MW'], 'Storage_Energy_MWh': row_out['Storage_Energy_MWh'],
@@ -3444,6 +3461,12 @@ def _run_demonstrator():
                        'SNSP_Curtailment_%': pct(run['sys_curt_snsp_twh'], av_ws),
                        'MinGen_Curtailment_%': pct(run['sys_curt_mingen_twh'], av_ws),
                        'Other_incl_RoCoF_%': round(other_ws_yr, 2),
+                       # EirGrid's three-way split: surplus is inside SNSP/MinGen above; operational
+                       # curtailment is everything in curtailment that is not surplus.
+                       'Surplus_%': pct(run['sys_curt_surplus_twh'], av_ws),
+                       'Operational_Curtailment_%': round(pct(run['sys_curt_snsp_twh'] + run['sys_curt_mingen_twh']
+                                                          - run['sys_curt_surplus_twh'], av_ws) + other_ws_yr, 2),
+                       'Surplus_Before_Constraint_%': pct(run['sys_surplus_pre_twh'], av_ws),
                        'Total_Dispatch_Down_%': pct(con_ws + curt_ws, av_ws, other_ws_yr),
                        'SNSP_Binding_Hours': round(run['sys_hours_snsp']),
                        'MinGen_Binding_Hours': round(run['sys_hours_mingen']),

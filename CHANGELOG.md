@@ -11,6 +11,21 @@ The full methodology is in `Technical_Briefing_README.docx`.
 4. Validation against EirGrid: `python analysis/eirgrid_validation.py` (after step 3). Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py`. Outputs in `analysis/output/`.
 5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
 
+## Surplus reported separately: 30 October 2026 (no change to totals)
+
+EirGrid's ECP studies split dispatch down into surplus, curtailment and constraint. Gamma now reports surplus as well; constraint, curtailment and totals are unchanged (validation totals 15.0 / 26.0 / 32.6% IE, as before).
+- Surplus: wind and solar left after native demand, battery charging and exports, which no operating limit could release. It is the part of curtailment that remains at SNSP 100% with no minimum units.
+- `summary_system.csv`: new `Surplus_%`, `Operational_Curtailment_%` (curtailment minus surplus, including the residual) and `Surplus_Before_Constraint_%` (the same quantity on output before the network is applied, EirGrid's order; diagnostic only). `summary_total.csv`: new `Surplus_%`.
+- `analysis/eirgrid_validation.py` adds the three-way split:
+
+| Ireland, % of available | EirGrid surplus | Gamma surplus (after network) | Gamma surplus (before network) | EirGrid curtailment | Gamma curtailment excl. surplus | EirGrid constraint | Gamma constraint |
+|---|---|---|---|---|---|---|---|
+| 2030 Initial | 5.4 | 0.2 | 2.3 | 2.2 | 4.4 | 10.0 | 10.5 |
+| 2030 33% ECP + 2.6 GW offshore | 18.7 | 4.6 | 14.6 | 2.4 | 6.4 | 5.7 | 15.0 |
+| 2035 66% ECP + 4.7 GW offshore | 21.5 | 9.7 | 23.2 | 0.9 | 3.9 | 6.0 | 19.0 |
+
+- Finding: measured in EirGrid's order, Gamma's surplus is close to EirGrid's in 2035 (23.2% against 21.5%) and 4 points below it in 2030. Most of the gap in the constraint split is the order in which the categories are removed.
+
 ## Grid reinforcement study: 30 October 2026 (analysis only, no result changes)
 
 - `analysis/headroom_history.py`: effective headroom that reproduces each year's recorded constraint. IE 4,469 MW (2021) to 4,323 MW (2025), trend −0.4% a year. Zone values move by up to 20% a year either way and do not support a zonal growth rate.
