@@ -1,0 +1,4 @@
+basis,best_cover_pct,rms_error_points
+"constraint, Gamma order",40,0.42
+total dispatch down,10,2.02
+"constraint, EirGrid order",0,0.57
