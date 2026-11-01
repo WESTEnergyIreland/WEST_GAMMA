@@ -43,6 +43,7 @@ Findings:
 - Sensitivities rerun on the new setting (fossil share of primary energy, 2050 / 2100): firm plant at 35% efficiency, EirGrid_Extended 65.1 / 32.0 and Historical_Trend 74.7 / 60.5 (1.6 to 3.7 points above the central runs); heat-pump COP 3.9, EirGrid_Extended 62.5 / 26.0 and Historical_Trend 72.2 / 55.2 (0.7 to 2.6 points below). Run by changing `FIRM_FUEL_EFFICIENCY` and `HEAT_COP` in a copy of `Gamma.py`.
 - On EirGrid_Extended, all wind and solar dispatched down first exceeds the electricity needed to run the firm plant on green hydrogen (35% round trip) in 2051, when 12.9 GW of firm capacity is needed (2056 on the published path).
 - Figure 6 of the paper: `analysis/figure6_projections.py`, output `analysis/output/paper/figure6_projections.png`.
+
 ## Headroom cover re-fitted against GSS-1: 31 October 2026 (analysis only, no result changes)
 
 `analysis/cover_recalibration.py` re-runs EirGrid_Validation_2030_2035 at 0 to 80% `headroom_pipeline_cover_pct` on the current model and compares Ireland with GSS-1 (2030: 33% ECP + 2.6 GW offshore; 2035: 66% ECP + 4.7 GW offshore) on three bases. Results in `analysis/output/cover_recalibration/`.
