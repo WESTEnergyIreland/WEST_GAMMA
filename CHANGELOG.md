@@ -11,6 +11,26 @@ The full methodology is in `Technical_Briefing_README.docx`.
 4. Validation against EirGrid: `python analysis/eirgrid_validation.py` (after step 3). Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py`. Outputs in `analysis/output/`.
 5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
 
+## Paper re-run on the fleet efficiency: 1 November 2026 (Figure 6 and sensitivities)
+
+All scenarios, `analysis/eirgrid_validation.py` and Figure 6 re-run on `main` after PR #32. Validation and all dispatch results are unchanged; checks 107 passed, 3 warnings.
+- Figure 6 panel (d) now plots `Firm_On_H2_Electrolysis_TWh` (70% electrolysis, burnt at the fleet efficiency) instead of firm generation / 0.35. Dashed lines are the same scenarios with `reinforcement_steps` set to `NI:2032:950` only.
+- On EirGrid_Extended, all wind and solar dispatched down first exceeds the electricity for green hydrogen firm plant in 2054 (previously 2051 at a fixed 35% round trip).
+
+| Result (all-island, fossil share of primary energy, %) | Old | New |
+|---|---|---|
+| EirGrid_Extended 2050, published network path after 2035 | 66.3 | 66.3 |
+| All firm plant at 35%: EirGrid_Extended 2050 / 2100 | 65.1 / 32.0 | 65.1 / 32.0 |
+| All firm plant at 35%: Historical_Trend 2050 / 2100 | 74.7 / 60.5 | 74.7 / 60.5 |
+| Difference from central runs, 35% firm plant (points) | 1.6 to 3.7 | 1.3 to 3.9 |
+| Heat-pump COP 3.9: EirGrid_Extended 2050 / 2100 | 62.5 / 26.0 | 62.9 / 28.0 |
+| Heat-pump COP 3.9: Historical_Trend 2050 / 2100 | 72.2 / 55.2 | 71.9 / 55.0 |
+| Difference from central runs, COP 3.9 (points) | 0.7 to 2.6 | 0.7 to 2.5 |
+
+The 35% runs set both tranche efficiencies to 0.35, so their results equal the old fixed-35% runs; only the central runs they are compared with moved.
+
+Heat-pump temperature shaping (Cian's question in the paper): a run with `TEMPERATURE_FILE` pointing to a missing file, so added heat-pump load follows the recorded demand shape. The shaping raises firm capacity on EirGrid_Extended by 0.24 GW (2035), 0.65 GW (2050) and 2.21 GW (2100), dispatch down by 0.1, 0.4 and 0.5 points, and the fossil share by 0.0, 0.2 and 1.1 points. On Historical_Trend firm capacity rises by 0.58 GW (2050) and 1.79 GW (2100).
+
 ## Firm fleet efficiency from a baseload and peaking split: 1 November 2026
 
 The fixed firm plant efficiency (`FIRM_FUEL_EFFICIENCY = 0.50`) is replaced by a fleet efficiency that depends on how the firm plant runs. Proposed by Niall; values are placeholders for group agreement.
