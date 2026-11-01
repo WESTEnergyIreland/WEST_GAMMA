@@ -11,6 +11,36 @@ The full methodology is in `Technical_Briefing_README.docx`.
 4. Validation against EirGrid: `python analysis/eirgrid_validation.py` (after step 3). Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py`. Outputs in `analysis/output/`.
 5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
 
+## Zonal network limits removed from 2036 in the projections: 1 November 2026
+
+Group decision (Cian, Niall): from 2036 EirGrid_Extended and Historical_Trend have no zonal network constraint. This is a bounding case that favours renewables, not a forecast: all available wind and solar reaches the all-island system, and dispatch down after 2035 is surplus and curtailment only. It replaces any calibrated post-2035 reinforcement rate (see the cover recalibration, PR #29).
+- Implemented with `reinforcement_steps`: +1,000,000 MW in every zone (NW, W, MID, NE, SW, SE, NI) from 2036, after the North–South step. No code change. Offshore keeps its own connection.
+- Results to 2035, the validation runs and the GSS-2 prediction are unchanged.
+
+| Result (all-island) | Old | New |
+|---|---|---|
+| EirGrid_Extended fossil share of primary energy 2050 / 2100 (%) | 66.3 / 34.4 | 63.5 / 28.6 |
+| Historical_Trend fossil share 2050 / 2100 (%) | 74.4 / 62.9 | 72.9 / 56.9 |
+| EirGrid_Extended dispatch down 2050 / 2100 (% of available) | 42.5 / 56.8 | 36.8 / 53.3 |
+| of which constraint 2050 / 2100 | 25.0 / 33.8 | 0.0 / 0.0 |
+| of which curtailment (incl. surplus) 2050 / 2100 | 17.4 / 23.0 | 36.8 / 53.3 |
+| Historical_Trend dispatch down 2050 / 2100 (%) | 26.3 / 39.9 | 20.8 / 28.1 |
+| EirGrid_Extended wind and solar share of demand 2050 / 2100 (%) | 71.8 / 78.6 | 75.3 / 81.6 |
+| Historical_Trend wind and solar share of demand 2050 / 2100 (%) | 61.0 / 59.7 | 64.5 / 67.5 |
+| EirGrid_Extended firm generation 2050 / 2100 (TWh) | 15.9 / 17.6 | 11.6 / 11.0 |
+| Historical_Trend firm generation 2050 / 2100 (TWh) | 23.3 / 40.0 | 20.6 / 28.8 |
+| Firm capacity 2050 / 2100, both pathways (GW) | 12.7 / 21.3; 12.4 / 20.3 | unchanged |
+| EirGrid_Extended delivered wind capacity factor 2050 / 2100 (%) | 17.1 / 13.5 | 16.5 / 12.5 |
+| EirGrid_Extended electricity for green-hydrogen firm plant 2050, 35% round trip (TWh) | 45.4 | 33.0 |
+| EirGrid_Extended wind and solar dispatched down 2050 (TWh) | 36.2 | 31.3 |
+
+Findings:
+- Unlimited network access from 2036 lowers the 2050 fossil share by 2.8 points (EirGrid_Extended) and 1.5 points (Historical_Trend). In 2050, 103.1 of 126.2 TWh of fossil primary energy is unelectrified heat and transport, the same in both runs.
+- Firm capacity does not change: still, cold periods set it, not the network.
+- The delivered wind capacity factor falls slightly because solar, previously the most constrained, now reaches the system and shares the curtailment. Delivered solar in 2050 rises from 9.3 to 12.9 TWh; wind falls from 36.9 to 35.6 TWh.
+- Green hydrogen for firm plant in 2050 now needs 27.5 to 47.2 TWh of electricity (42% to 24.5% round trip) against 31.3 TWh dispatched down. The earlier statement that it needs more than all dispatched-down output holds only at the central and lower efficiencies.
+- `Sensitivity_EirGrid_Reinforcement_*` (40% cover) are not changed in this PR and are now superseded for the paper.
+
 ## Surplus reported separately: 30 October 2026 (no change to totals)
 
 EirGrid's ECP studies split dispatch down into surplus, curtailment and constraint. Gamma now reports surplus as well; constraint, curtailment and totals are unchanged (validation totals 15.0 / 26.0 / 32.6% IE, as before).
