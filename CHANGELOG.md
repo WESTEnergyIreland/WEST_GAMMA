@@ -43,6 +43,28 @@ Findings:
 - Sensitivities rerun on the new setting (fossil share of primary energy, 2050 / 2100): firm plant at 35% efficiency, EirGrid_Extended 65.1 / 32.0 and Historical_Trend 74.7 / 60.5 (1.6 to 3.7 points above the central runs); heat-pump COP 3.9, EirGrid_Extended 62.5 / 26.0 and Historical_Trend 72.2 / 55.2 (0.7 to 2.6 points below). Run by changing `FIRM_FUEL_EFFICIENCY` and `HEAT_COP` in a copy of `Gamma.py`.
 - On EirGrid_Extended, all wind and solar dispatched down first exceeds the electricity needed to run the firm plant on green hydrogen (35% round trip) in 2051, when 12.9 GW of firm capacity is needed (2056 on the published path).
 - Figure 6 of the paper: `analysis/figure6_projections.py`, output `analysis/output/paper/figure6_projections.png`.
+## Headroom cover re-fitted against GSS-1: 31 October 2026 (analysis only, no result changes)
+
+`analysis/cover_recalibration.py` re-runs EirGrid_Validation_2030_2035 at 0 to 80% `headroom_pipeline_cover_pct` on the current model and compares Ireland with GSS-1 (2030: 33% ECP + 2.6 GW offshore; 2035: 66% ECP + 4.7 GW offshore) on three bases. Results in `analysis/output/cover_recalibration/`.
+
+| Ireland, % of available wind + solar | EirGrid 2030 / 2035 | Gamma 0% cover | Gamma 40% cover |
+|---|---|---|---|
+| Constraint, Gamma's order (network first) | 5.7 / 6.0 | 15.0 / 19.0 | 6.3 / 6.0 |
+| Constraint, EirGrid's order (surplus first; approximate) | 5.7 / 6.0 | 5.0 / 5.6 | 0.2 / 0.7 |
+| Total dispatch down | 26.8 / 28.5 | 26.0 / 32.6 | 22.4 / 27.5 |
+
+| Basis | Best cover | RMS error, points |
+|---|---|---|
+| Constraint, Gamma's order | 40% | 0.42 |
+| Constraint, EirGrid's order | 0% | 0.57 |
+| Total dispatch down | 10% | 2.02 |
+
+- 40% still reproduces EirGrid's constraint on the current model, but only when constraint is counted in Gamma's order.
+- Counted in EirGrid's order, Gamma on the published TID path with no cover already matches EirGrid's constraint within 0.7 points. The 40% fit is therefore mostly an artefact of the order in which constraint and surplus are removed, not evidence of network growth beyond the TID path.
+- The 28 October finding that EirGrid's forecasts imply Ireland's zonal network capacity rises to about 9.7 GW by 2035 is not supported. The published TID path (about 5.4 GW) is consistent with GSS-1.
+- Total dispatch down does not fit well at any cover value: more cover lowers 2030 below EirGrid while 2035 stays above it.
+- EirGrid-order constraint is approximate: Gamma total minus surplus before constraint minus operational curtailment, where operational curtailment is computed after the network. It goes slightly negative above 50% cover.
+- For group decision: whether `Sensitivity_EirGrid_Reinforcement_*`, the GSS-2 Cover40 rows and any post-2035 reinforcement coefficient should rest on the 40% fit. The prediction rows in `analysis/gss2_prediction_2035.csv` are not changed.
 
 ## Surplus reported separately: 30 October 2026 (no change to totals)
 
