@@ -3,7 +3,8 @@
 Solid lines: the scenarios as defined (zonal network limits removed from 2036).
 Dashed lines: the same scenarios with the published network path after 2035 (reinforcement_steps
 'NI:2032:950' only), for comparison. Panel (d): electricity to run the firm plant on green hydrogen
-at a 35% round trip, and all wind and solar dispatched down (available x total dispatch down).
+(70% electrolysis, burnt at each year's firm fleet efficiency; Firm_On_H2_Electrolysis_TWh), and all
+wind and solar dispatched down (available x total dispatch down).
 
 Usage: python analysis/figure6_projections.py <outputs, no limits> <outputs, published path> <out.png>
 where each outputs folder holds EirGrid_Extended/ and Historical_Trend/ from Gamma.py.
@@ -15,7 +16,8 @@ BLUE='#2a7bd9'; ORANGE='#e8673a'
 def load(run, sc):
     t=pd.read_csv(f'{run}/{sc}/summary_total.csv').set_index('Year')
     t['DD_TWh']=t['Available_TWh']*t['Total_Loss_%']/100
-    t['H2_TWh']=t['Firm_Generation_TWh']/0.35
+    f=pd.read_csv(f'{run}/{sc}/forecast_results.csv').set_index('Year')
+    t['H2_TWh']=f['Firm_On_H2_Electrolysis_TWh']
     return t
 plt.rcParams.update({'font.family':'DejaVu Sans','font.size':11})
 fig,ax=plt.subplots(2,2,figsize=(12,9.3))
