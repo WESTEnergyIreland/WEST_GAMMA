@@ -40,6 +40,9 @@ Findings:
 - The delivered wind capacity factor falls slightly because solar, previously the most constrained, now reaches the system and shares the curtailment. Delivered solar in 2050 rises from 9.3 to 12.9 TWh; wind falls from 36.9 to 35.6 TWh.
 - Green hydrogen for firm plant in 2050 now needs 27.5 to 47.2 TWh of electricity (42% to 24.5% round trip) against 31.3 TWh dispatched down. The earlier statement that it needs more than all dispatched-down output holds only at the central and lower efficiencies.
 - `Sensitivity_EirGrid_Reinforcement_*` (40% cover) are not changed in this PR and are now superseded for the paper.
+- Sensitivities rerun on the new setting (fossil share of primary energy, 2050 / 2100): firm plant at 35% efficiency, EirGrid_Extended 65.1 / 32.0 and Historical_Trend 74.7 / 60.5 (1.6 to 3.7 points above the central runs); heat-pump COP 3.9, EirGrid_Extended 62.5 / 26.0 and Historical_Trend 72.2 / 55.2 (0.7 to 2.6 points below). Run by changing `FIRM_FUEL_EFFICIENCY` and `HEAT_COP` in a copy of `Gamma.py`.
+- On EirGrid_Extended, all wind and solar dispatched down first exceeds the electricity needed to run the firm plant on green hydrogen (35% round trip) in 2051, when 12.9 GW of firm capacity is needed (2056 on the published path).
+- Figure 6 of the paper: `analysis/figure6_projections.py`, output `analysis/output/paper/figure6_projections.png`.
 
 ## Surplus reported separately: 30 October 2026 (no change to totals)
 
