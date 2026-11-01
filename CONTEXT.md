@@ -32,6 +32,8 @@ An independent, evidence-based assessment of Ireland's energy system, aiming for
 - At most three scenarios in the paper, using SEAI projected demand and actual build rates.
 - The paper says "full decarbonisation", not "net zero".
 - Residual curtailment is held on the delivered basis (PRs #24 and #25, 30 October 2026). See `CHANGELOG.md`.
+- Projections have no zonal network limits from 2036 (PR #30, 1 November 2026). This is a bounding case that favours renewables, not a forecast; it replaces any post-2035 reinforcement rate. The 40% headroom cover is not presented as EirGrid's implied network growth: it matches GSS-1 only when constraint is counted in Gamma's order (PR #29).
+- Gamma keeps its own order of calculation (network, then system-wide limits). The paper validates on total dispatch down and reports the EirGrid-order split alongside.
 - The ECP-GSS-2 prediction (`analysis/gss2_prediction_2035.csv`) was made before EirGrid publishes on 15 December 2026. Do not revise those rows after that date.
 
 ## Where things live
