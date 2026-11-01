@@ -249,15 +249,23 @@ INTERCONNECTOR_DISPATCH = os.environ.get('GAMMA_IC_DISPATCH', '0') == '1'
 FIXED_IMPORT_SHARE_PCT = 4.0
 # Primary energy basis for the headline shares (the red box). Fuels for heat and transport are
 # counted as delivered; electricity from firm plant is counted as the fuel burnt to make it, at
-# FIRM_FUEL_EFFICIENCY (a gas fleet of CCGTs and peakers); wind, solar and heat-pump ambient
-# heat are counted as the energy they deliver (physical energy content method, as SEAI and
-# Eurostat use). Aviation and marine fuels are outside the model.
-FIRM_FUEL_EFFICIENCY = 0.50
-# Firm plant on green hydrogen instead of gas: hydrogen burnt in turbines at H2_POWER_EFFICIENCY,
-# hydrogen made by electrolysis at ELECTROLYSER_EFFICIENCY (both on a lower heating value basis).
-# Each TWh of firm electricity then needs 1 / (0.50 x 0.70) = 2.9 TWh of electricity for
-# electrolysis. Physical quantities only; costs are for the second paper.
-H2_POWER_EFFICIENCY = 0.50
+# the firm fleet efficiency below; wind, solar and heat-pump ambient heat are counted as the
+# energy they deliver (physical energy content method, as SEAI and Eurostat use). Aviation and
+# marine fuels are outside the model.
+#
+# Firm fleet efficiency (lower heating value basis, as the SEAI energy balance). Each weather
+# year's 15-minute firm output is split by a screening-curve rule: output at levels needed for
+# at least FIRM_PEAKER_MAX_HOURS a year is the baseload tranche (CCGT), output above that level
+# is the peaking tranche (OCGT and engines). Fleet efficiency is the energy-weighted result, so
+# it falls as firm plant moves from baseload to peaking duty. Part-load and start-up losses
+# inside each tranche are not modelled. Values are placeholders for group agreement.
+FIRM_CCGT_EFFICIENCY = 0.55
+FIRM_PEAKER_EFFICIENCY = 0.38
+FIRM_PEAKER_MAX_HOURS = 1500
+# Firm plant on green hydrogen instead of gas: the same turbines and tranches, burning hydrogen
+# made by electrolysis at ELECTROLYSER_EFFICIENCY (LHV). At a fleet efficiency of 50% each TWh
+# of firm electricity needs 1 / (0.50 x 0.70) = 2.9 TWh of electricity for electrolysis; at 38%
+# (all peaking) it needs 3.8 TWh. Physical quantities only; costs are for the second paper.
 ELECTROLYSER_EFFICIENCY = 0.70
 # Full decarbonisation: the first year the fossil share of primary energy falls to or below this.
 DECARBONISED_FOSSIL_PCT = 10.0
@@ -381,6 +389,29 @@ PIPELINE_BATTERY_HOURS = 15217.75 / 5632.0
 MAX_CONNECTED_CAPACITY_MISMATCH = 0.10
 VALIDATION_REPORT_CSV = "validation_report.csv"   # written inside SCENARIO_OUTPUT_DIR
 CAPACITY_BY_ZONE_CSV = "capacity_by_zone_year.csv"
+
+
+def firm_tranche_split(firm_mw):
+    """Split a firm output series (MW) into baseload and peaking energy (MW x intervals).
+
+    Screening-curve rule: a MW level belongs to the baseload tranche if firm output reaches it
+    in at least FIRM_PEAKER_MAX_HOURS a year (scaled to the series length); output above that
+    level is the peaking tranche.
+    """
+    f = np.asarray(firm_mw, dtype=float)
+    if f.size == 0:
+        return 0.0, 0.0
+    k = int(np.ceil(f.size * min(1.0, FIRM_PEAKER_MAX_HOURS / 8760.0)))
+    k = max(1, min(f.size, k))
+    band_mw = np.partition(f, f.size - k)[f.size - k]   # k-th largest value
+    baseload = float(np.minimum(f, band_mw).sum())
+    return baseload, float(f.sum()) - baseload
+
+
+def fleet_efficiency(peaking_share):
+    """Energy-weighted firm fleet efficiency (LHV) for a peaking share of firm output (0-1)."""
+    p = np.clip(peaking_share, 0.0, 1.0)
+    return 1.0 / ((1.0 - p) / FIRM_CCGT_EFFICIENCY + p / FIRM_PEAKER_EFFICIENCY)
 
 
 def input_path(name):
@@ -3010,6 +3041,11 @@ def _run_demonstrator():
                                  for z in HEADROOM_ZONES}
                 off_frac = offshore_gw / cap_gw if cap_gw > 0 else 0.0
                 on_frac = 1.0 - off_frac
+                # 15-minute firm (synchronous) output: residual after domestic wind/solar, BESS
+                # and imports, plus the synchronous share of export flows when SNSP binds.
+                firm_mw = np.maximum(
+                    0.0, demand - d['domestic_vre_mw'] - d['discharge_mw'] - d['import_mw']
+                ) + d['export_sync_mw']
                 row = {
                     'avail_twh': tot_av * to_annual_twh,
                     'dispatch_twh': d['usable_w'].sum() * to_annual_twh,
@@ -3032,10 +3068,8 @@ def _run_demonstrator():
                     # prevents annual renewable surplus from cancelling Dunkelflaute deficits.
                     # Firm (synchronous) generation: residual after domestic wind/solar, BESS and
                     # imports, plus the synchronous share of export flows when SNSP binds.
-                    'firm_generation_twh': (np.maximum(
-                        0.0,
-                        demand - d['domestic_vre_mw'] - d['discharge_mw'] - d['import_mw']
-                    ) + d['export_sync_mw']).sum() * to_annual_twh,
+                    'firm_generation_twh': firm_mw.sum() * to_annual_twh,
+                    'firm_peaking_twh': firm_tranche_split(firm_mw)[1] * to_annual_twh,
                     # Firm residual before imports (MW): the 15-minute series is kept so the peak
                     # and a high percentile can be taken over all weather years together.
                     'firm_residual_series': np.maximum(
@@ -3251,6 +3285,11 @@ def _run_demonstrator():
                 yr_demand,
                 max(0.0, run['firm_generation_twh'] + other_renewable_loss_twh)
             )
+            # Peaking share of firm output from the 15-minute screening split (weather-year mean);
+            # the fixed 'other' loss top-up is assumed to follow the same split.
+            firm_peaking_share = (run['firm_peaking_twh'] / run['firm_generation_twh']
+                                  if run['firm_generation_twh'] > 0 else 0.0)
+            firm_fleet_eff = float(fleet_efficiency(firm_peaking_share))
             # Firm capacity (issue #8): the largest 15-minute firm residual over all weather years
             # (demand less domestic wind, solar and battery discharge, before imports), plus the
             # largest single infeed as reserve. Interconnectors get no credit in the headline
@@ -3285,6 +3324,8 @@ def _run_demonstrator():
                 'Remaining_Transport_Energy_TWh': round(remaining_transport_twh, 3),
                 'Firm_Generation_TWh': round(firm_generation_twh, 3),
                 'Fossil_Firm_Generation_TWh': round(firm_generation_twh, 3),
+                'Firm_Peaking_Share_%': round(100 * firm_peaking_share, 1),
+                'Firm_Fleet_Efficiency_%': round(100 * firm_fleet_eff, 1),
                 'Firm_Capacity_Required_GW': round(firm_capacity_required_gw, 3),
                 'Firm_Capacity_Peak_Residual_GW': round(firm_capacity_peak_residual_gw, 3),
                 f'Firm_Residual_P{FIRM_RESIDUAL_PERCENTILE:g}_GW': round(firm_capacity_p_residual_gw, 3),
@@ -3532,10 +3573,12 @@ def _run_demonstrator():
         sim_df['Final_Renewables_Pct'] = np.where(
             domestic > 0.0, domestic_pct * sim_df['Total_Renewable_Energy_TWh'] / domestic, 0.0)
         # Headline shares (red box): primary energy. Firm electricity counts as the gas burnt to
-        # make it; imports stay at the fixed share. See FIRM_FUEL_EFFICIENCY.
+        # make it, at that year's fleet efficiency; imports stay at the fixed share.
+        firm_eff = sim_df['Firm_Fleet_Efficiency_%'] / 100.0
+        sim_df['Firm_Gas_Burnt_TWh'] = sim_df['Fossil_Electricity_Consumed_TWh'] / firm_eff
         sim_df['Primary_Fossil_TWh'] = (sim_df['Remaining_Heat_Fossil_TWh']
                                         + sim_df['Remaining_Transport_Fossil_TWh']
-                                        + sim_df['Fossil_Electricity_Consumed_TWh'] / FIRM_FUEL_EFFICIENCY)
+                                        + sim_df['Firm_Gas_Burnt_TWh'])
         sim_df['Primary_Renewable_TWh'] = sim_df['Total_Renewable_Energy_TWh']
         primary_domestic = sim_df['Primary_Fossil_TWh'] + sim_df['Primary_Renewable_TWh']
         sim_df['Overall_Fossil_Fuel_Pct'] = np.where(
@@ -3545,7 +3588,7 @@ def _run_demonstrator():
         sim_df['Overall_Imported_Electricity_Pct'] = (
             100.0 - sim_df['Overall_Fossil_Fuel_Pct'] - sim_df['Overall_Renewables_Pct'])
         # What replacing gas in firm plant with green hydrogen would take (physical, no costs).
-        sim_df['Firm_On_H2_Hydrogen_TWh'] = sim_df['Firm_Generation_TWh'] / H2_POWER_EFFICIENCY
+        sim_df['Firm_On_H2_Hydrogen_TWh'] = sim_df['Firm_Generation_TWh'] / firm_eff
         sim_df['Firm_On_H2_Electrolysis_TWh'] = (sim_df['Firm_On_H2_Hydrogen_TWh']
                                                  / ELECTROLYSER_EFFICIENCY)
         red_res_twh = (sim_df['Heat_Ambient_Renewable_TWh'] + sim_df['Wind_Gen_TWh']
@@ -3576,7 +3619,8 @@ def _run_demonstrator():
             'Overall_Fossil_Fuel_Pct', 'Overall_Renewables_Pct',
             'Overall_Imported_Electricity_Pct', 'RES_Overall_RED_%', 'RES_E_RED_%',
             'Final_Fossil_Fuel_Pct', 'Final_Renewables_Pct', 'Primary_Fossil_TWh',
-            'Primary_Renewable_TWh', 'Firm_On_H2_Hydrogen_TWh', 'Firm_On_H2_Electrolysis_TWh'
+            'Primary_Renewable_TWh', 'Firm_Gas_Burnt_TWh', 'Firm_On_H2_Hydrogen_TWh',
+            'Firm_On_H2_Electrolysis_TWh'
         ]:
             sim_df[c] = sim_df[c].round(3 if c.endswith('_TWh') else 2)
         anchor = sim_df.loc[sim_df['Year'] == TRANSITION_BASE_YEAR]
@@ -4714,6 +4758,9 @@ def _run_demonstrator():
                     'Import_TWh': r['Import_TWh'], 'Export_TWh': r['Export_TWh'],
                     'Export_Wind_Solar_TWh': r['Export_Wind_Solar_TWh'],
                     'Firm_Generation_TWh': r['Firm_Generation_TWh'],
+                    'Firm_Peaking_Share_%': r['Firm_Peaking_Share_%'],
+                    'Firm_Fleet_Efficiency_%': r['Firm_Fleet_Efficiency_%'],
+                    'Firm_Gas_Burnt_TWh': r['Firm_Gas_Burnt_TWh'],
                     'Total_Fossil_Energy_TWh': r['Total_Fossil_Energy_TWh'],
                     'Total_Renewable_Energy_TWh': r['Total_Renewable_Energy_TWh'],
                     'Overall_Fossil_Fuel_Pct': r['Overall_Fossil_Fuel_Pct'],

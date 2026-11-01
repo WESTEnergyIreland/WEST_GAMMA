@@ -11,6 +11,34 @@ The full methodology is in `Technical_Briefing_README.docx`.
 4. Validation against EirGrid: `python analysis/eirgrid_validation.py` (after step 3). Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py`. Outputs in `analysis/output/`.
 5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
 
+## Firm fleet efficiency from a baseload and peaking split: 1 November 2026
+
+The fixed firm plant efficiency (`FIRM_FUEL_EFFICIENCY = 0.50`) is replaced by a fleet efficiency that depends on how the firm plant runs. Proposed by Niall; values are placeholders for group agreement.
+- Each weather year's 15-minute firm output is split by a screening-curve rule. Output at MW levels reached for at least `FIRM_PEAKER_MAX_HOURS` (1,500 h) a year is the baseload tranche at `FIRM_CCGT_EFFICIENCY` (55%). Output above that level is the peaking tranche at `FIRM_PEAKER_EFFICIENCY` (38%). All lower heating value.
+- Fleet efficiency is the energy-weighted result. It falls as firm output moves from baseload to peaking duty. Part-load and start-up losses inside each tranche are not modelled.
+- Firm plant on green hydrogen uses the same fleet efficiency (`H2_POWER_EFFICIENCY` removed). Electrolysis stays at 70%.
+- New outputs: `Firm_Peaking_Share_%`, `Firm_Fleet_Efficiency_%`, `Firm_Gas_Burnt_TWh`.
+- Only primary energy shares and the hydrogen figures change. Dispatch, dispatch down, firm generation and firm capacity are unchanged.
+
+| Result (all-island) | Old | New |
+|---|---|---|
+| Firm fleet efficiency 2026 (%) | 50.0 | 54.1 |
+| EirGrid_Extended fleet efficiency 2035 / 2050 / 2100 (%) | 50.0 / 50.0 / 50.0 | 52.6 / 45.8 / 40.2 |
+| EirGrid_Extended peaking share of firm output 2035 / 2050 / 2100 (%) | n/a | 10.0 / 44.9 / 82.0 |
+| Historical_Trend fleet efficiency 2035 / 2050 / 2100 (%) | 50.0 / 50.0 / 50.0 | 53.2 / 52.4 / 51.4 |
+| Fossil share of primary energy 2026 (%) | 86.86 | 86.69 |
+| EirGrid_Extended fossil share 2035 / 2050 / 2100 (%) | 76.88 / 63.48 / 28.62 | 76.71 / 63.84 / 30.57 |
+| Historical_Trend fossil share 2035 / 2050 / 2100 (%) | 80.29 / 72.89 / 56.85 | 80.09 / 72.68 / 56.59 |
+| EirGrid_Extended electricity for green hydrogen firm plant 2050 / 2100 (TWh) | 33.03 / 31.51 | 36.05 / 39.19 |
+| Historical_Trend electricity for green hydrogen firm plant 2050 / 2100 (TWh) | 58.83 / 82.16 | 56.13 / 79.92 |
+
+Findings:
+- In 2026 the model gives 54.1%, above the old 50%. This should be checked against SEAI's reported efficiency for gas-fired generation before the values are agreed. If the actual fleet figure is lower, `FIRM_CCGT_EFFICIENCY` is the parameter to lower.
+- On EirGrid_Extended the peaking share passes 40% by 2050. Fleet efficiency falls to 45.8%, and the old fixed 50% understated fuel burn from then on.
+- Historical_Trend keeps a large baseload tranche, so its efficiency stays above 51% and its fossil share falls slightly.
+- The hydrogen requirement on EirGrid_Extended in 2100 rises by 24%, because firm plant in a high-renewable system mostly does peaking duty.
+- The 35% sensitivity in the 1 November entry below was run with the old constant. To repeat it, lower both tranche efficiencies in a copy of `Gamma.py`.
+
 ## Zonal network limits removed from 2036 in the projections: 1 November 2026
 
 Group decision (Cian, Niall): from 2036 EirGrid_Extended and Historical_Trend have no zonal network constraint. This is a bounding case that favours renewables, not a forecast: all available wind and solar reaches the all-island system, and dispatch down after 2035 is surplus and curtailment only. It replaces any calibrated post-2035 reinforcement rate (see the cover recalibration, PR #29).
