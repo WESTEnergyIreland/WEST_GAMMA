@@ -1,4 +1,4 @@
-# Grid reinforcement study, 30 October 2026
+# Grid reinforcement study, 30 October 2026 (fossil shares updated 1 November 2026 for the firm fleet efficiency, PR #32)
 
 Runs: `python analysis/grid_reinforcement_study.py` and `python analysis/headroom_history.py`. All runs are EirGrid_Extended to 2050 unless named, residual curtailment on the delivered basis, main branch inputs otherwise unchanged. Percentages of available energy are all-island (IE and NI together), so they differ slightly from the IE-only figures in Table S8. Fossil share is of gross final energy as Gamma reports it (`Overall_Fossil_Fuel_Pct`).
 
@@ -26,11 +26,11 @@ EirGrid_Extended, 2050, no interconnector flows (the paper's setting).
 
 | IE headroom growth (%/yr) | Constraint (%) | Curtailment (%) | Dispatch down (%) | W+S delivered (TWh) | Firm generation (TWh) | Fossil share (%) |
 |---:|---:|---:|---:|---:|---:|---:|
-| 0 | 27.1 | 16.0 | 43.1 | 45.7 | 16.5 | 66.7 |
-| 1 | 23.4 | 18.6 | 42.0 | 46.5 | 15.5 | 66.1 |
+| 0 | 27.1 | 16.0 | 43.1 | 45.7 | 16.5 | 66.6 |
+| 1 | 23.4 | 18.6 | 42.0 | 46.5 | 15.5 | 66.0 |
 | 2 | 19.8 | 21.2 | 41.0 | 47.1 | 14.7 | 65.6 |
 | 4 | 13.5 | 26.0 | 39.4 | 47.9 | 13.5 | 64.8 |
-| 7.3 | 5.9 | 31.8 | 37.7 | 48.4 | 12.2 | 63.9 |
+| 7.3 | 5.9 | 31.8 | 37.7 | 48.4 | 12.2 | 64.2 |
 
 ## 3. Why the fossil share hardly moves
 
@@ -44,10 +44,10 @@ The same runs with interconnector flows in the dispatch (exports at 50% of capac
 
 | IE headroom growth (%/yr) | Dispatch down, no flows (%) | Dispatch down, with flows (%) | Exports (TWh) | Fossil share, no flows (%) | Fossil share, with flows (%) |
 |---:|---:|---:|---:|---:|---:|
-| 0 | 43.1 | 40.2 | 3.2 | 66.7 | 65.0 |
-| 7.3 | 37.7 | 33.0 | 4.7 | 63.9 | 63.1 |
+| 0 | 43.1 | 40.2 | 3.2 | 66.6 | 65.1 |
+| 7.3 | 37.7 | 33.0 | 4.7 | 64.2 | 63.6 |
 
-Exports cut curtailment by 3 to 5 points. The fossil share falls by 0.8 to 1.7 points, mostly through imports replacing firm generation. The range across headroom growth narrows from 2.8 points to 1.9 points. Leaving interconnectors out of the dispatch does not change the conclusion.
+Exports cut curtailment by 3 to 5 points. The fossil share falls by 0.6 to 1.5 points, mostly through imports replacing firm generation. The range across headroom growth narrows from 2.4 points to 1.5 points. Leaving interconnectors out of the dispatch does not change the conclusion.
 
 ## 5. Marginal yield of new wind, solar and batteries
 
@@ -67,4 +67,4 @@ On EirGrid_Extended in 2050, an extra GW of wind and solar delivers a fifth to a
 | 0.5%/yr (current input) | 26.3 | 74.4 |
 | 0%/yr (recorded 2021–2025) | 27.6 | 74.8 |
 
-Setting Historical_Trend to the recorded 0% a year raises the 2050 fossil share by 0.4 points. Not applied: group decision.
+Setting Historical_Trend to the recorded 0% a year raises the 2050 fossil share by 0.3 points. Not applied: group decision.
