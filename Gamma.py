@@ -4246,8 +4246,9 @@ def _run_demonstrator():
         # GENERATE DAILY DISPATCH PROFILES (GRAPHS 3, 4, 5, 6)
         # -------------------------------------------------------------------------
         late_showcase_year = max(start_year, final_year - 2)
+        mid_showcase_year = min(2033, final_year)   # average-day chart; 2033 unless the run ends sooner
         print("\n====================================================================")
-        print(f" 7. GENERATING DAILY SHOWCASE PROFILES (2033 & {late_showcase_year})")
+        print(f" 7. GENERATING DAILY SHOWCASE PROFILES ({mid_showcase_year} & {late_showcase_year})")
         print("====================================================================")
         
         # Late-horizon showcase calculations. Use two years before the selected
@@ -4297,9 +4298,9 @@ def _run_demonstrator():
               f"solar={dunkel_day['solar_mwh']/1000.0:.1f} GWh.")
         
         # 2033 Calculations (Average)
-        wy_2033 = hist_weather_map.get(2033, complete_weather_years[2033 % len(complete_weather_years)])
+        wy_2033 = hist_weather_map.get(mid_showcase_year, complete_weather_years[mid_showcase_year % len(complete_weather_years)])
         df_wy_2033 = merged[merged['year'] == wy_2033].copy()
-        df_wy_2033['scaled_avail_mw'] = df_wy_2033['spec_avail_mw_per_gw'] * float(sim_df[sim_df['Year'] == 2033]['Wind_Cap_GW'].values[0])
+        df_wy_2033['scaled_avail_mw'] = df_wy_2033['spec_avail_mw_per_gw'] * float(sim_df[sim_df['Year'] == mid_showcase_year]['Wind_Cap_GW'].values[0])
         daily_sums_2033 = df_wy_2033.groupby(['month', 'day'])['scaled_avail_mw'].sum().reset_index()
         daily_sums_2033 = daily_sums_2033.sort_values('scaled_avail_mw', ascending=True).reset_index(drop=True)
         
@@ -4317,13 +4318,13 @@ def _run_demonstrator():
                              "Winter Dunkelflaute: Joint Low Wind and Solar Event")
         
         # Generate Graph 6 (Average 2033)
-        generate_daily_chart(2033, int(avg_day_2033['month']), int(avg_day_2033['day']), "Daily_Average_Wind_2033.png", "Average Wind Day")
+        generate_daily_chart(mid_showcase_year, int(avg_day_2033['month']), int(avg_day_2033['day']), f"Daily_Average_Wind_{mid_showcase_year}.png", "Average Wind Day")
 
         # Generate an additional 2040 daily chart selected from May-August. The chosen
         # day must contain both battery charging and discharging. Among qualifying
         # days, selection rewards both high renewable availability and high battery
         # throughput, so the result illustrates a genuine same-day storage cycle.
-        target_cycle_year = 2040
+        target_cycle_year = min(2040, final_year)   # 2040 unless the run ends sooner
         row_cycle = sim_df[sim_df['Year'] == target_cycle_year].iloc[0]
         demand_cycle_twh = float(row_cycle['Dem_TWh'])
         solar_cycle_gw, solar_share_cycle = solar_setup(row_cycle)
@@ -4374,7 +4375,7 @@ def _run_demonstrator():
                   f"charge={cycle_day['charge_mwh']/1000.0:.1f} GWh, "
                   f"discharge={cycle_day['discharge_mwh']/1000.0:.1f} GWh.")
             generate_daily_chart(target_cycle_year, int(cycle_day['month']), int(cycle_day['day']),
-                                 "Daily_Storage_Charge_Discharge_2040.png",
+                                 f"Daily_Storage_Charge_Discharge_{target_cycle_year}.png",
                                  "High-Renewables Same-Day Battery Charge and Discharge")
 
         # -------------------------------------------------------------------------
@@ -4607,9 +4608,9 @@ def _run_demonstrator():
 
             print(">> Generating chart-only interconnector extreme sensitivities for this scenario.")
             plot_ic_overview(df_grand, 2030, '50pct_Import', 'Historical_2019_2030_Overview')
-            plot_ic_overview(df_grand, final_year, '50pct_Import', 'Grand_Overview_2019_2050')
+            plot_ic_overview(df_grand, final_year, '50pct_Import', f'Grand_Overview_2019_{final_year}')
             plot_ic_overview(df_grand, 2030, 'Max_Export', 'Historical_2019_2030_Overview')
-            plot_ic_overview(df_grand, final_year, 'Max_Export', 'Grand_Overview_2019_2050')
+            plot_ic_overview(df_grand, final_year, 'Max_Export', f'Grand_Overview_2019_{final_year}')
 
         # -------------------------------------------------------------------------
         # GRAPH 8: CONSTRAINT BACKCAST & FORECAST BY REGION
@@ -4682,9 +4683,8 @@ def _run_demonstrator():
             scenario_stage[sc['scenario']] = 'model'
             try:
                 res = run_scenario(
-                    # The scenario charts are laid out for runs to 2050 or later; shorter runs
-                    # (the EirGrid validation runs end in 2030 or 2035) write CSVs only.
-                    sc, out_dir, make_charts=SCENARIO_CHARTS and int(sc.get('target_year', 2050)) >= 2050,
+                    # Charts run to each scenario's target_year, including the 2030 and 2035 runs.
+                    sc, out_dir, make_charts=SCENARIO_CHARTS,
                     interconnector_chart_sensitivities=False,   # chart-only IC cases dropped for simplicity
                 )
             except Exception as e:
@@ -4821,7 +4821,7 @@ def _run_demonstrator():
         print(f">> Validation report saved to '{write_validation_report(SCENARIO_OUTPUT_DIR)}'")
         def report_years(name):
             end = int(next(s['target_year'] for s in scenarios if s['scenario'] == name))
-            return sorted({y for y in (2030, 2035, 2050, 2100) if y <= end} | {end})
+            return sorted({y for y in (2030, 2035, 2050, 2075) if y <= end} | {end})
 
         say("")
         say("RESULTS  (wind + solar dispatch-down, % of available)")
