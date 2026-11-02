@@ -8,8 +8,40 @@ The full methodology is in `Technical_Briefing_README.docx`.
 1. Install Python 3.10 or later, then from the repository folder: `pip install -r requirements.txt`.
 2. Inputs live in `Data_inputs/`. Edit scenarios in `Data_inputs/scenariosXLSX.xlsx` (sheet `Scenarios`) and save.
 3. Run `python Gamma.py` (or `python Gamma.py <scenario>` for one). All scenarios run without prompts (about 25 minutes with charts; the runs to 2100 take longest). Outputs go to `scenario_outputs/`: one folder per scenario, `scenario_summary.csv`, `all_scenarios_evaluation_curtailment_cf.csv` (curtailment and capacity factors, with actuals), `evaluation_curtailment_cf.png`, `validation_report.csv` and `run_log.txt`. Set `SCENARIO_CHARTS = False` near the top of `Gamma.py` for a faster CSV-only run.
-4. Validation against EirGrid: `python analysis/eirgrid_validation.py` (after step 3). Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py`. Outputs in `analysis/output/`.
+4. Validation against EirGrid: `python analysis/eirgrid_validation.py` (after step 3). Paper figures: `python analysis/figure6_projections.py <outputs, no limits> <outputs, published path> fig6.png [end year]` and `python analysis/figure7_showcase.py <outputs> fig7.png [end year] [day year]` (Figure 7 needs a run with charts on; a run to 2035 gives 2033 daily panels). Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py`. Outputs in `analysis/output/`.
 5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
+
+## Transport ceiling, battery duration, share names and Figure 7: 2 November 2026
+
+Group decisions from the Phase 1 paper comments (Cian, Niall).
+- **Transport ceiling.** `ALL_ISLAND_TRANSPORT_DEMAND_TWH` 76.0 → 62.2 TWh: land transport only, IE 46.5 TWh (SEAI, excluding aviation and navigation) plus NI 15.7 TWh (DESNZ road), as derived in the paper. The ceiling on transport electricity falls from 25.3 to 20.7 TWh. The remaining transport fuel also falls by 13.8 TWh in every year, so the fossil share of primary energy falls from 2026 on, in every scenario. Dispatch is unaffected until the ceiling binds (EirGrid_Extended from 2090; never on Historical_Trend).
+- **Battery duration.** New scenario inputs `battery_hours_target` and `battery_hours_target_year` (blank = off). With them set, the MW build is unchanged and fleet MWh is raised so the average duration rises linearly from its 2026 value (1.6 h) to the target, then holds. EirGrid_Extended and Historical_Trend use 4 h by 2035. The EirGrid validation runs, the sensitivities and the GSS-2 prediction keep EirGrid's own storage and are unchanged.
+- **Share names.** Every output now also carries `Primary_Fossil_Share_Pct`, `Primary_Renewables_Share_Pct`, `Primary_Imported_Electricity_Share_Pct` (shares of primary energy), `Modelled_RES_Overall_Gross_Final_Pct` (share of gross final energy, the SEAI RES Overall basis), `Modelled_RES_E_Pct` and `Domestic_Final_Energy_*_Pct`. The old names (`Overall_*`, `RES_Overall_RED_%`, `RES_E_RED_%`, `Final_*`) are kept as aliases with the same values.
+- **Figure 7.** Gamma writes the data behind the daily and monthly overview charts (`chart_Daily_*.csv`, `chart_monthly_overview.csv`). `analysis/figure7_showcase.py` draws the 2 x 2 figure: dunkelflaute day and windiest day on EirGrid_Extended, and the monthly overview of both pathways, with one legend and no data boxes.
+
+| Result (all-island) | Old | New |
+|---|---|---|
+| Fossil share of primary energy 2026, all scenarios (%) | 86.69 | 86.01 |
+| Modelled RES Overall (gross final) 2026 (%) | 10.86 | 11.74 |
+| EirGrid_Extended battery fleet 2035 / 2050 (GWh) | 13.3 / 31.0 | 21.4 / 47.5 |
+| Historical_Trend battery fleet 2035 / 2050 (GWh) | 3.9 / 7.6 | 8.5 / 16.0 |
+| EirGrid_Extended dispatch down 2030 / 2035 / 2050 / 2100 (% of available) | 24.76 / 28.67 / 36.79 / 53.31 | 24.52 / 27.73 / 35.18 / 53.90 |
+| Historical_Trend dispatch down 2030 / 2035 / 2050 / 2100 (%) | 16.38 / 18.68 / 20.79 / 28.09 | 16.21 / 17.68 / 18.63 / 24.34 |
+| EirGrid_Extended wind and solar share of demand 2035 / 2050 / 2100 (%) | 63.33 / 75.35 / 81.63 | 63.39 / 75.40 / 82.01 |
+| EirGrid_Extended firm generation 2035 / 2050 / 2100 (TWh) | 17.85 / 11.56 / 11.03 | 17.48 / 10.44 / 9.25 |
+| Historical_Trend firm generation 2035 / 2050 / 2100 (TWh) | 21.39 / 20.59 / 28.76 | 21.10 / 19.67 / 25.64 |
+| EirGrid_Extended demand 2100 (TWh) | 107.30 | 104.08 |
+| EirGrid_Extended firm capacity needed 2100 (GW) | 21.26 | 20.70 |
+| EirGrid_Extended fossil share 2035 / 2050 / 2075 / 2100 (%) | 76.71 / 63.84 / 47.32 / 30.57 | 75.04 / 60.89 / 42.15 / 27.43 |
+| Historical_Trend fossil share 2035 / 2050 / 2075 / 2100 (%) | 80.09 / 72.68 / 63.96 / 56.59 | 78.78 / 70.50 / 60.68 / 52.40 |
+| EirGrid_Extended modelled RES Overall 2035 / 2050 / 2075 (%) | 21.86 / 36.06 / 55.30 | 23.88 / 39.74 / 60.84 |
+| Validation runs and GSS-2 prediction: dispatch down, firm capacity | | unchanged |
+
+Findings:
+- Longer batteries cut dispatch down by about 1 point by 2035 on both pathways and by 2.2 to 3.8 points on Historical_Trend after 2050. Firm capacity needed is unchanged up to 2075: a 4 h fleet does not cover a multi-day still, cold spell.
+- Most of the fall in the fossil share comes from the smaller transport fuel total, not from the batteries. It is an accounting correction (aviation and shipping were never meant to be in the base).
+- EirGrid_Extended dispatch down in 2100 rises slightly because the transport ceiling now binds and demand is 3.2 TWh lower.
+- No published Irish projection of fleet-average battery duration has been found. The 4 h target rests on EirGrid's long-duration storage consultation (at least 4 h) and should be stated as an assumption.
 
 ## Firm fleet efficiency from a baseload and peaking split: 1 November 2026
 
