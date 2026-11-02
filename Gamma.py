@@ -217,7 +217,7 @@ DEFAULT_HEAT_DEMAND_GROWTH_TWH_PER_YEAR = 0.15
 DEFAULT_TRANSPORT_DEMAND_GROWTH_TWH_PER_YEAR = 0.25
 # Overall-transition calibration: 2025 physical baseline, 2026 percentage anchor.
 TRANSITION_BASE_YEAR = 2026
-ALL_ISLAND_HEAT_DEMAND_TWH = 70.6      # IE 50.6 + NI 20 (Demand Calculator sheet)
+ALL_ISLAND_HEAT_DEMAND_TWH = 70.6      # IE 41.3 (SEAI NEP 2026 results dataset) + NI 29.3 (DfE: heat 56% of 52.4 TWh final energy); as in paper Section 4.4
 ALL_ISLAND_TRANSPORT_DEMAND_TWH = 76.0  # IE 55 + NI 21 (Demand Calculator sheet)
 BASE_HEAT_ELECTRICITY_TWH_2025 = 1.0
 BASE_TRANSPORT_ELECTRICITY_TWH_2025 = 1.5
