@@ -97,6 +97,18 @@ CONSOLE_DETAIL = False
 RUN_LOG = "run_log.txt"
 _LOG = {'file': None}
 
+# Gas infrastructure sensitivity assumptions
+MOFFAT_CAPACITY_GW = 18.06
+GAS_PLANT_EFFICIENCY = 0.50
+OTHER_GAS_BASE_GW = 2.0
+OTHER_GAS_WINTER_EXTRA_GW = 3.0
+CORRIB_SUPPLY_GW = 0.0
+
+GAS_WINTER_FACTORS = np.array([
+    1.0, 0.9, 0.7, 0.4, 0.2, 0.0,
+    0.0, 0.0, 0.2, 0.5, 0.8, 1.0
+])
+
 
 def _to_log(text):
     if _LOG['file'] is not None:
@@ -375,6 +387,38 @@ MAX_CONNECTED_CAPACITY_MISMATCH = 0.10
 VALIDATION_REPORT_CSV = "validation_report.csv"   # written inside SCENARIO_OUTPUT_DIR
 CAPACITY_BY_ZONE_CSV = "capacity_by_zone_year.csv"
 
+def check_gas_capacity(year, timestamp, gas_electric_mw):
+    """Check instantaneous gas demand against available supply."""
+
+    month = pd.Timestamp(timestamp).month
+
+    # Simplified winter heating profile
+    winter_factor = {
+        1: 1.0, 2: 0.9, 3: 0.7,
+        4: 0.4, 5: 0.2, 6: 0.0,
+        7: 0.0, 8: 0.0, 9: 0.2,
+        10: 0.5, 11: 0.8, 12: 1.0
+    }[month]
+
+    other_gas_gw = (
+        OTHER_GAS_BASE_GW
+        + OTHER_GAS_WINTER_EXTRA_GW * winter_factor
+    )
+
+    electricity_gas_gw = (
+        gas_electric_mw / 1000 / GAS_PLANT_EFFICIENCY
+    )
+
+    total_gas_gw = electricity_gas_gw + other_gas_gw
+    available_gw = MOFFAT_CAPACITY_GW + CORRIB_SUPPLY_GW
+
+    return {
+        "year": year,
+        "timestamp": timestamp,
+        "total_gas_gw": total_gas_gw,
+        "available_gw": available_gw,
+        "shortfall_gw": max(0, total_gas_gw - available_gw),
+    }
 
 def input_path(name):
     """Find an input relative to the script, not the terminal working directory."""
@@ -2936,6 +2980,7 @@ def _run_demonstrator():
                 heat = shape * (extra * 1e6 / 8760.0) / shape.mean()
             return base + heat
 
+        gas_daily_results = []
         def run_weather_years(year, demand_twh, snsp_fraction, solar_gw,
                               storage_power_mw, storage_energy_mwh, weather_years=None):
             """Run selected SEM weather years and average their annual results (V9 zonal)."""
@@ -2964,6 +3009,50 @@ def _run_demonstrator():
                              storage_initial_soc_pct, pc_storage_hybrid, muon_floor_mw=muon_floor_for_year(year),
                              offshore_own=offshore_own, export_cap_mw=export_cap_mw,
                              import_cap_mw=import_cap_mw)
+                
+                # Gas-fired electricity requirement, MW electric
+                firm_mw = (
+                    np.maximum(
+                        0.0,
+                        demand - d['domestic_vre_mw']
+                        - d['discharge_mw'] - d['import_mw']
+                    ) + d['export_sync_mw']
+                )
+
+                # Convert electricity to gas fuel input, GW thermal
+                power_gas_gw = firm_mw / 1000.0 / GAS_PLANT_EFFICIENCY
+
+                # Seasonal heating and other gas demand
+                timestamps = pd.to_datetime(df_wy['parsed_date'])
+                months = timestamps.dt.month.to_numpy()
+
+                other_gas_gw = (
+                    OTHER_GAS_BASE_GW
+                    + OTHER_GAS_WINTER_EXTRA_GW * GAS_WINTER_FACTORS[months - 1]
+                )
+
+                total_gas_gw = power_gas_gw + other_gas_gw
+                available_gw = MOFFAT_CAPACITY_GW + CORRIB_SUPPLY_GW
+
+                gas_daily = pd.DataFrame({
+                    'date': timestamps.dt.normalize(),
+                    'demand_gw': total_gas_gw
+                })
+
+                daily = gas_daily.groupby('date')['demand_gw'].agg(
+                    peak_gw='max',
+                    daily_energy_gwh=lambda x: x.sum() * INTERVAL_HOURS
+                ).reset_index()
+
+                for row in daily.itertuples(index=False):
+                    gas_daily_results.append({
+                        'year': year,
+                        'weather_year': wy,
+                        'month': row.date.month,
+                        'day': row.date.day,
+                        'peak_gw': row.peak_gw,
+                        'daily_energy_gwh': row.daily_energy_gwh
+                    })
                 reg_w = {r: d['reg'][r]['wind'] for r in REGIONS}
                 reg_s = {r: d['reg'][r]['solar'] for r in REGIONS}
                 zone_w = {z: d['zones'][z]['wind'] for z in ALL_GEN_ZONES}
@@ -2979,7 +3068,27 @@ def _run_demonstrator():
                                  for z in HEADROOM_ZONES}
                 off_frac = offshore_gw / cap_gw if cap_gw > 0 else 0.0
                 on_frac = 1.0 - off_frac
+
+
+
+                gas_mw = (
+                    np.maximum(
+                        0.0,
+                        demand - d['domestic_vre_mw']
+                        - d['discharge_mw'] - d['import_mw']
+                    ) + d['export_sync_mw']
+                )
+
+                # Each interval is 15 minutes; 96 intervals per day.
+                daily_gas_gwh = gas_mw[:(len(gas_mw) // 96) * 96].reshape(-1, 96).sum(axis=1) * 0.25 / 1000
+
+
                 row = {
+
+                    'max_gas_mw': float(gas_mw.max()),
+                    'max_daily_gas_gwh': float(daily_gas_gwh.max()),
+                    'total_annual_gas_twh': float(gas_mw.sum() * to_annual_twh),
+
                     'avail_twh': tot_av * to_annual_twh,
                     'dispatch_twh': d['usable_w'].sum() * to_annual_twh,
                     'curt_pct': 100 * d['curt_w'].sum() / tot_av,
@@ -3082,6 +3191,19 @@ def _run_demonstrator():
                 rows.append(row)
             residuals = np.concatenate([r.pop('firm_residual_series') for r in rows])
             out = pd.DataFrame(rows).mean().to_dict()
+
+
+            print("\n========== GAS GENERATION ==========")
+            print(f"Maximum gas output:    {out['max_gas_mw']:,.0f} MW")
+            print(f"Maximum daily gas:      {out['max_daily_gas_gwh']:,.2f} GWh")
+            print(f"Total annual gas:       {out['total_annual_gas_twh']:,.2f} TWh")
+            print("====================================\n")
+
+
+            out['max_gas_mw'] = max(r['max_gas_mw'] for r in rows)
+            out['max_daily_gas_gwh'] = max(r['max_daily_gas_gwh'] for r in rows)
+
+
             # Peak firm residual is the worst interval over all weather years, not the average.
             out['firm_peak_mw'] = float(residuals.max()) if len(residuals) else 0.0
             out['firm_p_mw'] = (float(np.percentile(residuals, FIRM_RESIDUAL_PERCENTILE))
@@ -3223,6 +3345,11 @@ def _run_demonstrator():
             firm_capacity_required_gw = (run['firm_peak_mw'] + reserve_mw) / 1000.0
             firm_capacity_net_ic_gw = max(0.0, firm_capacity_required_gw - ic_credit_mw / 1000.0)
             row_out = {
+    
+                'Max_Gas_MW': round(run['max_gas_mw'], 1),
+                'Max_Daily_Gas_GWh': round(run['max_daily_gas_gwh'], 2),
+                'Total_Annual_Gas_TWh': round(run['total_annual_gas_twh'], 2),
+
                 'Year': yr,
                 'Wind_Cap_GW': round(cap, 2),
                 'Wind_Onshore_GW': round(onshore_gw, 2),
@@ -3433,6 +3560,85 @@ def _run_demonstrator():
                 (w_curt, run['all_wind_curt_twh']), (s_curt, run['all_solar_curt_twh'])))) if av_ws > 0 else summary_gap
 
         sim_df = pd.DataFrame(sim_results)
+
+        # Export daily gas demand results
+        if gas_daily_results:
+            gas_df = pd.DataFrame(gas_daily_results)
+
+            # All weather-year simulations
+            gas_df.to_csv(
+                os.path.join(out_dir, "gas_daily_by_weather_year.csv"),
+                index=False
+            )
+
+            # One row per scenario year and calendar day
+            envelope = gas_df.groupby(
+                ['year', 'month', 'day'], as_index=False
+            ).agg(
+                peak_gw=('peak_gw', 'max'),
+                max_daily_energy_gwh=('daily_energy_gwh', 'max')
+            )
+
+            envelope['date'] = pd.to_datetime(
+                dict(
+                    year=envelope['year'],
+                    month=envelope['month'],
+                    day=envelope['day']
+                ),
+                errors='coerce'
+            )
+
+            envelope = envelope.dropna(subset=['date'])
+            envelope = envelope.sort_values('date')
+
+            envelope['peak_above_threshold_gw'] = (
+                envelope['peak_gw'] - MOFFAT_CAPACITY_GW
+            ).clip(lower=0)
+
+            envelope['daily_energy_above_capacity_gwh'] = (
+                envelope['max_daily_energy_gwh']
+                - MOFFAT_CAPACITY_GW * 24
+            ).clip(lower=0)
+
+            envelope.to_csv(
+                os.path.join(out_dir, "gas_daily_demand_envelope.csv"),
+                index=False
+            )
+
+            # Graph daily peak gas demand, 2026–2100
+            fig, ax = plt.subplots(figsize=(16, 6))
+
+            ax.plot(
+                envelope['date'],
+                envelope['peak_gw'],
+                color='steelblue',
+                linewidth=0.7,
+                label='Daily peak gas demand'
+            )
+
+            ax.axhline(
+                MOFFAT_CAPACITY_GW,
+                color='red',
+                linestyle='--',
+                label='Moffat capacity (daily equivalent)'
+            )
+
+            ax.set_title('Modelled Daily Peak Gas Demand, 2026–2100')
+            ax.set_xlabel('Date')
+            ax.set_ylabel('Gas demand (GW thermal)')
+            ax.legend()
+            ax.grid(alpha=0.3)
+
+            fig.tight_layout()
+            fig.savefig(
+                os.path.join(out_dir, 'gas_daily_peak_demand.png'),
+                dpi=300
+            )
+            plt.close(fig)
+
+            say(f"\nGas daily results exported: {len(envelope):,} days")
+
+
         # Overall Transition Progress (issue #7): EU RED gross final energy consumption basis.
         # Electricity is counted as consumed (TWh_e), heat and transport fuels as final fuel, and
         # heat-pump ambient heat as renewable (RED Annex VII). The headline split is of energy
