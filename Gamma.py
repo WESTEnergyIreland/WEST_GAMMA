@@ -453,6 +453,7 @@ PIPELINE_BATTERY_HOURS = 15217.75 / 5632.0
 
 # Validation: connected IE onshore wind in the list vs CapacityByYear 2026 ROI MW.
 MAX_CONNECTED_CAPACITY_MISMATCH = 0.10
+SCENARIOS_SWITCHED_OFF = set()   # scenario names (lower case) with run = no in the workbook
 VALIDATION_REPORT_CSV = "validation_report.csv"   # written inside SCENARIO_OUTPUT_DIR
 CAPACITY_BY_ZONE_CSV = "capacity_by_zone_year.csv"
 
@@ -2164,7 +2165,8 @@ def _run_demonstrator():
                                  'ic_export_availability', 'ic_import_availability', 'ic_capacity_credit',
                                  'ie_reinforcement_mw_per_year', 'ni_reinforcement_mw_per_year',
                                  'reinforcement_steps', 'target_year', 'scenario_path', 'weather_years',
-                                 'headroom_pipeline_cover_pct', 'battery_hours_target', 'battery_hours_target_year']
+                                 'headroom_pipeline_cover_pct', 'battery_hours_target', 'battery_hours_target_year',
+                                 'run']
         lookup = {key(k): k for k in known}
         # Also accept Build_WIND_OFFSHORE / TID / HeadroomCurve style headers
         lookup[key('Build_WIND_OFFSHORE')] = 'build_rate_wind_offshore'
@@ -2173,6 +2175,12 @@ def _run_demonstrator():
         lookup[key('headroom_curve')] = 'headroom_curve'
         lookup[key('reinforcement_curve')] = 'headroom_curve'
         table.columns = [lookup.get(key(c), str(c).strip()) for c in table.columns]
+        # 'run' column (Cian, 4 Nov 2026): no / n / 0 / false / off keeps a scenario in the workbook
+        # but leaves it out of a full run. Naming it on the command line still runs it.
+        SCENARIOS_SWITCHED_OFF.clear()
+        if 'run' in table.columns and 'scenario' in table.columns:
+            off = table['run'].astype(str).str.strip().str.lower().isin(('no', 'n', '0', 'false', 'off'))
+            SCENARIOS_SWITCHED_OFF.update(table.loc[off, 'scenario'].astype(str).str.lower())
         unknown = [c for c in table.columns if c not in known]
         record_check('scenarios', '', 'all scenario columns recognised', 'WARN' if unknown else 'PASS',
                      f"ignored: {unknown}" if unknown else '')
@@ -4902,6 +4910,10 @@ def _run_demonstrator():
             scenarios = [s for s in scenarios if s['scenario'].lower() == name]
             if not scenarios:
                 raise ValueError(f"Scenario not found: {sys.argv[1]}")
+        elif SCENARIOS_SWITCHED_OFF:
+            skipped = [s['scenario'] for s in scenarios if s['scenario'].lower() in SCENARIOS_SWITCHED_OFF]
+            scenarios = [s for s in scenarios if s['scenario'].lower() not in SCENARIOS_SWITCHED_OFF]
+            print(f">> Switched off in the workbook (run = no), not run: {', '.join(skipped)}")
 
         stop_on_failures('scenarios', SCENARIO_OUTPUT_DIR)
         print(f"\n>> Running {len(scenarios)} scenarios from '{scenario_file}' "
