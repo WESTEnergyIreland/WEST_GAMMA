@@ -11,6 +11,27 @@ The full methodology is in `Technical_Briefing_README.docx`.
 4. Validation against EirGrid: `python analysis/eirgrid_validation.py` (after step 3). Paper figures: `python analysis/figure6_projections.py <outputs, no limits> <outputs, published path> fig6.png [end year]` and `python analysis/figure7_showcase.py <outputs> fig7.png [end year] [day year]` (Figure 7 needs a run with charts on; a run to 2035 gives 2033 daily panels). Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py`. Outputs in `analysis/output/`.
 5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
 
+## Gas supply check against Moffat and Corrib: 4 November 2026
+
+Reworks PR #38. New outputs only; no existing result changes. Gamma now tests daily gas demand against daily entry capacity for every scenario year and weather year.
+- **Test.** Daily gas energy (GWh/d, gross calorific value) against Moffat (433.4 GWh/d) plus Corrib (24.4 GWh/d in 2026, falling 15.6% a year). PR #38 compared the 15-minute peak with Moffat's daily capacity divided by 24; Moffat's capacity is a daily figure and linepack is not modelled, so the daily test is the defensible one.
+- **Power gas.** Firm output less 400 MW of hydro, biomass and waste, split at the 1,500-hour band into CCGT (55%) and peaking (38%) output, both LHV, converted to GCV at 0.90. Moneypoint on oil covers up to 855 MW of the peaking tranche to the end of 2029. PR #38 used a flat 50% on all firm output, LHV against a GCV capacity.
+- **Non-power gas.** All-island, 37.6 + 6.51 x heating degree days (Dublin Airport daily mean, base 15.5 °C) GWh/d, fitted to IE non-power demand in Q1 2025 (CSO) and on 8 January 2025 (GNI) and scaled for NI distribution demand (GMO NI). It is scaled down in line with heat electrification, so heat is not counted twice. Isle of Man 5 GWh/d. Weather year 2026 has no temperature record and uses the 2014–2025 mean for each calendar day.
+- **Check.** 2026 system on 8 January 2025 weather: 393.4 GWh/d modelled against 365.6 observed (+7.6%); power 233.5 against 205.3. Two reasons the model is high: interconnector imports are zero in the main runs, and Moneypoint ran on coal that day.
+- **Fixes to PR #38.** Unused `check_gas_capacity()` and duplicate firm series removed; 2026 uses all weather years, as the firm capacity does; 29 February dropped from the envelope (it caused the dips every fourth year); console output through `say()`.
+- **Outputs.** `Gas_*` columns in `forecast_results.csv`; `gas_daily_by_weather_year.csv`, `gas_daily_demand_envelope.csv`, `gas_validation_2026.csv` and `gas_daily_demand.png` in each scenario folder.
+- **Moneypoint matters.** The worst day rises by about 60 GWh/d between 2029 and 2030 on both pathways because Moneypoint's oil duty ends; the first shortfall year moves with that date.
+- Placeholders for group agreement: Corrib decline, non-gas firm MW, Moneypoint end date, Isle of Man. Open questions are in the WEST project note `claude/gas-supply-research-brief.md`.
+
+| Result (all-island, GWh/d GCV) | PR #38 (peak GW basis) | New |
+|---|---|---|
+| Daily capacity 2026 / 2050 | 433.4 (18.06 GW) flat | 457.8 / 433.8 |
+| EirGrid_Extended worst day 2026 / 2030 / 2035 / 2050 / 2100 | peak 20 / 21 / 23 / 28 / 45 GW | 393.4 / 460.9 / 491.1 / 648.1 / 960.1 |
+| Historical_Trend worst day 2026 / 2030 / 2035 / 2050 / 2100 | not run | 393.4 / 466.7 / 488.7 / 592.7 / 948.8 |
+| First year with a day above capacity, both pathways | 2026 | 2030 |
+| Days above capacity per year, mean of 13 weather years, EirGrid_Extended 2035 / 2050 / 2100 | | 1.4 / 8.9 / 9.9 |
+| Same, Historical_Trend 2035 / 2050 / 2100 | | 1.2 / 8.0 / 30.2 |
+
 ## Transport ceiling, battery duration, share names and Figure 7: 2 November 2026
 
 Group decisions from the Phase 1 paper comments (Cian, Niall).

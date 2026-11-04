@@ -278,6 +278,61 @@ FIRM_PEAKER_MAX_HOURS = 1500
 # of firm electricity needs 1 / (0.50 x 0.70) = 2.9 TWh of electricity for electrolysis; at 38%
 # (all peaking) it needs 3.8 TWh. Physical quantities only; costs are for the second paper.
 ELECTROLYSER_EFFICIENCY = 0.70
+# Gas supply check (PR #38, reworked). All gas quantities are daily energy on a gross calorific
+# value (GCV) basis, as Gas Networks Ireland publishes capacity and demand. Moffat technical
+# capacity is a daily figure (39 mscm/d = 433.4 GWh/d at 40 MJ/scm; GNI Winter Outlook 2025) and
+# serves IE, NI and the Isle of Man. Within-day linepack is not modelled, so the test is daily
+# energy against daily capacity; the 15-minute peak is reported for information only.
+# Values marked placeholder are for group agreement.
+GAS_MOFFAT_GWH_PER_DAY = 433.4
+GAS_CORRIB_GWH_PER_DAY_2026 = 24.4      # GNI Winter Outlook 2025, winter 2025/26
+GAS_CORRIB_DECLINE_PER_YEAR = 0.156     # 2024/25 to 2025/26 decline held constant (placeholder)
+GAS_LHV_PER_GCV = 0.90                  # plant efficiencies are LHV; capacity and demand are GCV
+# Non-power gas, all-island (GWh/d, GCV): base + slope x heating degree days (Dublin Airport daily
+# mean, base HEATING_BASE_TEMP_C). Fitted to IE non-power gas: Q1 2025 mean 71 GWh/d (CSO) at
+# 9.24 HDD and 112.5 GWh/d on 8 Jan 2025 (41% of 274.4; GNI) at 18.02 HDD, then scaled by
+# 1.377 for NI distribution (42.4 GWh/d on 8 Jan 2025; GMO NI GTO). The whole non-power term is
+# scaled down as Gamma electrifies heat, so heat is not counted as both gas and electricity.
+GAS_NONPOWER_BASE_GWH_PER_DAY = 37.6
+GAS_NONPOWER_GWH_PER_HDD = 6.51
+GAS_IOM_GWH_PER_DAY = 5.0               # Isle of Man, supplied through the same system (placeholder)
+# Firm output not burning gas (MW). Hydro, biomass and waste run first (placeholder, all-island);
+# Moneypoint on heavy fuel oil covers the top of the firm residual until its last year.
+GAS_NONGAS_FIRM_MW = 400.0
+GAS_MONEYPOINT_OIL_MW = 855.0
+GAS_MONEYPOINT_OIL_LAST_YEAR = 2029
+# Observed full-system gas day for the 2026 check (GNI Winter Outlook 2025; GMO NI GTO).
+GAS_VALIDATION_DAY = (2025, 1, 8)
+GAS_VALIDATION_TOTAL_GWH = 365.6        # IE 274.4 + NI 85.8 + IoM 5.4
+GAS_VALIDATION_POWER_GWH = 205.3        # IE 161.9 (59%) + NI 43.4
+
+
+def gas_supply_gwh_per_day(year):
+    """Daily gas entry capacity (GWh/d, GCV): Moffat plus a declining Corrib."""
+    corrib = GAS_CORRIB_GWH_PER_DAY_2026 * (1.0 - GAS_CORRIB_DECLINE_PER_YEAR) ** max(0, year - 2026)
+    return GAS_MOFFAT_GWH_PER_DAY + corrib
+
+
+def gas_power_fuel_mw(firm_mw, year):
+    """Gas burnt for power (MW, GCV) and oil-fired output (MW electric) for a 15-minute firm series.
+
+    Non-gas plant takes the first GAS_NONGAS_FIRM_MW. The rest is split by the screening-curve
+    band used for the fleet efficiency: output up to the band burns at FIRM_CCGT_EFFICIENCY,
+    output above it at FIRM_PEAKER_EFFICIENCY, except the part Moneypoint covers on oil.
+    """
+    g = np.maximum(0.0, np.asarray(firm_mw, dtype=float) - GAS_NONGAS_FIRM_MW)
+    if g.size == 0:
+        return g, g
+    k = int(np.ceil(g.size * min(1.0, FIRM_PEAKER_MAX_HOURS / 8760.0)))
+    k = max(1, min(g.size, k))
+    band = np.partition(g, g.size - k)[g.size - k]
+    base = np.minimum(g, band)
+    peak = g - base
+    oil_cap = GAS_MONEYPOINT_OIL_MW if year <= GAS_MONEYPOINT_OIL_LAST_YEAR else 0.0
+    oil = np.minimum(peak, oil_cap)
+    fuel_lhv = base / FIRM_CCGT_EFFICIENCY + (peak - oil) / FIRM_PEAKER_EFFICIENCY
+    return fuel_lhv / GAS_LHV_PER_GCV, oil
+
 # Full decarbonisation: the first year the fossil share of primary energy falls to or below this.
 DECARBONISED_FOSSIL_PCT = 10.0
 DECARBONISED_FOSSIL_PCT_STRICT = 5.0
@@ -1005,6 +1060,7 @@ def _run_demonstrator():
 
         # Hourly temperature for the heat-pump profile (optional input)
         merged['heat_weight'] = np.nan
+        merged['temp_c'] = np.nan
         temp_path = input_path(TEMPERATURE_FILE)
         if os.path.exists(temp_path):
             with open(temp_path, encoding='utf-8', errors='replace') as fh:
@@ -1018,6 +1074,7 @@ def _run_demonstrator():
             key = (pd.to_datetime(merged['datetime_utc'], format='%d/%m/%Y %H:%M', errors='coerce')
                    if 'datetime_utc' in merged else merged['parsed_date']).dt.floor('h')
             temp = key.map(met)
+            merged['temp_c'] = temp.to_numpy()
             hdh = np.maximum(0.0, HEATING_BASE_TEMP_C - temp)
             t_mean = float(np.nansum(temp * hdh) / np.nansum(hdh)) if np.nansum(hdh) > 0 else 6.0
             cop_rel = np.clip(1.0 + HEAT_COP_SLOPE_PER_K * (temp - t_mean), 0.5, 1.5)
@@ -3028,6 +3085,47 @@ def _run_demonstrator():
                 heat = shape * (extra * 1e6 / 8760.0) / shape.mean()
             return base + heat
 
+        # Gas supply check: daily mean temperature by calendar day, used where a weather year has
+        # no temperature record (2026), and the share of fossil heat left in each year.
+        _tc = merged[['parsed_date', 'temp_c']].dropna()
+        temp_clim = (_tc.groupby([_tc['parsed_date'].dt.month, _tc['parsed_date'].dt.day])['temp_c'].mean()
+                     if len(_tc) else pd.Series(dtype=float))
+        heat_full_twh = ALL_ISLAND_HEAT_DEMAND_TWH / HEAT_COP
+
+        def fossil_heat_left(year):
+            """Share of 2026 fossil heat still on fuel in this year (1 in 2026, 0 at full electrification)."""
+            now = min(heat_full_twh, heat_base_2026_twh + max(0, year - start_year) * heat_demand_growth_rate)
+            return max(0.0, heat_full_twh - now) / max(1e-9, heat_full_twh - heat_base_2026_twh)
+
+        gas_records = {}   # (scenario year, weather year) -> daily DataFrame; later runs overwrite
+
+        def gas_daily(df_wy, firm_mw, year, wy):
+            """Daily gas demand (GWh/d, GCV) for one weather year, stored in gas_records."""
+            fuel_mw, oil_mw = gas_power_fuel_mw(firm_mw, year)
+            dates = df_wy['parsed_date'].dt.normalize().to_numpy()
+            t = df_wy['temp_c'].to_numpy(dtype=float) if 'temp_c' in df_wy else np.full(len(df_wy), np.nan)
+            g = pd.DataFrame({'date': dates, 'power': fuel_mw * INTERVAL_HOURS / 1000.0,
+                              'oil': oil_mw * INTERVAL_HOURS / 1000.0, 'peak': fuel_mw / 1000.0, 't': t})
+            day = g.groupby('date').agg(power_gwh=('power', 'sum'), oil_gwh_e=('oil', 'sum'),
+                                        power_peak_gw=('peak', 'max'), temp_c=('t', 'mean'),
+                                        n=('power', 'size'))
+            day = day[day['n'] >= 92]   # complete days only
+            idx = pd.to_datetime(day.index)
+            clim = pd.Series([temp_clim.get((m, d_), np.nan) for m, d_ in zip(idx.month, idx.day)],
+                             index=day.index)
+            day['temp_c'] = day['temp_c'].fillna(clim).fillna(6.0)
+            hdd = np.maximum(0.0, HEATING_BASE_TEMP_C - day['temp_c'])
+            day['nonpower_gwh'] = ((GAS_NONPOWER_BASE_GWH_PER_DAY + GAS_NONPOWER_GWH_PER_HDD * hdd)
+                                   * fossil_heat_left(year) + GAS_IOM_GWH_PER_DAY)
+            day['total_gwh'] = day['power_gwh'] + day['nonpower_gwh']
+            day['supply_gwh'] = gas_supply_gwh_per_day(year)
+            day['shortfall_gwh'] = (day['total_gwh'] - day['supply_gwh']).clip(lower=0)
+            day = day.drop(columns='n').reset_index()
+            day.insert(0, 'weather_year', wy)
+            day.insert(0, 'year', year)
+            gas_records[(year, wy)] = day
+            return day
+
         def run_weather_years(year, demand_twh, snsp_fraction, solar_gw,
                               storage_power_mw, storage_energy_mwh, weather_years=None):
             """Run selected SEM weather years and average their annual results (V9 zonal)."""
@@ -3076,7 +3174,14 @@ def _run_demonstrator():
                 firm_mw = np.maximum(
                     0.0, demand - d['domestic_vre_mw'] - d['discharge_mw'] - d['import_mw']
                 ) + d['export_sync_mw']
+                gd = gas_daily(df_wy, firm_mw, year, wy)
                 row = {
+                    'gas_worst_day_gwh': float(gd['total_gwh'].max()) if len(gd) else 0.0,
+                    'gas_worst_power_gwh': float(gd['power_gwh'].max()) if len(gd) else 0.0,
+                    'gas_days_short': float((gd['shortfall_gwh'] > 0).sum()),
+                    'gas_shortfall_gwh': float(gd['shortfall_gwh'].sum()),
+                    'gas_power_twh': float(gd['power_gwh'].sum()) / 1000.0 * 365.25 / max(1, len(gd)),
+                    'gas_nonpower_twh': float(gd['nonpower_gwh'].sum()) / 1000.0 * 365.25 / max(1, len(gd)),
                     'avail_twh': tot_av * to_annual_twh,
                     'dispatch_twh': d['usable_w'].sum() * to_annual_twh,
                     'curt_pct': 100 * d['curt_w'].sum() / tot_av,
@@ -3181,6 +3286,9 @@ def _run_demonstrator():
             out = pd.DataFrame(rows).mean().to_dict()
             # Peak firm residual is the worst interval over all weather years, not the average.
             out['firm_peak_mw'] = float(residuals.max()) if len(residuals) else 0.0
+            # Gas: worst day over all weather years; days short is the weather-year mean.
+            out['gas_worst_day_gwh'] = max(r['gas_worst_day_gwh'] for r in rows) if rows else 0.0
+            out['gas_worst_power_gwh'] = max(r['gas_worst_power_gwh'] for r in rows) if rows else 0.0
             out['firm_p_mw'] = (float(np.percentile(residuals, FIRM_RESIDUAL_PERCENTILE))
                                 if len(residuals) else 0.0)
             out['ie_share'] = ie_share
@@ -3265,6 +3373,9 @@ def _run_demonstrator():
                                              storage_power_mw, storage_energy_mwh,
                                              weather_years=complete_weather_years)
                 run['firm_peak_mw'], run['firm_p_mw'] = peak_run['firm_peak_mw'], peak_run['firm_p_mw']
+                # The gas check is also an adequacy test, so 2026 uses every weather year too.
+                for k in ('gas_worst_day_gwh', 'gas_worst_power_gwh', 'gas_days_short', 'gas_shortfall_gwh'):
+                    run[k] = peak_run[k]
 
             if RESIDUAL_CURTAILMENT_BASIS == 'delivered':
                 if yr == start_year:
@@ -3336,6 +3447,13 @@ def _run_demonstrator():
             firm_capacity_net_ic_gw = max(0.0, firm_capacity_required_gw - ic_credit_mw / 1000.0)
             row_out = {
                 'Year': yr,
+                'Gas_Worst_Day_GWh': round(run['gas_worst_day_gwh'], 1),
+                'Gas_Worst_Day_Power_GWh': round(run['gas_worst_power_gwh'], 1),
+                'Gas_Supply_GWh_per_Day': round(gas_supply_gwh_per_day(yr), 1),
+                'Gas_Days_Short_per_Year': round(run['gas_days_short'], 2),
+                'Gas_Shortfall_GWh_per_Year': round(run['gas_shortfall_gwh'], 1),
+                'Gas_Power_TWh_GCV': round(run['gas_power_twh'], 2),
+                'Gas_NonPower_TWh_GCV': round(run['gas_nonpower_twh'], 2),
                 'Wind_Cap_GW': round(cap, 2),
                 'Wind_Onshore_GW': round(onshore_gw, 2),
                 'Wind_Offshore_GW': round(offshore_gw, 2),
@@ -3554,6 +3672,75 @@ def _run_demonstrator():
                 (w_curt, run['all_wind_curt_twh']), (s_curt, run['all_solar_curt_twh'])))) if av_ws > 0 else summary_gap
 
         sim_df = pd.DataFrame(sim_results)
+
+        # Gas supply check outputs (daily energy, GCV). The envelope is the worst of all weather
+        # years for each calendar day, so it is a worst case, not a single year. 29 February is
+        # dropped: only leap weather years have it, which made the envelope dip every fourth year.
+        if gas_records:
+            gas_df = pd.concat(gas_records.values(), ignore_index=True)
+            gas_df.to_csv(os.path.join(out_dir, "gas_daily_by_weather_year.csv"), index=False,
+                          float_format='%.2f')
+            gd_dates = pd.to_datetime(gas_df['date'])
+            gas_df['month'], gas_df['day'] = gd_dates.dt.month, gd_dates.dt.day
+            gas_df = gas_df[~((gas_df['month'] == 2) & (gas_df['day'] == 29))]
+            env = gas_df.groupby(['year', 'month', 'day'], as_index=False).agg(
+                total_gwh=('total_gwh', 'max'), power_gwh=('power_gwh', 'max'),
+                supply_gwh=('supply_gwh', 'first'))
+            env['date'] = pd.to_datetime(dict(year=env['year'], month=env['month'], day=env['day']))
+            env = env.sort_values('date')
+            env['shortfall_gwh'] = (env['total_gwh'] - env['supply_gwh']).clip(lower=0)
+            env.to_csv(os.path.join(out_dir, "gas_daily_demand_envelope.csv"), index=False,
+                       float_format='%.2f')
+            # 2026 check against the observed full-system day (8 January 2025 weather, 2026 system).
+            vy, vm, vd = GAS_VALIDATION_DAY
+            v = gas_df[(gas_df['year'] == start_year) & (gas_df['weather_year'] == vy)
+                       & (gas_df['month'] == vm) & (gas_df['day'] == vd)]
+            if len(v):
+                v = v.iloc[0]
+                say(f">> Gas check, {start_year} system on {vd:02d}/{vm:02d}/{vy} weather: total "
+                    f"{v['total_gwh']:.1f} GWh/d (observed {GAS_VALIDATION_TOTAL_GWH:.1f}), power "
+                    f"{v['power_gwh']:.1f} GWh/d (observed {GAS_VALIDATION_POWER_GWH:.1f}), "
+                    f"supply {v['supply_gwh']:.1f} GWh/d")
+                pd.DataFrame([{'scenario_year': start_year, 'weather_day': f"{vy}-{vm:02d}-{vd:02d}",
+                               'model_total_gwh': round(v['total_gwh'], 1),
+                               'observed_total_gwh': GAS_VALIDATION_TOTAL_GWH,
+                               'model_power_gwh': round(v['power_gwh'], 1),
+                               'observed_power_gwh': GAS_VALIDATION_POWER_GWH,
+                               'model_nonpower_gwh': round(v['nonpower_gwh'], 1),
+                               'supply_gwh': round(v['supply_gwh'], 1)}]).to_csv(
+                    os.path.join(out_dir, "gas_validation_2026.csv"), index=False)
+            if make_charts:
+                fig, axes = plt.subplots(1, 2, figsize=(16, 5.5), gridspec_kw={'width_ratios': [1, 2]})
+                ann = sim_df[['Year', 'Gas_Worst_Day_GWh', 'Gas_Worst_Day_Power_GWh',
+                              'Gas_Supply_GWh_per_Day']]
+                ax = axes[0]
+                ax.plot(ann['Year'], ann['Gas_Worst_Day_GWh'], color='steelblue', label='Worst day, total')
+                ax.plot(ann['Year'], ann['Gas_Worst_Day_Power_GWh'], color='steelblue', ls=':',
+                        label='Worst day, power only')
+                ax.plot(ann['Year'], ann['Gas_Supply_GWh_per_Day'], color='firebrick', ls='--',
+                        label='Moffat + Corrib')
+                ax.set_ylabel('Gas (GWh/d, GCV)')
+                ax.set_title('Worst gas day of all weather years')
+                ax.set_ylim(bottom=0)
+                ax.grid(alpha=0.3)
+                ax.legend(fontsize=8)
+                ax = axes[1]
+                ax.plot(env['date'], env['total_gwh'], color='steelblue', lw=0.5,
+                        label='Daily gas demand (worst weather year per day)')
+                ax.plot(env['date'], env['supply_gwh'], color='firebrick', ls='--',
+                        label='Moffat + Corrib daily capacity')
+                ax.set_title('Daily gas demand envelope')
+                ax.set_ylim(bottom=0)
+                ax.grid(alpha=0.3)
+                ax.legend(fontsize=8)
+                fig.tight_layout()
+                fig.savefig(os.path.join(out_dir, 'gas_daily_demand.png'), dpi=200)
+                plt.close(fig)
+            say(f">> Gas: worst day {sim_df['Gas_Worst_Day_GWh'].iloc[0]:.0f} GWh/d in {start_year}, "
+                f"{sim_df['Gas_Worst_Day_GWh'].iloc[-1]:.0f} GWh/d in {sim_df['Year'].iloc[-1]}; "
+                f"first year with a day short: "
+                f"{next((int(y) for y, n in zip(sim_df['Year'], sim_df['Gas_Days_Short_per_Year']) if n > 0), 'none')}")
+
         # Overall Transition Progress (issue #7): EU RED gross final energy consumption basis.
         # Electricity is counted as consumed (TWh_e), heat and transport fuels as final fuel, and
         # heat-pump ambient heat as renewable (RED Annex VII). The headline split is of energy
