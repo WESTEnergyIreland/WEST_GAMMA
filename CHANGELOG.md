@@ -11,6 +11,12 @@ The full methodology is in `Technical_Briefing_README.docx`.
 4. Validation against EirGrid: `python analysis/eirgrid_validation.py` (after step 3). Paper figures: `python analysis/figure6_projections.py <outputs, no limits> <outputs, published path> fig6.png [end year]` and `python analysis/figure7_showcase.py <outputs> fig7.png [end year] [day year]` (Figure 7 needs a run with charts on; a run to 2035 gives 2033 daily panels). Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py`. Outputs in `analysis/output/`.
 5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
 
+## Scenario on/off switch and clearer network field guide: 4 November 2026
+
+From Cian's comment on the paper. No result changes.
+- **`run` column** in `Data_inputs/scenariosXLSX.xlsx` (sheet `Scenarios`, last column). `no` leaves a scenario out of `python Gamma.py` but keeps it in the workbook; `python Gamma.py <scenario>` still runs it. Only EirGrid_Extended and Historical_Trend are set to `yes`. Run the validation scenarios by name before `analysis/eirgrid_validation.py`.
+- **Field Guide** rows for `headroom_curve`, `headroom_scale`, `ie/ni_reinforcement_pct`, `reinforcement_steps` and `headroom_pipeline_cover_pct` now say what each does, when it is used and the value in each pathway, including the 2036 no-limits steps.
+
 ## Gas supply check against Moffat and Corrib: 4 November 2026
 
 Reworks PR #38. New outputs only; no existing result changes. Gamma now tests daily gas demand against daily entry capacity for every scenario year and weather year.
