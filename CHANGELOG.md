@@ -3,6 +3,12 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Evaluation chart joins the record; grid study updated for the no-limits pathways: 6 November 2026
+
+No result changes.
+- `evaluation_curtailment_cf.png` (Cian, 4 Nov): each forecast line now starts from the last full recorded year, so it joins the black line; the part-year record (2026, January to August) is shown as an open marker and not joined, because it is seasonally biased. The 2026 forecast point still differs from the record: it is one weather year on the assumed year-end fleet (6.6 GW wind), where the record is part-year on the connected fleet.
+- `analysis/grid_reinforcement_study.py`: runs now keep the zonal limits after 2035 (`reinforcement_steps = NI:2032:950`), since EirGrid_Extended and Historical_Trend remove them from 2036 (PR #30) and the study tests headroom growth; reads `Primary_Fossil_Share_Pct` (renamed in PR #37); sets `run = yes` on its rows (PR #40).
+
 ## Gas supply from GNI's Network Development Plan 2025: 6 November 2026
 
 From Mark's review of the gas check (4 November). Gas supply only; no other result changes.

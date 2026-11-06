@@ -956,17 +956,31 @@ def write_evaluation_outputs(evaluation_store, historical_evaluation):
               ('Solar_Curtailment_%', 'Solar curtailment, % of available')]
     fig, axes = plt.subplots(2, 2, figsize=(14, 8))
     act = historical_evaluation[historical_evaluation['Data_Type'] == 'Actual'] if len(historical_evaluation) else None
+    part = (historical_evaluation[historical_evaluation['Data_Type'] == 'Actual (part year)']
+            if len(historical_evaluation) else None)
     for ax, (col, title) in zip(axes.flat, panels):
+        # Each forecast line starts from the last full recorded year, so it joins the black line
+        # (Cian, 4 Nov 2026). Forecast years are means over the weather years; the part-year
+        # record is shown on its own, unjoined, because it is seasonally biased.
+        last = None
+        if act is not None and col in act and act[col].notna().any():
+            last = act.dropna(subset=[col]).iloc[-1]
         for name, ev_df in evaluation_store.items():
             f = ev_df[ev_df['Data_Type'] == 'Forecast']
-            ax.plot(f['Year'], f[col], lw=1.4, label=name)
-        if act is not None and col in act and act[col].notna().any():
+            x, y = list(f['Year']), list(f[col])
+            if last is not None and len(x) and last['Year'] < x[0]:
+                x, y = [last['Year']] + x, [last[col]] + y
+            ax.plot(x, y, lw=1.4, label=name)
+        if last is not None:
             ax.plot(act['Year'], act[col], 'ko-', lw=1.6, ms=4, label='Actual (all-island)')
+        if part is not None and col in part and part[col].notna().any():
+            ax.plot(part['Year'], part[col], 'o', mfc='none', mec='k', ms=5, label='Actual, part year')
         ax.set_title(title, fontsize=11)
         ax.grid(alpha=0.3)
     axes[0, 0].legend(fontsize=7, ncol=2)
     fig.suptitle('Capacity factors and curtailment by scenario\n'
-                 '(curtailment excludes grid constraint; solar CF on MEC basis)', fontsize=12)
+                 '(curtailment excludes grid constraint; solar CF on MEC basis; forecasts are weather-year means '
+                 'starting from the last full recorded year)', fontsize=12)
     fig.tight_layout()
     fig.savefig(os.path.join(SCENARIO_OUTPUT_DIR, EVALUATION_CHART), dpi=CHART_DPI)
     plt.close(fig)
