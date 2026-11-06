@@ -17,7 +17,7 @@ The full methodology is in `Technical_Briefing_README.docx`.
 | Marginal yield of the next 10.5 GW and the 10.5 GW after, TWh/GW, 0% (7.3%) | 0.27, 0.20 (0.22, 0.16) | 0.35, 0.24 (0.28, 0.16) |
 | Average yield of the 2050 fleet, TWh/GW, 0% | 1.01 | 1.09 |
 
-Sensitivities (fossil share of primary energy, change from the central run, 2050 and 2100): all firm plant at 35% efficiency +1.0 to +4.0 points.
+Sensitivities (fossil share of primary energy, change from the central run, 2050 and 2100): all firm plant at 35% efficiency +1.0 to +4.0 points (was +1.6 to +3.7); heat-pump COP 3.9 -0.8 to -2.7 points (was -0.7 to -2.6).
 
 ## Evaluation chart joins the record; grid study updated for the no-limits pathways: 6 November 2026
 
