@@ -278,15 +278,21 @@ FIRM_PEAKER_MAX_HOURS = 1500
 # of firm electricity needs 1 / (0.50 x 0.70) = 2.9 TWh of electricity for electrolysis; at 38%
 # (all peaking) it needs 3.8 TWh. Physical quantities only; costs are for the second paper.
 ELECTROLYSER_EFFICIENCY = 0.70
-# Gas supply check (PR #38, reworked). All gas quantities are daily energy on a gross calorific
-# value (GCV) basis, as Gas Networks Ireland publishes capacity and demand. Moffat technical
-# capacity is a daily figure (39 mscm/d = 433.4 GWh/d at 40 MJ/scm; GNI Winter Outlook 2025) and
-# serves IE, NI and the Isle of Man. Within-day linepack is not modelled, so the test is daily
-# energy against daily capacity; the 15-minute peak is reported for information only.
-# Values marked placeholder are for group agreement.
-GAS_MOFFAT_GWH_PER_DAY = 433.4
-GAS_CORRIB_GWH_PER_DAY_2026 = 24.4      # GNI Winter Outlook 2025, winter 2025/26
-GAS_CORRIB_DECLINE_PER_YEAR = 0.156     # 2024/25 to 2025/26 decline held constant (placeholder)
+# Gas supply check. All gas quantities are daily energy on a gross calorific value (GCV) basis,
+# as Gas Networks Ireland publishes capacity and demand. Moffat serves IE, NI and the Isle of Man.
+# Within-day linepack is not modelled, so the test is daily energy against daily capacity.
+# Supply by gas year from GNI Network Development Plan 2025 (CRU consultation copy): Moffat and
+# Corrib maximum daily supply from Table A2-13 and Table 7-1; biomethane from Table 7-2, Low
+# scenario (TWh a year, injected evenly), as agreed by Mark on 6 Nov 2026. Moffat rises from
+# 433.3 to 475 GWh/d with the Scottish compressor upgrades committed for winter 2027/28. Not
+# included: the EMD compressors at Beattock and Brighouse Bay (not committed), the State
+# strategic gas emergency reserve (floating LNG, for supply disruption only) and any limit on
+# supply from Great Britain. After 2034/35 Moffat and biomethane hold and Corrib keeps falling at
+# its 2033/34 to 2034/35 rate. A winter in calendar year Y belongs to gas year (Y-1)/Y.
+GAS_SUPPLY_GAS_YEARS = list(range(2026, 2036))   # gas years 2025/26 .. 2034/35, by end year
+GAS_MOFFAT_GWH_PER_DAY = [433.3, 450.0, 475.0, 475.0, 475.0, 475.0, 475.0, 475.0, 475.0, 475.0]
+GAS_CORRIB_GWH_PER_DAY = [25.7, 22.0, 19.9, 18.7, 16.3, 14.5, 13.1, 11.7, 10.6, 9.8]
+GAS_BIOMETHANE_TWH_LOW = [0.1, 0.5, 0.6, 0.9, 1.2, 1.7, 2.2, 2.7, 3.2, 3.6]
 GAS_LHV_PER_GCV = 0.90                  # plant efficiencies are LHV; capacity and demand are GCV
 # Non-power gas, all-island (GWh/d, GCV): base + slope x heating degree days (Dublin Airport daily
 # mean, base HEATING_BASE_TEMP_C). Fitted to IE non-power gas: Q1 2025 mean 71 GWh/d (CSO) at
@@ -307,10 +313,21 @@ GAS_VALIDATION_TOTAL_GWH = 365.6        # IE 274.4 + NI 85.8 + IoM 5.4
 GAS_VALIDATION_POWER_GWH = 205.3        # IE 161.9 (59%) + NI 43.4
 
 
+def gas_supply_parts(year):
+    """(Moffat, Corrib, biomethane) daily supply in GWh/d, GCV, for the winter of calendar year."""
+    years = GAS_SUPPLY_GAS_YEARS
+    i = min(max(year, years[0]), years[-1]) - years[0]
+    moffat = GAS_MOFFAT_GWH_PER_DAY[i]
+    bio = GAS_BIOMETHANE_TWH_LOW[i] * 1000.0 / 365.0
+    corrib = GAS_CORRIB_GWH_PER_DAY[i]
+    if year > years[-1]:
+        corrib *= (GAS_CORRIB_GWH_PER_DAY[-1] / GAS_CORRIB_GWH_PER_DAY[-2]) ** (year - years[-1])
+    return moffat, corrib, bio
+
+
 def gas_supply_gwh_per_day(year):
-    """Daily gas entry capacity (GWh/d, GCV): Moffat plus a declining Corrib."""
-    corrib = GAS_CORRIB_GWH_PER_DAY_2026 * (1.0 - GAS_CORRIB_DECLINE_PER_YEAR) ** max(0, year - 2026)
-    return GAS_MOFFAT_GWH_PER_DAY + corrib
+    """Daily gas supply (GWh/d, GCV): Moffat plus Corrib plus biomethane."""
+    return sum(gas_supply_parts(year))
 
 
 def gas_power_fuel_mw(firm_mw, year):
