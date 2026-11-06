@@ -76,6 +76,11 @@ def build(ic):
         ws.cell(r, col['headroom_curve']).value = 'reinforcement_pct'
         ws.cell(r, col['ie_reinforcement_pct']).value = rate
         ws.cell(r, col['ni_reinforcement_pct']).value = 0.93
+        # The pathways remove zonal limits from 2036 (PR #30); this study needs the limits kept,
+        # so only the North-South step stays.
+        ws.cell(r, col['reinforcement_steps']).value = 'NI:2032:950'
+        if 'run' in col:
+            ws.cell(r, col['run']).value = 'yes'
         for f in BUILD_COLS:
             ws.cell(r, col[f]).value = float(ws.cell(r, col[f]).value or 0) * factor
         ws.cell(r, col['description']).value = (f'Grid study: {base}, IE headroom {rate}%/yr, build x{factor}, '
@@ -94,6 +99,11 @@ def run_all():
             raise SystemExit('A Gamma run failed: see run_stdout.txt in the run folders.')
 
 
+def fossil_col(r):
+    """Fossil share of primary energy; renamed from Overall_Fossil_Fuel_Pct in PR #37."""
+    return 'Primary_Fossil_Share_Pct' if 'Primary_Fossil_Share_Pct' in r.index else 'Overall_Fossil_Fuel_Pct'
+
+
 def collect():
     rows = []
     for ic, d in RUN_DIRS.items():
@@ -105,7 +115,7 @@ def collect():
                 r = a.loc[(name, y)]
                 rows.append({'run': name, 'base': base, 'ic_dispatch': ic, 'ie_headroom_pct_yr': rate,
                              'build_x': factor, 'year': y, **{k: t.loc[y, k] for k in t.columns if k != 'Year'},
-                             **{k: r[k] for k in ('Wind_Cap_GW', 'Solar_Cap_GW', 'Overall_Fossil_Fuel_Pct',
+                             **{k: r[k] for k in ('Wind_Cap_GW', 'Solar_Cap_GW', fossil_col(r),
                                                   'Firm_Capacity_Required_GW')}})
     return pd.DataFrame(rows)
 
