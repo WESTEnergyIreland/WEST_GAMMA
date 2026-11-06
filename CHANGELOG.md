@@ -3,6 +3,22 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Grid reinforcement study rerun on current main: 6 November 2026
+
+`analysis/output/grid_reinforcement/grid_reinforcement_results.csv` rerun after PRs #33 to #42 (zonal limits kept after 2035; see PR #42). Paper Section 7.3.
+
+| EirGrid_Extended 2050 | Before (1 Nov) | Now |
+|---|---|---|
+| Fossil share of primary energy, IE headroom 0 / 1 / 2 / 4 / 7.3% a year | 66.6 / 66.0 / 65.6 / 64.8 / 64.2 | 63.9 / 63.3 / 62.7 / 61.9 / 61.2 |
+| Same with interconnector flows in the dispatch | 65.1 to 63.6 | 62.3 to 60.6 |
+| No zonal limits from 2036 | 63.8 | 60.9 |
+| Published path after 2035 | 66.3 | 63.5 |
+| Firm generation, TWh, 0% / 7.3% / no limits | 16.5 / 12.3 / 11.6 | 15.8 / 11.3 / 10.4 |
+| Marginal yield of the next 10.5 GW and the 10.5 GW after, TWh/GW, 0% (7.3%) | 0.27, 0.20 (0.22, 0.16) | 0.35, 0.24 (0.28, 0.16) |
+| Average yield of the 2050 fleet, TWh/GW, 0% | 1.01 | 1.09 |
+
+Sensitivities (fossil share of primary energy, change from the central run, 2050 and 2100): all firm plant at 35% efficiency +1.0 to +4.0 points (was +1.6 to +3.7); heat-pump COP 3.9 -0.8 to -2.7 points (was -0.7 to -2.6).
+
 ## Evaluation chart joins the record; grid study updated for the no-limits pathways: 6 November 2026
 
 No result changes.
