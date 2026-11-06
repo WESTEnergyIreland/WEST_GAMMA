@@ -3,6 +3,25 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Gas supply from GNI's Network Development Plan 2025: 6 November 2026
+
+From Mark's review of the gas check (4 November). Gas supply only; no other result changes.
+- **Moffat:** 433.3 GWh/d (2025/26), 450 (2026/27), 475 from 2027/28 with the committed Scottish compressor upgrades (NDP 2025, Table A2-13). The EMD compressors at Beattock and Brighouse Bay are not committed and are left out.
+- **Corrib:** NDP 2025 Table 7-1, 25.7 GWh/d (2025/26) to 9.8 (2034/35), then falling at the 2033/34 to 2034/35 rate. Replaces the 15.6%/yr placeholder.
+- **Biomethane:** NDP 2025 Table 7-2, Low scenario, 0.1 to 3.6 TWh a year by 2034/35, injected evenly, then held.
+- **Not included:** the State strategic gas emergency reserve (floating LNG, for supply disruption only), any shortage of supply from Great Britain, linepack, distillate at gas plant.
+- A winter in calendar year Y uses gas year (Y-1)/Y.
+
+| Result (GWh/d, GCV) | 4 Nov | 6 Nov |
+|---|---|---|
+| Supply 2026 / 2035 / 2050 | 457.8 / 438.8 / 433.8 | 459.3 / 494.7 / 487.9 |
+| First year with a day above supply, both pathways | 2030 | 2036 |
+| Days above supply per year, EirGrid_Extended 2035 / 2050 / 2100 | 1.4 / 8.9 / 9.9 | 0 / 5.4 / 8.2 |
+| Same, Historical_Trend 2035 / 2050 / 2100 | 1.2 / 8.0 / 30.2 | 0 / 2.5 / 22.9 |
+| Worst day / supply 2050, EirGrid_Extended and Historical_Trend | 1.49 and 1.37 | 1.33 and 1.21 |
+
+Worst days are unchanged (393 in 2026; 648 and 593 in 2050). In 2035 the worst day is within 1% of supply on both pathways.
+
 ## How to run
 
 1. Install Python 3.10 or later, then from the repository folder: `pip install -r requirements.txt`.
