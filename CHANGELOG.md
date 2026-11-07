@@ -3,6 +3,21 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Gas: annual use against the worst day, and an interconnector sensitivity: 7 November 2026
+
+No change to the main runs. New script `analysis/figure8_gas.py` draws paper Figure 8 (annual gas use; worst gas day against supply) from the main outputs and from a run with `GAMMA_IC_DISPATCH=1`. Paper Section 7.5.
+
+| | EirGrid_Extended | Historical_Trend |
+|---|---|---|
+| Annual gas use, TWh GCV, 2026 / 2050, main runs | 70.0 / 41.3 | 70.0 / 57.5 |
+| Worst gas day, GWh/d, 2026 / 2050, main runs | 393 / 648 | 393 / 593 |
+| First year the worst day exceeds supply: worst / second-worst / median weather year | 2036 / 2036 / 2040 | 2036 / 2037 / 2042 |
+| Same, with 25 / 50 GWh/d of extra entry capacity (worst weather year) | 2039 / 2042 | 2040 / 2043 |
+| With interconnector flows (imports 70% of capacity): worst day 2026 / 2050, GWh/d | 344 / 511 | 344 / 494 |
+| With interconnector flows: first year short, days short a year in 2050 | 2047, 0.3 | 2050, 0.1 |
+
+Validation day (8 January 2025 weather, 2026 system; recorded 365.6 GWh/d): 393.4 GWh/d without interconnector flows, 344.1 with them.
+
 ## Grid reinforcement study rerun on current main: 6 November 2026
 
 `analysis/output/grid_reinforcement/grid_reinforcement_results.csv` rerun after PRs #33 to #42 (zonal limits kept after 2035; see PR #42). Paper Section 7.3.
@@ -49,7 +64,7 @@ Worst days are unchanged (393 in 2026; 648 and 593 in 2050). In 2035 the worst d
 1. Install Python 3.10 or later, then from the repository folder: `pip install -r requirements.txt`.
 2. Inputs live in `Data_inputs/`. Edit scenarios in `Data_inputs/scenariosXLSX.xlsx` (sheet `Scenarios`) and save.
 3. Run `python Gamma.py` (or `python Gamma.py <scenario>` for one). All scenarios run without prompts (about 25 minutes with charts; the runs to 2100 take longest). Outputs go to `scenario_outputs/`: one folder per scenario, `scenario_summary.csv`, `all_scenarios_evaluation_curtailment_cf.csv` (curtailment and capacity factors, with actuals), `evaluation_curtailment_cf.png`, `validation_report.csv` and `run_log.txt`. Set `SCENARIO_CHARTS = False` near the top of `Gamma.py` for a faster CSV-only run.
-4. Validation against EirGrid: `python analysis/eirgrid_validation.py` (after step 3). Paper figures: `python analysis/figure6_projections.py <outputs, no limits> <outputs, published path> fig6.png [end year]` and `python analysis/figure7_showcase.py <outputs> fig7.png [end year] [day year]` (Figure 7 needs a run with charts on; a run to 2035 gives 2033 daily panels). Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py`. Outputs in `analysis/output/`.
+4. Validation against EirGrid: `python analysis/eirgrid_validation.py` (after step 3). Paper figures: `python analysis/figure6_projections.py <outputs, no limits> <outputs, published path> fig6.png [end year]` and `python analysis/figure7_showcase.py <outputs> fig7.png [end year] [day year]` (Figure 7 needs a run with charts on; a run to 2035 gives 2033 daily panels), `python analysis/figure8_gas.py <outputs> <outputs with GAMMA_IC_DISPATCH=1, or -> fig8.png [end year]`. Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py`. Outputs in `analysis/output/`.
 5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
 
 ## Scenario on/off switch and clearer network field guide: 4 November 2026
