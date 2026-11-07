@@ -21,8 +21,8 @@ An independent, evidence-based assessment of Ireland's energy system, aiming for
 ## Scope of Phase 1
 
 - Electricity grid only, with electrification of heat and transport kept in view as demand.
-- Phase 1 output is a methodology paper on our own grid model (Gamma), built with open-source code rather than TIMES-Ireland (TIM).
-- Costs come later. Paper 1 opens the economic argument on the cost of hydrogen; paper 2 makes it.
+- Phase 1 output is a paper with two aims: (1) the method, our own open grid model (Gamma), built with open-source code rather than TIMES-Ireland (TIM) and validated against records and EirGrid; (2) where the energy transition is heading, from projections on the published plan and on recorded trends to date.
+- Costs come later. Paper 1 has no costs and opens the economic argument on the cost of hydrogen. Paper 2 costs the transition from three angles: technology, monetary cost and energy return on investment (EROI).
 - Main interest: how constraint and curtailment grow as the grid and interconnection grow, SNSP rises and minimum generation falls.
 
 ## Decisions to date
