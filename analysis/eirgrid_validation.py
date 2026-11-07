@@ -66,22 +66,43 @@ def main():
     t.to_csv(os.path.join(OUT, 'eirgrid_validation.csv'), index=False)
     print(t.to_string(index=False))
 
+    # Optional third bar: the same cases with headroom also growing by 40% of new onshore wind and
+    # solar MW (Sensitivity_EirGrid_Reinforcement_2035; Section 6.3). Drawn only where that run exists.
+    reinf = []
+    for r in t.itertuples():
+        g = gamma_ireland('Sensitivity_EirGrid_Reinforcement_2035', r.year) if r.portfolio != 'Initial' else None
+        reinf.append(g)
+    has_reinf = any(g is not None for g in reinf)
+
     fig, ax = plt.subplots(figsize=(7.2, 3.4), dpi=200)
     labels = [f"{r.year}\n{r.portfolio}" for r in t.itertuples()]
     x = range(len(t))
-    w = 0.38
+    n = 3 if has_reinf else 2
+    w = 0.8 / n
     for i, (who, colour) in enumerate((('eirgrid', '#9aa3ad'), ('gamma', '#2a78d6'))):
-        xs = [v + (i - 0.5) * w for v in x]
+        xs = [v + (i - (n - 1) / 2) * w for v in x]
         ax.bar(xs, t[f'{who}_constraint_pct'], w * 0.92, color=colour, label=f"{'EirGrid' if who == 'eirgrid' else 'Gamma'}: constraint")
         ax.bar(xs, t[f'{who}_curtailment_pct'], w * 0.92, bottom=t[f'{who}_constraint_pct'], color=colour,
                alpha=0.45, label=f"{'EirGrid' if who == 'eirgrid' else 'Gamma'}: curtailment and surplus")
         for xi, tot in zip(xs, t[f'{who}_total_pct']):
             ax.text(xi, tot + 0.5, f"{tot:.0f}", ha='center', fontsize=7)
+    if has_reinf:
+        first = True
+        for v, g in zip(x, reinf):
+            if g is None:
+                continue
+            xi = v + (2 - (n - 1) / 2) * w
+            ax.bar(xi, g['gamma_constraint_pct'], w * 0.92, color='#2e8b57',
+                   label='Gamma, reinforced: constraint' if first else None)
+            ax.bar(xi, g['gamma_curtailment_pct'], w * 0.92, bottom=g['gamma_constraint_pct'], color='#2e8b57',
+                   alpha=0.45, label='Gamma, reinforced: curtailment' if first else None)
+            ax.text(xi, g['gamma_total_pct'] + 0.5, f"{g['gamma_total_pct']:.1f}", ha='center', fontsize=7)
+            first = False
     ax.set_xticks(list(x))
     ax.set_xticklabels(labels, fontsize=7)
     ax.set_ylabel('% of available wind + solar (Ireland)', fontsize=8)
     ax.spines[['top', 'right']].set_visible(False)
-    ax.legend(fontsize=6.5, frameon=False, ncol=2, loc='upper left')
+    ax.legend(fontsize=6.5, frameon=False, ncol=3, loc="upper left")
     ax.set_ylim(0, max(t['eirgrid_total_pct'].max(), t['gamma_total_pct'].max()) * 1.3)
     fig.tight_layout()
     fig.savefig(os.path.join(OUT, 'eirgrid_validation.png'))

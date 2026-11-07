@@ -6,6 +6,9 @@
 # Revised 30 October 2026, still before publication: residual curtailment on the delivered basis (PR #25). On the revised model
 # cover 40% gives 27.5% against EirGrid's 28.5% for GSS-1 2035.
 # The 28 October rows are kept as first recorded (model_version = 2026-10-28).
+# Revised again 7 November 2026, still before publication: demand corrected to the AIRAA 2026-2035 median
+# (56.6 TWh all-island in 2035, was 51.4). On this model GSS-1 2035 is 29.4% on the published path and 23.5%
+# with cover 40%, against EirGrid's 28.5%.
 case,network,gamma_constraint_pct,gamma_curtailment_pct,gamma_total_pct,ie_headroom_mw,model_version
 100% ECP,published path,34.4,5.3,39.8,5376,2026-10-28
 100% ECP,cover 40%,10.0,13.5,23.4,11686,2026-10-28
@@ -15,3 +18,7 @@ case,network,gamma_constraint_pct,gamma_curtailment_pct,gamma_total_pct,ie_headr
 100% ECP,cover 40%,10.0,12.7,22.6,11686,2026-10-30
 100% ECP + 4.7 GW offshore,published path,26.5,13.5,40.0,5376,2026-10-30
 100% ECP + 4.7 GW offshore,cover 40%,7.7,25.3,33.0,11686,2026-10-30
+100% ECP,published path,34.4,3.6,38.0,5376,2026-11-07
+100% ECP,cover 40%,10.0,9.5,19.5,11686,2026-11-07
+100% ECP + 4.7 GW offshore,published path,26.5,10.4,36.9,5376,2026-11-07
+100% ECP + 4.7 GW offshore,cover 40%,7.7,21.4,29.1,11686,2026-11-07

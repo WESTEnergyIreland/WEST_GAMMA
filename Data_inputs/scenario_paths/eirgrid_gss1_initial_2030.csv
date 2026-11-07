@@ -3,8 +3,11 @@
 # NI capacity: GSS-1 gives no NI table; NI onshore 1,656 MW from the GSS-1 workbook area tables,
 #   NI solar and batteries from ECP-2.5 Assumptions (final update 24/02/2026), Table 4 'Initial'.  VERIFY
 # Storage = IE 1,238 MW + NI 200 MW; MWh not published, 2.7 h assumed for additions.
-# Demand: IE 40.0 TWh in 2030 (AIRAA median as transcribed in Data_inputs/Eirgrid ECP Parameters Used.xlsx; VERIFY)
-#   + NI 7.1 TWh (2025 recorded, held flat).
 # Operating rules, GSS-1 Table 2, 2030: SNSP 95%; minimum sets IE 2 + NI 1, plus 2 Dublin must-run units (IE).
+# Demand (corrected 7 November 2026): AIRAA 2026-2035 median TER (Data_inputs/AIRAA-2026-2035_DataWorkbook.xlsx,
+#   sheets 'Demand - IE' Figure 4.6 and 'Demand - NI' Figure 4.14) converted to Gamma's recorded-demand basis by the
+#   2024 ratio of recorded demand to TER (IE 33.72/35.20, NI 7.22/8.16): 2030 IE 42.7 + NI 8.1 = 50.8 TWh;
+#   2035 IE 47.2 + NI 9.4 = 56.6 TWh. The earlier 47.1 and 51.4 TWh (IE 40.0 and 44.3 + NI 7.1 flat) used AIRAA's
+#   Low 2030 value and were below the median.
 year,ie_onshore_gw,ni_onshore_gw,offshore_gw,ie_solar_gw,ni_solar_gw,storage_mw,demand_twh,snsp_pct,muon_units_ie,muon_units_ni
-2030,5.678,1.656,0.025,2.500,0.156,1438,47.1,95,4,1
+2030,5.678,1.656,0.025,2.500,0.156,1438,50.8,95,4,1
