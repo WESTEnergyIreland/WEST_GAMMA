@@ -6,8 +6,12 @@
 # NI: GSS-2 says NI data 'to be added'; as the GSS-1 2035 path (onshore 1,723 MW, solar 268 MW) and
 #   ECP-2.5 Table 4 '50%' batteries (645 MW). VERIFY when EirGrid publishes NI data.
 # Storage MWh: mostly unpublished in the list; 2.7 h assumed for additions (as GSS-1).
-# Demand: AIRAA 2026-2035 median, as the GSS-1 2035 path (51.4 TWh all-island).
 # Operating rules, GSS-2 Assumptions Table 2, Future Grid: SNSP 100%, minimum sets IE 0 + NI 0,
 #   1 Dublin unit for voltage control (modelled as 1 IE unit). Weather: 2022 profiles (GSS-2 Table 1).
+# Demand (corrected 7 November 2026): AIRAA 2026-2035 median TER (Data_inputs/AIRAA-2026-2035_DataWorkbook.xlsx,
+#   sheets 'Demand - IE' Figure 4.6 and 'Demand - NI' Figure 4.14) converted to Gamma's recorded-demand basis by the
+#   2024 ratio of recorded demand to TER (IE 33.72/35.20, NI 7.22/8.16): 2030 IE 42.7 + NI 8.1 = 50.8 TWh;
+#   2035 IE 47.2 + NI 9.4 = 56.6 TWh. The earlier 47.1 and 51.4 TWh (IE 40.0 and 44.3 + NI 7.1 flat) used AIRAA's
+#   Low 2030 value and were below the median.
 year,ie_onshore_gw,ni_onshore_gw,offshore_gw,ie_solar_gw,ni_solar_gw,storage_mw,demand_twh,snsp_pct,muon_units_ie,muon_units_ni
-2035,9.889,1.723,4.699,12.647,0.268,6662,51.4,100,1,0
+2035,9.889,1.723,4.699,12.647,0.268,6662,56.6,100,1,0

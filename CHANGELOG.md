@@ -3,6 +3,30 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## EirGrid paths use AIRAA's median demand: 7 November 2026
+
+Correction to inputs. The EirGrid paths (`eirgrid_gss1_path`, `eirgrid_gss1_initial_2030`, `eirgrid_gss2_fg_100ecp*`) took Ireland's demand as 40.0 TWh in 2030 and 44.3 TWh in 2035 with Northern Ireland held at 7.1 TWh. 40.0 TWh is AIRAA 2026–2035's Low case for 2030; the median is 44.6 TWh (2030) and 49.2 TWh (2035) TER for Ireland and 9.2 and 10.7 TWh for Northern Ireland (`Data_inputs/AIRAA-2026-2035_DataWorkbook.xlsx`, now in the repository). TER is converted to Gamma's recorded-demand basis by the 2024 ratio of recorded demand to TER (Ireland 33.72/35.20, Northern Ireland 7.22/8.16), giving 50.8 TWh all-island in 2030 and 56.6 TWh in 2035 (was 47.1 and 51.4). Post-2035 growth on the EirGrid rows is now the 2030–2035 change divided by five, 1.16 TWh a year (background 0.71, heat 0.15, transport 0.30; was 0.86). Historical_Trend is unchanged.
+
+Also: `analysis/cover_recalibration.py` sets `run = yes` on its rows (it ran no scenarios after PR #40). The GSS-2 prediction gains rows dated 7 November 2026; earlier rows are kept.
+
+| Result | Before | Now |
+|---|---|---|
+| Validation, Gamma minus EirGrid total (points): 2030 Initial / 2030 + 2.6 GW offshore / 2035 | −2.6 / −0.8 / +4.1 | −2.9 / −3.2 / +0.9 |
+| Surplus in EirGrid's order, before the network (%) | 2.3 / 14.6 / 23.2 | 1.5 / 11.6 / 18.9 |
+| Constraint in EirGrid's order, published path, 2030 / 2035 (%) | 5.0 / 5.6 | 6.4 / 6.7 |
+| GSS-2 prediction, published path / cover 40%, 100% ECP (%) | 38.4 / 22.6 | 38.0 / 19.5 |
+| Same, 100% ECP + 4.7 GW offshore (%) | 40.0 / 33.0 | 36.9 / 29.1 |
+| EirGrid_Extended demand 2035 / 2050 / 2100 (TWh) | 51.4 / 64.3 / 104.1 | 56.6 / 74.0 / 128.8 |
+| Dispatch down 2030 / 2035 / 2050 / 2100 (% of available) | 24.5 / 27.7 / 35.2 / 53.9 | 22.4 / 25.2 / 28.8 / 44.2 |
+| Fossil share of primary energy 2035 / 2050 / 2100 (%) | 75.0 / 60.9 / 27.4 | 75.3 / 60.2 / 29.4 |
+| Firm capacity 2035 / 2050 / 2100 (GW) | 10.2 / 12.7 / 20.7 | 11.2 / 14.4 / 25.0 |
+| Electricity for firm plant on hydrogen vs dispatched down, 2050 (TWh) | 35.4 vs 29.9 | 43.7 vs 24.5 |
+| Worst gas day 2050 (GWh/d); first year above supply, worst / second-worst / median weather year | 648; 2036 / 2036 / 2040 | 680; 2031 / 2032 / 2035 |
+| Same with interconnector flows: first year above supply | 2047 | 2042 |
+| Fossil share 2050 with the published network path after 2035 (%) | 63.5 | 64.2 |
+
+The sensitivity study (Supplementary S7) was rerun on this model; the 16.5 GW step in 2100 firm capacity with build +150% noted in the entry below no longer appears (23.8 GW, against 24.3 GW at +100%).
+
 ## Sensitivity study rerun on current main: 7 November 2026
 
 No model change. `python analysis/sensitivity_study.py` rerun on `main` (bdac59b), so the base case now matches EirGrid_Extended in the paper (PRs #25, #30 and #37 included). Outputs in `analysis/output/sensitivity/`. Supplementary Section S7, Tables S9 to S12.

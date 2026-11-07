@@ -65,6 +65,8 @@ def build():
             ws.cell(r, c).value = v
         ws.cell(r, col['scenario']).value = name(cover)
         ws.cell(r, col['headroom_pipeline_cover_pct']).value = cover
+        if 'run' in col:
+            ws.cell(r, col['run']).value = 'yes'   # PR #40: rows default to run = no
         ws.cell(r, col['description']).value = f'Cover recalibration: {BASE_SCENARIO} with {cover:g}% cover'
     wb.save(path)
 
