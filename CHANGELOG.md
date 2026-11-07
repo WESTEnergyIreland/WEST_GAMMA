@@ -3,6 +3,20 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Sensitivity study rerun on current main: 7 November 2026
+
+No model change. `python analysis/sensitivity_study.py` rerun on `main` (bdac59b), so the base case now matches EirGrid_Extended in the paper (PRs #25, #30 and #37 included). Outputs in `analysis/output/sensitivity/`. Supplementary Section S7, Tables S9 to S12.
+
+| EirGrid_Extended, fossil share of primary energy (%) | Before (30 Oct) | Now |
+|---|---|---|
+| Base, 2050 / 2100 | 66.3 / 34.4 | 60.9 / 27.4 |
+| Heat and transport electrification +50 / +100 / +150%, 2050 | 62.3 / 57.9 / 53.3 | 55.5 / 49.8 / 43.6 |
+| Same, 2100 | 25.1 / 21.4 / 20.8 | 18.5 / 14.6 / 14.2 |
+| Wind, solar and battery build +50 / +100 / +150%, 2050 | 64.2 / 62.6 / 61.5 | 58.8 / 57.4 / 56.7 |
+| Same, 2100 | 29.0 / 26.4 / 25.2 | 24.5 / 23.2 / 22.6 |
+
+Constraint is now zero in 2050 and 2100 (no zonal limits from 2036), so the extra build shows up as curtailment: 35.2% of available output in the base case and 57.6% with build +150% in 2050. Firm capacity in 2100 with build +150% is 16.5 GW, against 20.0 GW at +100% and 20.7 GW in the base case; the cause of that step has not been checked.
+
 ## Gas: annual use against the worst day, and an interconnector sensitivity: 7 November 2026
 
 No change to the main runs. New script `analysis/figure8_gas.py` draws paper Figure 8 (annual gas use; worst gas day against supply) from the main outputs and from a run with `GAMMA_IC_DISPATCH=1`. Paper Section 7.5.
