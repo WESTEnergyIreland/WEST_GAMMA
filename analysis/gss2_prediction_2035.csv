@@ -9,6 +9,8 @@
 # Revised again 7 November 2026, still before publication: demand corrected to the AIRAA 2026-2035 median
 # (56.6 TWh all-island in 2035, was 51.4). On this model GSS-1 2035 is 29.4% on the published path and 23.5%
 # with cover 40%, against EirGrid's 28.5%.
+# Central prediction from 7 November 2026: the published path (100% ECP 38.0%, with 4.7 GW offshore 36.9%),
+# replacing cover 40%. Cover 40% is kept as the other end of the range. No further revisions before or after 15 December.
 case,network,gamma_constraint_pct,gamma_curtailment_pct,gamma_total_pct,ie_headroom_mw,model_version
 100% ECP,published path,34.4,5.3,39.8,5376,2026-10-28
 100% ECP,cover 40%,10.0,13.5,23.4,11686,2026-10-28
