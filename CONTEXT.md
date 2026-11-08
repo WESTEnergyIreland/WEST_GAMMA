@@ -35,7 +35,9 @@ An independent, evidence-based assessment of Ireland's energy system, aiming for
 - Projections have no zonal network limits from 2036 (PR #30, 1 November 2026). This is a bounding case that favours renewables, not a forecast; it replaces any post-2035 reinforcement rate. The 40% headroom cover is not presented as EirGrid's implied network growth: it matches GSS-1 only when constraint is counted in Gamma's order (PR #29).
 - Gamma keeps its own order of calculation (network, then system-wide limits). The paper validates on total dispatch down and reports the EirGrid-order split alongside.
 - 2 November 2026: transport ceiling is land transport only (62.2 TWh all-island); EirGrid_Extended and Historical_Trend raise battery fleet duration to 4 h by 2035 with the MW build unchanged; the paper names each share by its denominator (primary energy, gross final energy, electricity demand) and uses SEAI's RES Overall only for the gross final share. See `CHANGELOG.md`.
-- The ECP-GSS-2 prediction (`analysis/gss2_prediction_2035.csv`) was made before EirGrid publishes on 15 December 2026. Its central case is the published network path, from 7 November 2026 (it was cover 40% before the AIRAA demand correction); cover 40% is the other end of the range. The 7 November rows are final: no further revisions.
+- The ECP-GSS-2 prediction (`analysis/gss2_prediction_2035.csv`) was made before EirGrid publishes on 15 December 2026. Its central case is the published network path, from 7 November 2026 (it was cover 40% before the AIRAA demand correction); cover 40% is the other end of the range. The 7 November rows were registered as final. On 8 November an error was found in the constraint closed form (equation 3); corrected rows dated 8 November were added before publication, with the sigma interval, and the 7 November rows are kept as registered. The paper reports both.
+
+- 8 November 2026: target journal under discussion (Energy Economics raised). Every quantity the model computes is written as an equation in `docs/model_equations.md` and Supplementary S2; keep them in step with `Gamma.py`.
 
 ## Where things live
 

@@ -536,11 +536,14 @@ def load_dd_hourly(path, constraint_col=CONSTRAINT_COLUMN):
 
 
 def expected_constraint_mw(avail_mw, limit_mw, sigma, calib=1.0):
-    """Expected constrained MW in an interval with available wind avail_mw."""
+    """Expected constrained MW in an interval with available output x: E[max(0, x - H*eta)],
+    ln(eta) ~ N(0, sigma^2), so H is the median effective limit. Closed form (paper eq. 3):
+    x*Phi(a) - H*exp(sigma^2/2)*Phi(a - sigma), a = ln(x/H)/sigma.
+    Before 8 Nov 2026 the code used x*Phi(a + sigma/2) - H*exp(sigma^2/2)*Phi(a - sigma/2),
+    which is not the expectation of any lognormal and went negative for x below about 0.3-0.4 H."""
     x = np.maximum(np.asarray(avail_mw, dtype=float), 1e-6)
-    d1 = (np.log(limit_mw / x) + 0.5 * sigma ** 2) / sigma
-    d2 = d1 - sigma
-    raw = x * ndtr(-d2) - limit_mw * np.exp(0.5 * sigma ** 2) * ndtr(-d1)
+    a = np.log(x / limit_mw) / sigma
+    raw = x * ndtr(a) - limit_mw * np.exp(0.5 * sigma ** 2) * ndtr(a - sigma)
     return np.clip(calib * raw, 0.0, x)
 
 
@@ -1341,6 +1344,12 @@ def _run_demonstrator():
                      f"capacity-weighted zones vs IE row: largest gap {gap:.2f} pts")
     zone_shares = zone_shares_from_history(zone_caps_mw, float(final_2026_capacity['ROI_MW']),
                                            float(final_2026_capacity['NI_MW']))
+    # Sensitivity on the spread (identification test, analysis/sigma_identification.py): GAMMA_SIGMA_IE /
+    # GAMMA_SIGMA_NI fix sigma; headrooms are then recalibrated so 2025 constraint still matches.
+    for _r in ('IE', 'NI'):
+        if os.environ.get(f'GAMMA_SIGMA_{_r}'):
+            cons_params[_r]['sigma'] = float(os.environ[f'GAMMA_SIGMA_{_r}'])
+            say(f"      sigma for {_r} fixed at {cons_params[_r]['sigma']:.2f} (GAMMA_SIGMA_{_r})")
     sigma_by_zone = {z: cons_params['IE']['sigma'] for z in IE_ZONES}
     sigma_by_zone['NI'] = cons_params['NI']['sigma']
     calib_by_zone = {z: cons_params['IE']['calib'] for z in IE_ZONES}

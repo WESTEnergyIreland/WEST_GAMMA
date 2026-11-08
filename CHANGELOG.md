@@ -3,6 +3,53 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Constraint closed form corrected; model equations written out: 8 November 2026
+
+Correction to the model. `expected_constraint_mw` (and equation 3 of the paper) did not compute the expectation it is defined as, E[max(0, x - H*eta)] with ln(eta) ~ N(0, sigma^2). It used x*Phi(a + sigma/2) - H*exp(sigma^2/2)*Phi(a - sigma/2), a = ln(x/H)/sigma, which is not the expectation of any lognormal and went negative for x below about 0.3-0.4 H (clipped to zero). The correct form is x*Phi(a) - H*exp(sigma^2/2)*Phi(a - sigma); its derivation is in `docs/model_equations.md`. `tests/test_constraint_closed_form.py` checks it against Monte Carlo. Every limit and spread is refitted; the estimator is unchanged (annual constrained energy matched exactly, sigma by least squares on hourly records).
+
+- The corrected form fits the hourly records better: RMSE 140.7 against 147.4 MW (IE, 2024-2026) and 103.3 against 107.6 MW (NI).
+- The records identify sigma only weakly: hourly RMSE changes by under 2% for IE sigma between 1.2 and 2.5 while the median limit goes from 8,300 to 50,000 MW. `analysis/sigma_identification.py` profiles the error and block-bootstraps calendar months (100 samples): 90% interval IE 0.95-1.38, NI 1.57-2.27 (`analysis/output/sigma_profile.csv`, `sigma_bootstrap.csv`). `GAMMA_SIGMA_IE` / `GAMMA_SIGMA_NI` fix sigma for a run; headrooms are then recalibrated.
+- H is a median of a wider distribution, so the MW values are not comparable with earlier ones (IE zones sum 11,229 MW in 2026, was 5,121).
+- Using expected rather than realised constraint understates dispatch down (Jensen; convex in constraint): about 1.5 points of available energy on the 2024-2025 records. In 2026 this is absorbed in the residual; documented, not modelled.
+- `analysis/headroom_history.py` now holds sigma at the new fits (1.17 IE, 1.89 NI).
+- GSS-2 prediction: rows dated 8 November added to `analysis/gss2_prediction_2035.csv`, with the sigma interval; the 7 November rows stay as registered.
+
+| Result | Before | Now |
+|---|---|---|
+| Fitted sigma, 2024-2026, IE / NI | 0.88 / 1.13 | 1.17 / 1.89 |
+| Jurisdiction limit L, 2024-2026, IE / NI (MW) | 4,456 / 506 | 7,982 / 1,115 |
+| Rolling hindcast mean absolute error, IE / NI / all-island (%) | 11.2 / 29.7 / 10.9 | 11.8 / 33.0 / 10.3 |
+| Fixed-limit backcast, IE 2021-2023, largest error (points) | 0.6 | 1.5 |
+| 2026 modelled SNSP curtailment / residual kappa, wind (% of available; recorded SNSP 1.37) | 1.30 / 3.60 | 2.23 / 2.67 |
+| GSS-1 validation, Gamma minus EirGrid total, 2030 Initial / 2030 + 2.6 GW offshore / 2035 (points) | -2.9 / -3.2 / +0.9 | -4.5 / -4.7 / -2.3 |
+| Same at sigma 90% interval ends (low / high) | | -3.9 to -4.9 / -4.1 to -5.1 / -1.3 to -3.2 |
+| Gamma constraint, same cases (%) | 10.5 / 15.0 / 19.0 | 9.4 / 11.8 / 14.3 |
+| GSS-2 prediction, published path, 100% ECP (%) | 38.0 | 29.9 (sigma interval 27.5-33.1) |
+| Same, 100% ECP + 4.7 GW offshore (%) | 36.9 | 33.1 (32.0-34.5) |
+| GSS-2, cover 40%, 100% ECP / with offshore (%) | 19.5 / 29.1 | 19.9 / 28.6 |
+| EirGrid_Extended dispatch down 2026 / 2030 / 2035 / 2050 / 2100 (%) | 15.7 / 22.4 / 25.2 / 28.8 / 44.2 | 15.2 / 20.8 / 23.0 / 28.2 / 43.8 |
+| EirGrid_Extended constraint 2035 (%) | 17.2 | 14.2 |
+| Wind and solar share of electricity demand 2030 / 2050 / 2100 (%) | 51.7 / 72.6 / 79.1 | 52.7 / 73.3 / 79.8 |
+| Fossil share of primary energy, EirGrid_Extended 2035 / 2050 / 2100 (%) | 75.4 / 60.2 / 29.4 | 74.8 / 59.9 / 28.5 |
+| Same, Historical_Trend 2050 / 2075 / 2100 (%) | 70.5 / 60.7 / 52.4 | 70.3 / 60.4 / 52.0 |
+| Electricity for firm plant on hydrogen vs dispatched down, 2050 (TWh) | 43.7 vs 24.5 | 42.3 vs 24.0 |
+| Firm capacity 2035 / 2050 / 2100 (GW) | 11.2 / 14.4 / 25.0 | unchanged |
+| Worst gas day 2050 (GWh/d); first year above supply | 680; 2031 | 681; 2031 |
+| Published network path after 2035, EirGrid_Extended 2050: constraint / curtailment / total dispatch down / fossil share (%) | 25.0 / 12.2 / 37.2 / 64.2 | 19.6 / 14.9 / 34.5 / 62.8 |
+| Same, delivered solar / wind 2050 (TWh), against no limits | 9.8 / 40.3 against 14.4 / 39.3 | 11.5 / 40.3 against 14.5 / 39.8 |
+| Interconnector flows: validation day / worst-day rise 2026-2050, EirGrid_Extended / Historical_Trend / first year short | 344.1 GWh; 69% / 44%; 2042 / 2050 | 344.7 GWh; 69% / 43%; 2042 / 2050 |
+| Cover share that reproduces EirGrid's constraint (Gamma order) | 40% | 60% (RMS 0.42 points) |
+| Cover 40%: Ireland constraint / total, 2030 and 2035 (%) | 6.3 / 19.2 and 6.0 / 23.5 | 7.4 / 20.0 and 7.5 / 22.9 |
+| Grid study, fossil share 2050 at 0 / 1 / 2 / 4 / 7.3% a year headroom growth (%) | 64.6 / 63.8 / 63.1 / 62.0 / 60.9 | 63.1 / 62.5 / 62.1 / 61.3 / 60.6 |
+| Grid study, constraint / curtailment 2050 at 0% and 7.3% (%) | 27.1 / 11.0 and 5.9 / 24.6 | 21.2 / 13.9 and 6.0 / 23.9 |
+| Sensitivity study, fossil share 2050, electrification +50 / +100 / +150% | 55.6 / 50.5 / 45.1 | 55.2 / 50.1 / 44.7 |
+| Same, build +50 / +100 / +150% | 58.2 / 56.2 / 55.0 | 57.8 / 55.8 / 54.6 |
+| Same, 2100: electrification / build +150% | 18.7 / 21.5 | 17.7 / 20.5 |
+| Firm plant all at 35% efficiency; heat-pump COP 3.9: change in fossil share 2050 and 2100 (points) | +1.5 to +4.0; -0.8 to -2.2 | +1.4 to +4.0; -0.8 to -2.3 |
+| Historical_Trend on the slow operating rules: largest change in dispatch down / fossil share (points) | 1.4 / 0.3 | 1.2 (2035) / 0.2 |
+
+Figures 5, 6 and 8 and the two sensitivity charts are redrawn from these outputs.
+
 ## EirGrid paths use AIRAA's median demand: 7 November 2026
 
 Correction to inputs. The EirGrid paths (`eirgrid_gss1_path`, `eirgrid_gss1_initial_2030`, `eirgrid_gss2_fg_100ecp*`) took Ireland's demand as 40.0 TWh in 2030 and 44.3 TWh in 2035 with Northern Ireland held at 7.1 TWh. 40.0 TWh is AIRAA 2026–2035's Low case for 2030; the median is 44.6 TWh (2030) and 49.2 TWh (2035) TER for Ireland and 9.2 and 10.7 TWh for Northern Ireland (`Data_inputs/AIRAA-2026-2035_DataWorkbook.xlsx`, now in the repository). TER is converted to Gamma's recorded-demand basis by the 2024 ratio of recorded demand to TER (Ireland 33.72/35.20, Northern Ireland 7.22/8.16), giving 50.8 TWh all-island in 2030 and 56.6 TWh in 2035 (was 47.1 and 51.4). Post-2035 growth on the EirGrid rows is now the 2030–2035 change divided by five, 1.16 TWh a year (background 0.71, heat 0.15, transport 0.30; was 0.86). Historical_Trend is unchanged.

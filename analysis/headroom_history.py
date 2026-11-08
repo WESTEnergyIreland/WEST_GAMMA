@@ -1,7 +1,7 @@
 """Recorded network headroom by year: has the effective limit grown?
 
 For each year with records, finds the headroom that reproduces that year's recorded constraint,
-with sigma held at its 2024-2026 value (0.88 IE, 1.13 NI) so that years are comparable:
+with sigma held at its 2024-2026 value (1.17 IE, 1.89 NI; refitted 8 Nov 2026 after the closed-form correction) so that years are comparable:
 - IE and NI as a whole, from their hourly wind + solar records;
 - each IE zone, from the IE hourly availability split by today's zone MW (the only split on
   record, as in Gamma's zonal backcast) and the zone's recorded annual constraint %.
@@ -23,7 +23,7 @@ REPO = os.path.dirname(HERE)
 sys.path.insert(0, REPO)
 import Gamma as G  # noqa: E402
 
-SIGMA = {'IE': 0.88, 'NI': 1.13}
+SIGMA = {'IE': 1.17, 'NI': 1.89}
 
 
 def hourly(reg):
