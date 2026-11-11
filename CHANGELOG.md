@@ -3,6 +3,24 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Interconnector sensitivity at 0%, 70% and 100%: 11 November 2026
+
+No model change. New script `analysis/interconnector_sensitivity.py` runs EirGrid_Extended and Historical_Trend to 2050 with interconnector flows in the 15-minute dispatch (`GAMMA_IC_DISPATCH=1`) at 0%, 70% and 100% of interconnector capacity, the same share for imports and exports. It replaces the 50% export / 70% import pair quoted in paper Sections 7.3 and 7.5. Capacity is Gamma's: 1,450 MW existing, Celtic 700 MW from April 2028, MaresConnect 750 MW from 2031. Outputs in `analysis/output/interconnector_sensitivity.csv` and `.md`.
+
+The 0% case has no flows and equals the main run (checked on EirGrid_Extended: no difference in any output column). 0% and 100% are bounds, not forecasts. Imported electricity is counted as non-fossil. Firm capacity is the same in every case (14.4 GW and 12.4 GW in 2050), because the main firm figure gives interconnectors no capacity credit.
+
+| 2050, all-island | EirGrid_Extended 0% / 70% / 100% | Historical_Trend 0% / 70% / 100% |
+|---|---|---|
+| Fossil share of primary energy (%) | 59.9 / 59.4 / 59.1 | 70.3 / 68.9 / 68.3 |
+| Dispatch down (% of available wind and solar) | 28.2 / 23.4 / 21.2 | 17.9 / 13.3 / 11.6 |
+| Firm generation (TWh) | 14.2 / 11.3 / 10.0 | 19.3 / 12.3 / 9.7 |
+| Imports / exports (TWh) | 0 / 0; 4.3 / 5.4; 5.8 / 7.5 | 0 / 0; 8.0 / 3.3; 10.7 / 4.4 |
+| Worst gas day (GWh/d), supply 488 | 680 / 582 / 538 | 593 / 494 / 452 |
+| First year the worst day exceeds supply | 2031 / 2042 / 2046 | 2036 / 2050 / none by 2050 |
+| Days a year above supply | 7.6 / 1.5 / 0.7 | 2.5 / 0.1 / 0.0 |
+
+Validation day (8 January 2025 weather, 2026 system; recorded 365.6 GWh/d): 393.9, 344.7 and 323.6 GWh/d at 0%, 70% and 100%.
+
 ## Constraint closed form corrected; model equations written out: 8 November 2026
 
 Correction to the model. `expected_constraint_mw` (and equation 3 of the paper) did not compute the expectation it is defined as, E[max(0, x - H*eta)] with ln(eta) ~ N(0, sigma^2). It used x*Phi(a + sigma/2) - H*exp(sigma^2/2)*Phi(a - sigma/2), a = ln(x/H)/sigma, which is not the expectation of any lognormal and went negative for x below about 0.3-0.4 H (clipped to zero). The correct form is x*Phi(a) - H*exp(sigma^2/2)*Phi(a - sigma); its derivation is in `docs/model_equations.md`. `tests/test_constraint_closed_form.py` checks it against Monte Carlo. Every limit and spread is refitted; the estimator is unchanged (annual constrained energy matched exactly, sigma by least squares on hourly records).
