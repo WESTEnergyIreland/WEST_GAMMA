@@ -3,6 +3,22 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Interconnector sensitivity to 2075; Figure 8 redrawn from it: 11 November 2026
+
+No model change. `analysis/interconnector_sensitivity.py` now runs to 2075 and reports annual gas use and gas for power on the worst day. The 2035 and 2050 rows are unchanged from the entry below (checked: no difference in any column). `analysis/figure8_gas.py` now draws paper Figure 8 from these runs: solid line interconnectors at 70% of capacity, shading from no flows (dashed) to 100% (dotted). Its usage is now `python analysis/figure8_gas.py analysis/ic_run/scenario_outputs <out.png> [end year]`.
+
+Historical_Trend at 100% first exceeds supply in 2055 (the run to 2050 reported "none by 2050").
+
+| All-island, 0% / 70% / 100% of interconnector capacity | 2026 | 2035 | 2050 | 2075 |
+|---|---|---|---|---|
+| EirGrid_Extended, worst gas day (GWh/d) | 394 / 345 / 324 | 531 / 432 / 390 | 680 / 582 / 538 | 979 / 837 / 776 |
+| Historical_Trend, worst gas day (GWh/d) | 394 / 345 / 324 | 489 / 391 / 349 | 593 / 494 / 452 | 771 / 672 / 630 |
+| EirGrid_Extended, annual gas use (TWh GCV) | 70.2 / 56.8 / 52.1 | 61.9 / 42.9 / 37.1 | 47.8 / 39.3 / 36.1 | 42.9 / 36.1 / 33.4 |
+| Historical_Trend, annual gas use (TWh GCV) | 70.2 / 56.8 / 52.1 | 63.0 / 41.4 / 35.3 | 57.5 / 42.0 / 36.7 | 58.3 / 45.2 / 40.3 |
+| Gas supply (GWh/d) | 459 | 495 | 488 | 485 |
+
+Check against Gas Networks Ireland's Network Development Plan 2025 (Best Estimate, Tables A2-2 and A2-8): annual demand 77.7 TWh in 2025/26 and 56.8 TWh in 2034/35, 1-in-50 peak day 469 GWh/d in 2034/35. For annual gas use the run with no flows is the nearer one (70.2 and 61.9 TWh); the 70% run is 27% below GNI in 2026. For the peak day in 2035 GNI lies between the no-flow and 70% runs. The 70% case is therefore used as the central case for the worst day only; annual gas use in the paper stays on the main runs. On Historical_Trend annual gas use stops falling in the late 2030s in every case.
+
 ## Interconnector sensitivity at 0%, 70% and 100%: 11 November 2026
 
 No model change. New script `analysis/interconnector_sensitivity.py` runs EirGrid_Extended and Historical_Trend to 2050 with interconnector flows in the 15-minute dispatch (`GAMMA_IC_DISPATCH=1`) at 0%, 70% and 100% of interconnector capacity, the same share for imports and exports. It replaces the 50% export / 70% import pair quoted in paper Sections 7.3 and 7.5. Capacity is Gamma's: 1,450 MW existing, Celtic 700 MW from April 2028, MaresConnect 750 MW from 2031. Outputs in `analysis/output/interconnector_sensitivity.csv` and `.md`.
