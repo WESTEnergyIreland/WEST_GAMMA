@@ -242,6 +242,87 @@ ALL_ISLAND_HEAT_DEMAND_TWH = 70.6      # IE 41.3 (SEAI NEP 2026 results dataset)
 ALL_ISLAND_TRANSPORT_DEMAND_TWH = 62.2  # land transport: IE 46.5 (SEAI, excl. aviation and navigation) + NI 15.7 (DESNZ road); paper Section 4.4
 BASE_HEAT_ELECTRICITY_TWH_2025 = 1.0
 BASE_TRANSPORT_ELECTRICITY_TWH_2025 = 1.5
+
+# =============================================================================
+# DECENT LIVING ENERGY (DLE): PUBLISHED REFERENCE VALUES, NOT A DLE SIMULATION
+# =============================================================================
+# These are PUBLISHED benchmarks of whole-economy, consumption-based FINAL energy,
+# which includes embodied energy in goods, services, infrastructure and trade.
+# Gamma models domestic electricity, heating and land transport (and excludes
+# aviation/shipping). Therefore a modelled renewable-output >= DLE comparison is
+# only an *annual numerical energy-equivalence test*: it does NOT establish that
+# DLE services are supplied, that fossil fuels can be fully replaced, or that
+# supply at every 15-minute interval is sufficient.
+#
+# 15.3 GJ/person/year: Millward-Hopkins et al. (2020), 2050 UK-specific estimate
+#      (global study), advanced-technology/sufficiency scenario; NOT Ireland-specific.
+#      https://doi.org/10.1016/j.gloenvcha.2020.102168
+# 27.9 GJ/person/year: Kikstra et al. (2021), WESTERN EUROPE, as quoted in
+#      Millward-Hopkins et al. (2023), Lancet Planetary Health table 1;
+#      a different model/technology assumption; NOT Ireland-specific.
+#      https://doi.org/10.1016/S2542-5196(23)00004-9
+#
+# To avoid inventing 2050/2060 populations, comparisons hold population at these
+# independently published reference-year levels. This is a FIXED-POPULATION
+# benchmark and is NOT a demographic projection.
+# ROI: CSO population 1 Apr 2026, 5,525,600:
+# https://www.cso.ie/en/releasesandpublications/ep/p-pme/populationandmigrationestimatesapril2026/keyfindings/
+# NI: NISRA population 30 Jun 2025, 1,928,400:
+# https://datavis.nisra.gov.uk/population/2025-mid-year-estimates-for-northern-ireland.html
+DLE_REFERENCE_POPULATION_ROI = 5_525_600
+DLE_REFERENCE_POPULATION_NI = 1_928_400
+DLE_REFERENCE_POPULATION_ALL_ISLAND = (DLE_REFERENCE_POPULATION_ROI + DLE_REFERENCE_POPULATION_NI)
+DLE_BENCHMARKS_GJ_PER_PERSON_YEAR = {
+    'DLE_MH2020_UK_AdvancedTech': 15.3,
+    'DLE_Kikstra2021_WesternEurope': 27.9,
+}
+
+
+def dle_reference_twh(gj_per_person_year, population=DLE_REFERENCE_POPULATION_ALL_ISLAND):
+    """Published per-capita final-energy benchmark x FIXED reference population, TWh/year."""
+    return float(gj_per_person_year) * float(population) / 3_600_000.0
+
+
+def first_year_meeting(series, years, benchmark, *, at_or_below):
+    """First forecast year a numerical threshold condition holds, else None.
+
+    The first year satisfying the condition is not necessarily a crossing year:
+    the scenario may already satisfy it in the starting year. This is an ENERGY
+    COMPARISON, never proof that DLE services are met.
+    """
+    values = np.asarray(series, dtype=float)
+    years = np.asarray(years, dtype=int)
+    mask = np.isfinite(values) & ((values <= benchmark) if at_or_below else (values >= benchmark))
+    return int(years[np.flatnonzero(mask)[0]]) if mask.any() else None
+
+
+def plot_dle_final_energy(df, output_path, *, title):
+    """Annual FINAL-energy diagnostic: NEVER mix DLE TWh/yr with a MW dispatch plot."""
+    fig, ax = plt.subplots(figsize=(11.5, 6.3))
+    years = df['Year'].to_numpy(dtype=int)
+    ax.plot(years, df['Modelled_Domestic_Final_Energy_TWh'], lw=2.5, color='#1f77b4',
+            label='Gamma: domestic final energy (modelled sectors)')
+    ax.plot(years, df['Renewable_Electricity_Consumed_TWh'], lw=1.8, color='#2ca02c', ls=':',
+            label='Gamma: renewable electricity consumed (subset)')
+    refs = [('DLE_MH2020_UK_AdvancedTech', 'DLE reference: UK, advanced tech (15.3 GJ/person)', '#9467bd'),
+            ('DLE_Kikstra2021_WesternEurope', 'DLE reference: W. Europe (27.9 GJ/person)', '#d62728')]
+    for key, caption, color in refs:
+        ax.axhline(dle_reference_twh(DLE_BENCHMARKS_GJ_PER_PERSON_YEAR[key]),
+                   color=color, linestyle='--', linewidth=1.6, label=caption)
+    ax.set(xlabel='Year', ylabel='Annual final energy (TWh/year)', title=title)
+    ax.set_ylim(bottom=0)
+    ax.grid(alpha=0.22)
+    ax.legend(loc='best', fontsize=8.5, frameon=False)
+    fig.text(0.5, 0.025,
+             'Illustrative comparison ONLY: DLE is a consumption-based whole-economy footprint; '
+             'Gamma omits embodied imports and some end uses.\n'
+             'Fixed reference population; crossing a line does NOT demonstrate decent living or energy adequacy.',
+             ha='center', va='bottom', fontsize=8, color='#555555')
+    fig.subplots_adjust(bottom=0.21)
+    fig.savefig(output_path, dpi=210, bbox_inches='tight')
+    plt.close(fig)
+
+
 HEAT_COP = 3.5
 # Heat-pump demand profile (Cian's review). Heat-pump electricity added after 2026 follows hourly
 # heating degree hours from Met Eireann hourly temperature (Dublin Airport, station 532) instead of
@@ -3903,6 +3984,44 @@ def _run_demonstrator():
             raise RuntimeError('Primary energy shares do not reconcile to 100%.')
         for old, new in SHARE_COLUMN_NAMES.items():
             sim_df[new] = sim_df[old]
+        # DLE: compare FINAL energy with FINAL energy, as far as Gamma's boundary allows.
+        # Final energy consumed in modelled domestic sectors = electricity demand
+        # (including heat-pump and EV inputs) + remaining heating fuel + remaining
+        # land-transport fuel. Do NOT add ambient heat from heat pumps (included in
+        # Gross_Final_Energy_TWh under EU RED), primary fossil-fuel inputs, or
+        # curtailed wind/solar output. No change to dispatch or energy shares.
+        # Important: this is NOT the whole-economy, consumption-based energy FOOTPRINT
+        # of the DLE studies: embodied imports and other end uses are missing.
+        sim_df['Modelled_Domestic_Final_Energy_TWh'] = (
+            sim_df['Dem_TWh'] + sim_df['Remaining_Heat_Energy_TWh']
+            + sim_df['Remaining_Transport_Energy_TWh'])
+        sim_df['Modelled_Domestic_Final_Energy_GJ_Per_Capita'] = (
+            sim_df['Modelled_Domestic_Final_Energy_TWh'] * 3_600_000.0
+            / DLE_REFERENCE_POPULATION_ALL_ISLAND)
+        # Renewable electricity is shown separately as a SUBSET of final energy,
+        # not as a like-for-like DLE attainment test.
+        for label, gj_per_person_year in DLE_BENCHMARKS_GJ_PER_PERSON_YEAR.items():
+            twh = dle_reference_twh(gj_per_person_year)
+            sim_df[f'{label}_Reference_TWh'] = twh
+            sim_df[f'{label}_FinalEnergy_to_Reference_Ratio'] = (
+                sim_df['Modelled_Domestic_Final_Energy_TWh'] / twh)
+            sim_df[f'{label}_FinalEnergy_Above_Reference_TWh'] = (
+                sim_df['Modelled_Domestic_Final_Energy_TWh'] - twh)
+            sim_df[f'{label}_RenewableEquivalent_Ratio'] = (
+                sim_df['Renewable_Electricity_Consumed_TWh'] / twh)
+        # Restrict milestones to a *numerical* energy comparison; none of these
+        # tests establishes that decent living services are available or delivered.
+        dle_cols = [
+            'Year', 'Modelled_Domestic_Final_Energy_TWh',
+            'Modelled_Domestic_Final_Energy_GJ_Per_Capita',
+            'Renewable_Electricity_Consumed_TWh',
+            'Remaining_Heat_Energy_TWh', 'Remaining_Transport_Energy_TWh',
+            *[f'{k}_{suffix}' for k in DLE_BENCHMARKS_GJ_PER_PERSON_YEAR
+              for suffix in ('Reference_TWh', 'FinalEnergy_to_Reference_Ratio',
+                             'FinalEnergy_Above_Reference_TWh', 'RenewableEquivalent_Ratio')],
+        ]
+        sim_df[dle_cols].to_csv(os.path.join(out_dir, 'dle_comparison_by_year.csv'),
+                                index=False, float_format='%.3f')
         # Electricity supplied = consumed renewable + firm + imports must match demand.
         elec_gap = (sim_df['Renewable_Electricity_Consumed_TWh'] + sim_df['Fossil_Electricity_Consumed_TWh']
                     + sim_df['Import_TWh'] - sim_df['Dem_TWh']).abs() / sim_df['Dem_TWh']
@@ -3913,9 +4032,14 @@ def _run_demonstrator():
             'Remaining_Heat_Fossil_TWh', 'Remaining_Transport_Fossil_TWh',
             'Fossil_Electricity_Consumed_TWh', 'Renewable_Electricity_Consumed_TWh',
             'Heat_Ambient_Renewable_TWh', 'Gross_Final_Energy_TWh',
+            'Modelled_Domestic_Final_Energy_TWh',
+            'Modelled_Domestic_Final_Energy_GJ_Per_Capita',
             'Total_Fossil_Energy_TWh', 'Total_Renewable_Energy_TWh',
             'Overall_Fossil_Fuel_Pct', 'Overall_Renewables_Pct',
             'Overall_Imported_Electricity_Pct', 'RES_Overall_RED_%', 'RES_E_RED_%',
+            *[f'{k}_{suffix}' for k in DLE_BENCHMARKS_GJ_PER_PERSON_YEAR
+              for suffix in ('Reference_TWh', 'FinalEnergy_to_Reference_Ratio',
+                             'FinalEnergy_Above_Reference_TWh', 'RenewableEquivalent_Ratio')],
             'Final_Fossil_Fuel_Pct', 'Final_Renewables_Pct', 'Primary_Fossil_TWh',
             'Primary_Renewable_TWh', 'Firm_Gas_Burnt_TWh', 'Firm_On_H2_Hydrogen_TWh',
             'Firm_On_H2_Electrolysis_TWh'
@@ -4053,7 +4177,9 @@ def _run_demonstrator():
             'Fossil_Firm_Generation_TWh', 'Remaining_Heat_Fossil_TWh',
             'Remaining_Transport_Fossil_TWh', 'Total_Fossil_Energy_TWh',
             'Fossil_Electricity_Consumed_TWh', 'Renewable_Electricity_Consumed_TWh',
-            'Total_Renewable_Energy_TWh', 'Gross_Final_Energy_TWh', 'Import_TWh', 'Export_TWh',
+            'Total_Renewable_Energy_TWh', 'Gross_Final_Energy_TWh',
+            'Modelled_Domestic_Final_Energy_TWh',
+            'Modelled_Domestic_Final_Energy_GJ_Per_Capita', 'Import_TWh', 'Export_TWh',
             'Export_Wind_Solar_TWh', 'Export_Synchronous_TWh', 'Net_Import_TWh',
             'Interconnector_Capacity_GW', 'Firm_Capacity_Required_GW',
             'Firm_Capacity_Peak_Residual_GW', f'Firm_Residual_P{FIRM_RESIDUAL_PERCENTILE:g}_GW',
@@ -4061,7 +4187,9 @@ def _run_demonstrator():
             'Firm_Capacity_Net_of_IC_Credit_GW',
             'Firm_Capacity_Legacy_Formula_GW',
             'Overall_Fossil_Fuel_Pct', 'Overall_Renewables_Pct',
-            'Overall_Imported_Electricity_Pct', 'RES_Overall_RED_%', 'RES_E_RED_%'
+            'Overall_Imported_Electricity_Pct', 'RES_Overall_RED_%', 'RES_E_RED_%',
+            *[f'{k}_{suffix}' for k in DLE_BENCHMARKS_GJ_PER_PERSON_YEAR
+              for suffix in ('Reference_TWh', 'RenewableEquivalent_Ratio')]
         ] + list(SHARE_COLUMN_NAMES.values())
         transition_by_year = sim_df.loc[sim_df['Data_Type'] == 'Forecast', transition_cols].copy()
         for k in ('total', 'system'):
@@ -4155,6 +4283,9 @@ def _run_demonstrator():
             return sim_df
         scenario_stage[scenario_name] = 'charts'
         say("  charts", end='')
+        plot_dle_final_energy(sim_df,
+            os.path.join(out_dir, 'dle_final_energy_comparison.png'),
+            title=f'{scenario_name}: modelled final energy vs published DLE references')
 
         hist_weather_map = {2026: 2026}
         future_loop_years = complete_weather_years
@@ -5020,6 +5151,27 @@ def _run_demonstrator():
             tw = summary_store[sc['scenario']]['total'].set_index('Year')
             say(f" done ({fmt_secs(time.time() - t_sc)})")
             sc_final_year = int(sc.get('target_year', 2050))
+            # Two distinct numerical milestones. The 'final energy <= DLE' condition
+            # compares a projected energy-use level with a reference minimum, not
+            # achievement of a decent living standard. Renewable electricity is a
+            # subset of final energy and cannot substitute for a DLE service model.
+            dle_milestones = {}
+            for label, gj in DLE_BENCHMARKS_GJ_PER_PERSON_YEAR.items():
+                twh = dle_reference_twh(gj)
+                first_below = first_year_meeting(
+                    res['Modelled_Domestic_Final_Energy_TWh'], res['Year'], twh,
+                    at_or_below=True)
+                first_ren_above = first_year_meeting(
+                    res['Renewable_Electricity_Consumed_TWh'], res['Year'], twh,
+                    at_or_below=False)
+                dle_milestones[label] = (first_below, first_ren_above)
+                say(f"      DLE comparison {label}: reference {twh:.2f} TWh/yr "
+                    f"({gj:g} GJ/person, fixed population). "
+                    f"Modelled FINAL energy first <= reference: "
+                    f"{first_below if first_below is not None else 'not by end'}; "
+                    f"renewable-electricity numerical equivalent first >= reference: "
+                    f"{first_ren_above if first_ren_above is not None else 'not by end'}. "
+                    f"Neither means DLE achieved.")
             say(f"      {sc_final_year}: constraint {sy.loc[sc_final_year, 'Constraint_%']:.1f}% "
                 f"[{sy.loc[sc_final_year, 'Constraint_Low_%']:.1f}-{sy.loc[sc_final_year, 'Constraint_High_%']:.1f}], "
                 f"curtailment {sy.loc[sc_final_year, 'SNSP_Curtailment_%'] + sy.loc[sc_final_year, 'MinGen_Curtailment_%'] + sy.loc[sc_final_year, 'Other_incl_RoCoF_%']:.1f}%, "
@@ -5080,6 +5232,16 @@ def _run_demonstrator():
                     'Firm_Gas_Burnt_TWh': r['Firm_Gas_Burnt_TWh'],
                     'Total_Fossil_Energy_TWh': r['Total_Fossil_Energy_TWh'],
                     'Total_Renewable_Energy_TWh': r['Total_Renewable_Energy_TWh'],
+                    'Modelled_Domestic_Final_Energy_TWh': r['Modelled_Domestic_Final_Energy_TWh'],
+                    'Modelled_Domestic_Final_Energy_GJ_Per_Capita': r['Modelled_Domestic_Final_Energy_GJ_Per_Capita'],
+                    **{f'{k}_{suffix}': r[f'{k}_{suffix}']
+                       for k in DLE_BENCHMARKS_GJ_PER_PERSON_YEAR
+                       for suffix in ('Reference_TWh', 'FinalEnergy_to_Reference_Ratio',
+                                      'FinalEnergy_Above_Reference_TWh', 'RenewableEquivalent_Ratio')},
+                    **{f'{k}_First_Year_Final_Energy_AtOrBelow': dle_milestones[k][0]
+                       for k in DLE_BENCHMARKS_GJ_PER_PERSON_YEAR},
+                    **{f'{k}_First_Year_Renewable_Electricity_AtOrAbove': dle_milestones[k][1]
+                       for k in DLE_BENCHMARKS_GJ_PER_PERSON_YEAR},
                     'Overall_Fossil_Fuel_Pct': r['Overall_Fossil_Fuel_Pct'],
                     'Overall_Renewables_Pct': r['Overall_Renewables_Pct'],
                     'Overall_Imported_Electricity_Pct': r['Overall_Imported_Electricity_Pct'],
@@ -5106,6 +5268,33 @@ def _run_demonstrator():
         combined_results.to_csv(
             os.path.join(SCENARIO_OUTPUT_DIR, "all_scenarios_by_year.csv"),
             index=False, float_format='%.2f')
+        # Cross-scenario DLE comparison requested for the two paper pathways.
+        target_scenarios = ('Historical_Trend', 'EirGrid_Extended')
+        available = [n for n in target_scenarios if n in latest_results]
+        if SCENARIO_CHARTS and len(available) == 2:
+            fig, ax = plt.subplots(figsize=(11.5, 6.3))
+            for n, color in zip(available, ('#1f77b4', '#ff7f0e')):
+                data = latest_results[n]
+                ax.plot(data['Year'], data['Modelled_Domestic_Final_Energy_TWh'],
+                        label=f'{n}: modelled domestic final energy', lw=2.2, color=color)
+            for key, caption, color in (
+                ('DLE_MH2020_UK_AdvancedTech', 'UK advanced-tech DLE reference', '#9467bd'),
+                ('DLE_Kikstra2021_WesternEurope', 'Western Europe DLE reference', '#d62728')):
+                ax.axhline(dle_reference_twh(DLE_BENCHMARKS_GJ_PER_PERSON_YEAR[key]),
+                           ls='--', lw=1.6, color=color, label=caption)
+            ax.set(xlabel='Year', ylabel='Annual final energy (TWh/year)',
+                   title='EirGrid Extended vs Historical Trend: DLE reference comparison')
+            ax.set_ylim(bottom=0)
+            ax.grid(alpha=0.22)
+            ax.legend(loc='best', fontsize=8.5, frameon=False)
+            fig.text(0.5, 0.025,
+                'Fixed-population, consumption-based DLE references vs partial domestic model. '
+                'Neither convergence nor crossing demonstrates DLE provision.',
+                ha='center', fontsize=8, color='#555555')
+            fig.subplots_adjust(bottom=0.19)
+            fig.savefig(os.path.join(SCENARIO_OUTPUT_DIR,
+                        'dle_EirGrid_vs_Historical_Trend.png'), dpi=210, bbox_inches='tight')
+            plt.close(fig)
         pd.concat(capacity_store.values(), ignore_index=True).to_csv(
             os.path.join(SCENARIO_OUTPUT_DIR, "all_scenarios_" + CAPACITY_BY_ZONE_CSV), index=False, float_format='%.1f')
         for k in ('wind', 'solar', 'total', 'system'):
