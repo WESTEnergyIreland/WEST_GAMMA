@@ -2196,6 +2196,8 @@ def _run_demonstrator():
                                  'ic_export_availability', 'ic_import_availability', 'ic_capacity_credit',
                                  'ie_reinforcement_mw_per_year', 'ni_reinforcement_mw_per_year',
                                  'reinforcement_steps', 'target_year', 'scenario_path', 'weather_years',
+                                 'electrification_target_year', 'path_reference_heat_growth_twh_per_year',
+                                 'path_reference_transport_growth_twh_per_year',
                                  'headroom_pipeline_cover_pct', 'battery_hours_target', 'battery_hours_target_year',
                                  'run']
         lookup = {key(k): k for k in known}
@@ -2260,6 +2262,9 @@ def _run_demonstrator():
                     'ic_capacity_credit': DEFAULT_IC_CAPACITY_CREDIT,
                     'ie_reinforcement_mw_per_year': 0.0, 'ni_reinforcement_mw_per_year': 0.0,
                     'ie_reinforcement_pct': 0.0, 'ni_reinforcement_pct': 0.0, 'target_year': 2050.0,
+                    'electrification_target_year': 0.0,
+                    'path_reference_heat_growth_twh_per_year': 0.15,
+                    'path_reference_transport_growth_twh_per_year': 0.30,
                     'headroom_pipeline_cover_pct': 0.0, 'battery_hours_target': 0.0,
                     'battery_hours_target_year': 2035.0}
         not_flagged = ('ie_reinforcement_pct', 'ni_reinforcement_pct', 'ie_reinforcement_mw_per_year',
@@ -2344,7 +2349,10 @@ def _run_demonstrator():
         'ie_reinforcement_mw_per_year': (-500, 5000), 'ni_reinforcement_mw_per_year': (-500, 5000),
         'ic_export_availability': (0, 1), 'ic_import_availability': (0, 1), 'ic_capacity_credit': (0, 1),
         'celtic_energised_year': (2026, 2100), 'mares_energised_year': (2026, 2100),
-        'target_year': (2030, 2100), 'headroom_pipeline_cover_pct': (0, 200),
+        'target_year': (2030, 2100), 'electrification_target_year': (0, 2100),
+        'path_reference_heat_growth_twh_per_year': (0, 20),
+        'path_reference_transport_growth_twh_per_year': (0, 20),
+        'headroom_pipeline_cover_pct': (0, 200),
         'battery_hours_target': (0, 12), 'battery_hours_target_year': (2027, 2100),
     }
 
@@ -2585,6 +2593,18 @@ def _run_demonstrator():
         background_demand_growth_rate = float(sc['background_demand_growth_twh_per_year'])
         heat_demand_growth_rate = float(sc['heat_demand_growth_twh_per_year'])
         transport_demand_growth_rate = float(sc['transport_demand_growth_twh_per_year'])
+        # Optional target: derive the *electricity* uptake required to reach 100% of
+        # modelled heat and land transport energy by the named year. The 2026 anchor
+        # is retained from the existing model; growth applies over 2027..target.
+        electrification_target_year = int(sc.get('electrification_target_year', 0) or 0)
+        if electrification_target_year > start_year:
+            n_to_target = electrification_target_year - start_year
+            heat_base = BASE_HEAT_ELECTRICITY_TWH_2025 + DEFAULT_HEAT_DEMAND_GROWTH_TWH_PER_YEAR
+            transport_base = BASE_TRANSPORT_ELECTRICITY_TWH_2025 + DEFAULT_TRANSPORT_DEMAND_GROWTH_TWH_PER_YEAR
+            heat_demand_growth_rate = max(0.0, (ALL_ISLAND_HEAT_DEMAND_TWH / HEAT_COP - heat_base) / n_to_target)
+            transport_demand_growth_rate = max(0.0, (ALL_ISLAND_TRANSPORT_DEMAND_TWH / TRANSPORT_DISPLACEMENT_FACTOR - transport_base) / n_to_target)
+            say(f">> Full heat and land transport electrification by {electrification_target_year}: "
+                f"heat {heat_demand_growth_rate:.3f}, transport {transport_demand_growth_rate:.3f} TWh/yr")
         annual_demand_growth_rate = (background_demand_growth_rate + heat_demand_growth_rate
                                      + transport_demand_growth_rate)
 
@@ -3044,22 +3064,41 @@ def _run_demonstrator():
                   f"solar MW; IE headroom up {added:,.0f} MW by {final_year}")
 
         def demand_for_year(year):
-            """All-island demand (TWh): 2026 anchor, then the scenario path or the growth rate."""
+            """Demand consistent with sector electrification, even when a demand_twh
+            scenario path is supplied. For a path, replace its reference heat and
+            transport uptake with this scenario's uptake, keeping background growth.
+            The path reference rates must describe the baseline path's annual
+            heat/transport electricity growth (EirGrid Extended: 0.15/0.30).
+            """
             if year <= start_year:
                 return base_demand_twh
-            if path_has('demand_twh'):
-                d = path_value('demand_twh', year, base_demand_twh, annual_demand_growth_rate)
-            else:
-                d = base_demand_twh + (year - start_year) * annual_demand_growth_rate
-            # Heat and transport growth stops once those sectors are fully electrified: electricity
-            # beyond the caps would displace no fossil fuel, so it is not added to demand.
             n = year - start_year
             heat_0 = BASE_HEAT_ELECTRICITY_TWH_2025 + DEFAULT_HEAT_DEMAND_GROWTH_TWH_PER_YEAR
             trans_0 = BASE_TRANSPORT_ELECTRICITY_TWH_2025 + DEFAULT_TRANSPORT_DEMAND_GROWTH_TWH_PER_YEAR
-            heat_over = max(0.0, heat_0 + n * heat_demand_growth_rate - ALL_ISLAND_HEAT_DEMAND_TWH / HEAT_COP)
-            trans_over = max(0.0, trans_0 + n * transport_demand_growth_rate
-                             - ALL_ISLAND_TRANSPORT_DEMAND_TWH / TRANSPORT_DISPLACEMENT_FACTOR)
-            return d - heat_over - trans_over
+            heat_full = ALL_ISLAND_HEAT_DEMAND_TWH / HEAT_COP
+            trans_full = ALL_ISLAND_TRANSPORT_DEMAND_TWH / TRANSPORT_DISPLACEMENT_FACTOR
+            heat_added = min(heat_full, heat_0 + n * heat_demand_growth_rate) - heat_0
+            trans_added = min(trans_full, trans_0 + n * transport_demand_growth_rate) - trans_0
+            if path_has('demand_twh'):
+                # Existing scenarios without a target remain exactly as before.
+                if not electrification_target_year:
+                    d = path_value('demand_twh', year, base_demand_twh, annual_demand_growth_rate)
+                    heat_over = max(0.0, heat_0 + n * heat_demand_growth_rate - heat_full)
+                    trans_over = max(0.0, trans_0 + n * transport_demand_growth_rate - trans_full)
+                    return d - heat_over - trans_over
+                ref_heat = float(sc['path_reference_heat_growth_twh_per_year'])
+                ref_trans = float(sc['path_reference_transport_growth_twh_per_year'])
+                ref_heat_added = min(heat_full, heat_0 + n * ref_heat) - heat_0
+                ref_trans_added = min(trans_full, trans_0 + n * ref_trans) - trans_0
+                reference_rate = background_demand_growth_rate + ref_heat + ref_trans
+                reference_demand = path_value('demand_twh', year, base_demand_twh, reference_rate)
+                # Existing path extrapolation continues linear growth beyond the
+                # sector ceilings; remove its excess before substituting new uptake.
+                ref_heat_over = max(0.0, heat_0 + n * ref_heat - heat_full)
+                ref_trans_over = max(0.0, trans_0 + n * ref_trans - trans_full)
+                return reference_demand - ref_heat_over - ref_trans_over \
+                    + (heat_added - ref_heat_added) + (trans_added - ref_trans_added)
+            return base_demand_twh + n * background_demand_growth_rate + heat_added + trans_added
 
         def snsp_fraction_for_year(year):
             """SNSP limit: the 2026 limit in the anchor year, then the path or the scenario value."""
@@ -4986,7 +5025,7 @@ def _run_demonstrator():
                 f"wind+solar {tw.loc[sc_final_year, 'Share_of_Demand_%']:.0f}% of demand")
             say_checks('results', sc['scenario'])
             all_results.append(res)
-            sc_years = [y for y in (2030, 2035, 2040, 2050, 2075, 2100) if y <= sc_final_year]
+            sc_years = [y for y in (2030, 2035, 2040, 2050, 2060, 2075, 2100) if y <= sc_final_year]
             for yr in sorted(set(sc_years + [sc_final_year])):
                 r = res[res['Year'] == yr]
                 if r.empty:
@@ -4997,6 +5036,7 @@ def _run_demonstrator():
                     'Full_Decarbonisation_Year': sc.get('Full_Decarbonisation_Year', ''),
                     'Full_Decarbonisation_Year_5pct': sc.get('Full_Decarbonisation_Year_5pct', ''),
                     'Scenario_Path': sc.get('scenario_path', ''), 'Weather_Years': sc.get('weather_years', '') or 'all',
+                    'Electrification_Target_Year': sc.get('electrification_target_year', 0),
                     'Headroom_Pipeline_Cover_%': sc.get('headroom_pipeline_cover_pct', 0.0),
                     'Build_Wind_IE_GW_yr': round(sc['build_rate_wind_ie'], 3),
                     'Build_Wind_NI_GW_yr': round(sc['build_rate_wind_ni'], 3),
@@ -5038,6 +5078,11 @@ def _run_demonstrator():
                     'Firm_Peaking_Share_%': r['Firm_Peaking_Share_%'],
                     'Firm_Fleet_Efficiency_%': r['Firm_Fleet_Efficiency_%'],
                     'Firm_Gas_Burnt_TWh': r['Firm_Gas_Burnt_TWh'],
+                    'Gas_Worst_Day_GWh': r['Gas_Worst_Day_GWh'],
+                    'Gas_Supply_GWh_per_Day': r['Gas_Supply_GWh_per_Day'],
+                    'Gas_Days_Short_per_Year': r['Gas_Days_Short_per_Year'],
+                    'Gas_Power_TWh_GCV': r['Gas_Power_TWh_GCV'],
+                    'Gas_NonPower_TWh_GCV': r['Gas_NonPower_TWh_GCV'],
                     'Total_Fossil_Energy_TWh': r['Total_Fossil_Energy_TWh'],
                     'Total_Renewable_Energy_TWh': r['Total_Renewable_Energy_TWh'],
                     'Overall_Fossil_Fuel_Pct': r['Overall_Fossil_Fuel_Pct'],
