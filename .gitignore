@@ -5,3 +5,4 @@ analysis/sensitivity_run/
 analysis/sensitivity_run_*/
 analysis/grid_run_*/
 analysis/cover_run/
+analysis/ic_run/
