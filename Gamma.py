@@ -175,7 +175,17 @@ HYBRID_TID_2035_CURVE = "tid_to_2035_then_pct"  # published TID path through 203
 # reinforcement_steps, e.g. "NI:2032:950" or "NI:2032:950; SE:2030:400" (zone:first year:+MW).
 # Example: North-South interconnector, 300 to 1,250 MW from October 2031 (SEAI NEP26), as +950 MW
 # of NI headroom from 2032. Not applied unless a scenario names it.
-OFFSHORE_PROFILE_SCALE = 1.0                # offshore avail = IE wind shape × capacity × this
+OFFSHORE_PROFILE_SCALE = 1.0                # kept for compatibility; see OFFSHORE_CF_REFERENCE below
+# Offshore wind yield. Offshore availability uses the same all-island weather (per-GW availability
+# shape) as onshore, multiplied by a factor k and capped at installed capacity in each interval, as in
+# the regulators' SEM PLEXOS model (NERA 2021, s.6.2). k is set so that offshore availability averages
+# OFFSHORE_CF_REFERENCE in the reference weather year 2020, the year of EirGrid's ECP constraint studies,
+# whose vendor offshore profile implies an available capacity factor of about 40% (GSS-1 workbook,
+# project extract 25 Oct 2026). The same k is applied to every weather year. Until 11 Nov 2026 offshore
+# used the onshore shape unscaled (k = 1). Override with GAMMA_OFFSHORE_CF (e.g. 0.45, EirGrid's GCS value).
+OFFSHORE_CF_REFERENCE = float(os.environ.get('GAMMA_OFFSHORE_CF', '0.40'))
+OFFSHORE_CF_REFERENCE_YEAR = 2020
+OFFSHORE_YIELD_K = 1.0                      # solved at run time from the weather data
 DEFAULT_HEADROOM_SCALE = 1.0                # scenario sensitivity multiplier
 DEFAULT_BUILD_RATE_WIND_OFFSHORE = 0.0      # GW/yr; scenarios may override
 # Offshore connection (issue #1). 'own': offshore wind connects through dedicated 220/400 kV
@@ -2834,6 +2844,26 @@ def _run_demonstrator():
         merged['spec_avail_mw_per_gw'] = merged['sem_wind_availability'] / merged['installed_gw']
 
         complete_weather_years = sorted([int(y) for y in merged['year'].unique() if y <= 2026])
+        # Solve the offshore yield factor k on the reference weather year (see OFFSHORE_CF_REFERENCE).
+        global OFFSHORE_YIELD_K
+        _ref = merged.loc[merged['year'] == OFFSHORE_CF_REFERENCE_YEAR, 'spec_avail_mw_per_gw'].clip(lower=0).to_numpy()
+        if OFFSHORE_CF_REFERENCE > 0 and len(_ref):
+            lo, hi = 0.5, 4.0
+            for _ in range(60):
+                mid = 0.5 * (lo + hi)
+                if np.minimum(_ref * mid, 1000.0).mean() / 1000.0 < OFFSHORE_CF_REFERENCE:
+                    lo = mid
+                else:
+                    hi = mid
+            OFFSHORE_YIELD_K = 0.5 * (lo + hi)
+        _cfs = {int(y): (round(g['spec_avail_mw_per_gw'].clip(lower=0).mean() / 10.0, 1),
+                         round(np.minimum(g['spec_avail_mw_per_gw'].clip(lower=0).to_numpy() * OFFSHORE_YIELD_K,
+                                          1000.0).mean() / 10.0, 1))
+                for y, g in merged.loc[merged['year'] <= 2026].groupby('year')}
+        print(f">> Offshore yield: k = {OFFSHORE_YIELD_K:.3f} (offshore available CF {OFFSHORE_CF_REFERENCE:.0%} "
+              f"in weather year {OFFSHORE_CF_REFERENCE_YEAR}). Available CF % onshore / offshore by weather year: {_cfs}")
+        print(f">> Offshore yield mean over weather years: onshore "
+              f"{np.mean([v[0] for v in _cfs.values()]):.1f}%, offshore {np.mean([v[1] for v in _cfs.values()]):.1f}%")
         # Weather years used for the energy results after 2026 (scenario 'weather_years'; blank = all).
         # EirGrid's constraint studies use 2020 weather only, so the validation runs do too.
         scenario_weather_years = parse_weather_years(sc.get('weather_years', ''), complete_weather_years)
@@ -3028,7 +3058,8 @@ def _run_demonstrator():
         def wind_avail_for_year(spec_mw_per_gw, year):
             onshore_gw, offshore_gw, zone_caps = zone_caps_for_year(year)
             wind_on = np.asarray(spec_mw_per_gw, dtype=float) * onshore_gw
-            wind_off = np.asarray(spec_mw_per_gw, dtype=float) * offshore_gw * OFFSHORE_PROFILE_SCALE
+            wind_off = (np.minimum(np.clip(np.asarray(spec_mw_per_gw, dtype=float), 0.0, None) * OFFSHORE_YIELD_K,
+                                   1000.0) * offshore_gw * OFFSHORE_PROFILE_SCALE)
             return wind_on, wind_off, onshore_gw, offshore_gw, zone_caps
 
         # Optional sensitivity (headroom_pipeline_cover_pct, default 0): each IE zone's headroom also
