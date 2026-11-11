@@ -186,6 +186,38 @@ Worst days are unchanged (393 in 2026; 648 and 593 in 2050). In 2035 the worst d
 4. Validation against EirGrid: `python analysis/eirgrid_validation.py` (after step 3). Paper figures: `python analysis/figure6_projections.py <outputs, no limits> <outputs, published path> fig6.png [end year]` and `python analysis/figure7_showcase.py <outputs> fig7.png [end year] [day year]` (Figure 7 needs a run with charts on; a run to 2035 gives 2033 daily panels), `python analysis/figure8_gas.py <outputs> <outputs with GAMMA_IC_DISPATCH=1, or -> fig8.png [end year]`. Optional analyses: `python analysis/weather_dunkelflaute.py` and `python analysis/ni_constraint_drivers.py`. Outputs in `analysis/output/`.
 5. To rebuild the hourly dispatch-down files from new EirGrid/SONI `DD-HH-<year>.xlsx` workbooks, use `build_all_island_dd.py` (not in this repository yet).
 
+## Offshore wind yield set to EirGrid's study profile: 11 November 2026
+
+Correction to the model. Offshore availability used the onshore per-GW shape unscaled, so offshore wind ran at the onshore capacity factor (28% over the thirteen weather years). It now uses the same weather multiplied by a factor k and capped at installed capacity in each interval (the approach of the regulators' SEM PLEXOS model), with k = 1.242 solved so that offshore availability averages 40% in weather year 2020, the year of EirGrid's ECP constraint studies. EirGrid's vendor offshore profile implies about 40% that year (GSS-1 workbook, project extract of 25 October). Over all thirteen weather years offshore averages 35.1% against 28.3% onshore. `GAMMA_OFFSHORE_CF` sets the 2020 target (e.g. 0.45, the GCS planning value). The scaled shape keeps offshore fully correlated with onshore, which overstates coincident surplus.
+
+All results rerun: main pathways (charts on), EirGrid validation and GSS-2 prediction (with sigma interval ends), published network path after 2035, interconnector sensitivity, grid reinforcement study (interconnectors off only; the 50%/70% interconnector variant is no longer in the paper), sensitivity study, a 45% offshore case, and a 2050 run for Figure 4 and S2. Not rerun: Section 6.3 60% cover and EirGrid-order constraint (Table S6), the 35% efficiency and COP 3.9 sentence in 7.2, Supplementary S5 to S8, Figure 5. GSS-2 prediction rows dated 11 November added to `analysis/gss2_prediction_2035.csv`; earlier rows kept.
+
+| Result | Before | Now |
+|---|---|---|
+| GSS-1 validation, Gamma minus EirGrid total, 2030 Initial / 2030 + 2.6 GW offshore / 2035 (points) | -4.5 / -4.7 / -2.3 | -4.5 / -3.1 / -0.2 |
+| Same at sigma interval ends, offshore cases | -4.1 to -5.1 / -1.3 to -3.2 | -2.6 to -3.5 / +0.8 to -0.9 |
+| Gamma constraint / curtailment, offshore cases (%) | 11.8, 14.3 / 10.3, 11.8 | 11.2, 13.5 / 12.4, 14.8 |
+| GSS-1 2035 with 40% cover, Gamma minus EirGrid (points) | -5.6 | -2.9 |
+| GSS-2 prediction, published path, 100% ECP + 4.7 GW offshore (%) | 33.1 (32.0-34.5) | 34.9 (33.9-36.1) |
+| Same, cover 40% (%) | 28.6 | 30.8 |
+| GSS-2 100% ECP without offshore | 29.9 / 19.9 | unchanged |
+| EirGrid_Extended dispatch down 2030 / 2035 / 2050 / 2100 (%) | 20.8 / 23.0 / 28.2 / 43.8 | 22.0 / 24.7 / 32.1 / 48.0 |
+| Historical_Trend dispatch down 2035 / 2050 / 2100 (%) | 17.2 / 17.9 / 23.8 | 18.6 / 20.0 / 24.8 |
+| Wind and solar share of demand, EirGrid_Extended 2030 / 2050 / 2100 (%) | 52.7 / 73.3 / 79.8 | 54.2 / 75.1 / 81.5 |
+| Fossil share of primary energy, EirGrid_Extended 2035 / 2050 / 2100 (%) | 74.8 / 59.9 / 28.5 | 74.0 / 59.2 / 27.2 |
+| Same, Historical_Trend 2050 / 2075 (%) | 70.3 / 60.4 | 69.8 / 59.9 |
+| Firm capacity 2050 / 2100, EirGrid_Extended (GW) | 14.4 / 25.0 | 14.4 / 24.9 |
+| Firm fleet efficiency / peaking share 2050 (%) | 48.1 / 32 | 46.5 / 41 |
+| Worst gas day 2050, EirGrid_Extended / Historical_Trend (GWh/d) | 680 / 593 | 692 / 588 |
+| First gas shortfall, no flows / 70% / 100%, EirGrid_Extended | 2031 / 2042 / 2046 | unchanged |
+| Same, Historical_Trend | 2036 / 2050 / 2055 | 2037 / 2050 / 2056 |
+| Electrolysis for firm plant on hydrogen vs all dispatched down, 2050 (TWh) | 42.3 vs 24.0 | 40.1 vs 29.4 |
+| Published path after 2035, 2050: constraint / curtailment / total / fossil (%) | 19.6 / 14.9 / 34.5 / 62.8 | 18.2 / 18.9 / 37.1 / 61.6 |
+| Fossil 2050 at IE headroom growth 0 / 1 / 2 / 4 / 7.3 %/yr, limits kept (%) | 63.1 / 62.5 / 62.1 / 61.3 / 60.6 | 61.9 / 61.4 / 61.0 / 60.4 / 59.8 |
+| Marginal yield of next 10.5 GW / 10.5 GW after, 0%/yr (TWh/GW; fleet average) | 0.35 / 0.25 (1.14) | 0.33 / 0.23 (1.18) |
+| Electrification +150% / build +150%, fossil 2050 (%) | 44.7 / 54.6 | 43.4 / 54.2 |
+| Offshore 45% in 2020 instead of 40%: EirGrid_Extended 2050 dispatch down / fossil (%) | | 34.5 / 58.9 |
+
 ## Scenario on/off switch and clearer network field guide: 4 November 2026
 
 From Cian's comment on the paper. No result changes.
