@@ -1,5 +1,5 @@
 """Interconnector sensitivity: 0%, 70% and 100% of interconnector capacity usable for both
-imports and exports, on EirGrid_Extended and Historical_Trend, to 2050.
+imports and exports, on EirGrid_Extended and Historical_Trend, to 2075.
 
 Usage (from the repository folder):
     python analysis/interconnector_sensitivity.py            # runs the six cases (CSV only)
@@ -7,7 +7,7 @@ Usage (from the repository folder):
 
 How it works:
 1. Copies Gamma.py and Data_inputs to analysis/ic_run/ (the real inputs are not touched).
-2. Writes a scenario workbook there with one row per pathway and availability, target year 2050.
+2. Writes a scenario workbook there with one row per pathway and availability, target year 2075.
 3. Runs Gamma.py there with GAMMA_IC_DISPATCH=1, so interconnector flows enter the 15-minute
    dispatch. The 0% case has no flows and must reproduce the main run; the script checks this
    against scenario_outputs/ if a main run is present.
@@ -33,8 +33,8 @@ OUT = os.path.join(HERE, 'output')
 
 BASES = ('EirGrid_Extended', 'Historical_Trend')
 AVAILABILITY = (0.0, 0.7, 1.0)
-TARGET_YEAR = 2050
-YEARS = (2035, 2050)
+TARGET_YEAR = 2075
+YEARS = (2026, 2035, 2050, 2075)
 
 
 def run_name(base, a):
@@ -103,7 +103,10 @@ def collect():
                     'firm_generation_TWh': round(r['Fossil_Firm_Generation_TWh'], 1),
                     'fossil_primary_TWh': round(fossil, 1),
                     'fossil_share_primary_pct': round(r['Primary_Fossil_Share_Pct'], 1),
+                    'gas_annual_TWh_GCV': round(r['Gas_Power_TWh_GCV'] + r['Gas_NonPower_TWh_GCV'], 1),
                     'gas_worst_day_GWh': round(r['Gas_Worst_Day_GWh'], 0),
+                    'gas_worst_day_power_GWh': round(r['Gas_Worst_Day_Power_GWh'], 0)
+                    if 'Gas_Worst_Day_Power_GWh' in r else None,
                     'gas_supply_GWh_per_day': round(r['Gas_Supply_GWh_per_Day'], 0),
                     'gas_days_short': round(r['Gas_Days_Short_per_Year'], 1),
                     'first_gas_shortfall_year': first,

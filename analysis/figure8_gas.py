@@ -1,13 +1,16 @@
 """Paper figure: annual gas use against worst-day gas demand and supply, both pathways.
 
-Usage: python analysis/figure8_gas.py <scenario_outputs> <scenario_outputs with interconnector
-dispatch, or -> <out.png> [end year]
+Usage: python analysis/figure8_gas.py <ic_run scenario_outputs> <out.png> [end year]
 
-Panel (a): annual gas use (TWh, gross calorific value), power and non-power together; dotted: with
-interconnector flows.
-Panel (b): worst gas day of the year (GWh/d, GCV). Solid line: worst of the thirteen weather years;
-shading (EirGrid's plan): range of each weather year's worst day; dotted: the same run with
-interconnector imports and exports in the dispatch. Dashed red: Moffat, Corrib and biomethane.
+The first argument is the scenario_outputs folder written by analysis/interconnector_sensitivity.py
+(analysis/ic_run/scenario_outputs), which holds each pathway at 0%, 70% and 100% of interconnector
+capacity for imports and exports.
+
+Panel (a): annual gas use (TWh, gross calorific value), power and non-power together.
+Panel (b): worst gas day of the year (GWh/d, GCV), worst of the thirteen weather years.
+Solid line: central case, interconnectors at 70% of capacity. Shading: range between no
+interconnector flows (upper edge, dashed) and 100% of capacity (lower edge, dotted).
+Dashed red: supply from Moffat, Corrib and biomethane.
 """
 import os
 import sys
@@ -21,39 +24,27 @@ PATHWAYS = [('EirGrid_Extended', "EirGrid's plan, extended", '#1f6fb4'),
             ('Historical_Trend', 'Recorded trend', '#d9622b')]
 
 
-def load(base, sc):
-    f = pd.read_csv(os.path.join(base, sc, 'forecast_results.csv'))
+def load(base, sc, a, end_year):
+    f = pd.read_csv(os.path.join(base, f'IC_{sc}_{a}', 'forecast_results.csv'))
     f['gas_total_twh'] = f['Gas_Power_TWh_GCV'] + f['Gas_NonPower_TWh_GCV']
-    return f.set_index('Year')
+    f = f.set_index('Year')
+    return f[f.index <= end_year]
 
 
-def weather_range(base, sc):
-    g = pd.read_csv(os.path.join(base, sc, 'gas_daily_by_weather_year.csv'))
-    w = g.groupby(['year', 'weather_year'])['total_gwh'].max().unstack()
-    return w.min(axis=1), w.median(axis=1)
-
-
-def main(main_dir, ic_dir, out, end_year=2075):
+def main(ic_dir, out, end_year=2075):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 3.8), dpi=300)
     supply = None
     for sc, label, col in PATHWAYS:
-        f = load(main_dir, sc)
-        f = f[f.index <= end_year]
-        ax1.plot(f.index, f['gas_total_twh'], color=col, lw=2, label=label)
-        ax2.plot(f.index, f['Gas_Worst_Day_GWh'], color=col, lw=2, label=f'{label}, worst weather year')
-        if sc == 'EirGrid_Extended':
-            lo, med = weather_range(main_dir, sc)
-            lo, med = lo[lo.index <= end_year], med[med.index <= end_year]
-            ax2.fill_between(lo.index, lo, f['Gas_Worst_Day_GWh'].reindex(lo.index), color=col,
-                             alpha=0.15, lw=0, label=f'{label}, range over weather years')
-        if ic_dir and ic_dir != '-':
-            fi = load(ic_dir, sc)
-            fi = fi[fi.index <= end_year]
-            ax2.plot(fi.index, fi['Gas_Worst_Day_GWh'], color=col, lw=1.2, ls=':',
-                     label=f'{label}, with interconnector flows')
-            ax1.plot(fi.index, fi['gas_total_twh'], color=col, lw=1.2, ls=':',
-                     label=f'{label}, with interconnector flows')
-        supply = f['Gas_Supply_GWh_per_Day']
+        f0, f70, f100 = (load(ic_dir, sc, a, end_year) for a in (0, 70, 100))
+        for ax, c in ((ax1, 'gas_total_twh'), (ax2, 'Gas_Worst_Day_GWh')):
+            ax.fill_between(f0.index, f100[c], f0[c], color=col, alpha=0.13, lw=0)
+            ax.plot(f0.index, f0[c], color=col, lw=0.9, ls='--')
+            ax.plot(f100.index, f100[c], color=col, lw=0.9, ls=':')
+            ax.plot(f70.index, f70[c], color=col, lw=2, label=f'{label}, interconnectors at 70%')
+        supply = f70['Gas_Supply_GWh_per_Day']
+    for ax in (ax1, ax2):
+        ax.plot([], [], color='0.35', lw=0.9, ls='--', label='No interconnector flows')
+        ax.plot([], [], color='0.35', lw=0.9, ls=':', label='Interconnectors at 100%')
     ax2.plot(supply.index, supply, color='#b2182b', lw=1.5, ls='--',
              label='Supply: Moffat, Corrib and biomethane')
     ax1.set_ylabel('(a) Annual gas use, TWh (GCV)')
@@ -71,4 +62,4 @@ def main(main_dir, ic_dir, out, end_year=2075):
 
 if __name__ == '__main__':
     a = sys.argv[1:]
-    main(a[0], a[1], a[2], int(a[3]) if len(a) > 3 else 2075)
+    main(a[0], a[1], int(a[2]) if len(a) > 2 else 2075)
