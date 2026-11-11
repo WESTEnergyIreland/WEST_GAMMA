@@ -11,6 +11,13 @@
 # with cover 40%, against EirGrid's 28.5%.
 # Central prediction from 7 November 2026: the published path (100% ECP 38.0%, with 4.7 GW offshore 36.9%),
 # replacing cover 40%. Cover 40% is kept as the other end of the range. No further revisions before or after 15 December.
+# Revised 8 November 2026, still before publication, to correct an error: the closed form of the expected
+# constraint in Gamma.py (and eq. 3 of the paper) was not the expectation it is defined as (CHANGELOG, 8 Nov).
+# The 7 November rows stay as registered. Central prediction on the corrected model: published path,
+# 100% ECP 29.9% (sigma 90% interval 27.5-33.1), with 4.7 GW offshore 33.1% (32.0-34.5). The sigma rows
+# rerun the published path with Ireland's and Northern Ireland's sigma at the ends of the block-bootstrap
+# interval (analysis/sigma_identification.py). ie_headroom_mw is now a median limit of a wider distribution
+# (sigma 1.17 against 0.88), so it is not comparable with the earlier rows.
 case,network,gamma_constraint_pct,gamma_curtailment_pct,gamma_total_pct,ie_headroom_mw,model_version
 100% ECP,published path,34.4,5.3,39.8,5376,2026-10-28
 100% ECP,cover 40%,10.0,13.5,23.4,11686,2026-10-28
@@ -24,3 +31,11 @@ case,network,gamma_constraint_pct,gamma_curtailment_pct,gamma_total_pct,ie_headr
 100% ECP,cover 40%,10.0,9.5,19.5,11686,2026-11-07
 100% ECP + 4.7 GW offshore,published path,26.5,10.4,36.9,5376,2026-11-07
 100% ECP + 4.7 GW offshore,cover 40%,7.7,21.4,29.1,11686,2026-11-07
+100% ECP,published path,25.8,4.1,29.9,11789,2026-11-08
+100% ECP,cover 40%,12.2,7.7,19.9,18100,2026-11-08
+100% ECP + 4.7 GW offshore,published path,19.9,13.2,33.1,11789,2026-11-08
+100% ECP + 4.7 GW offshore,cover 40%,9.4,19.2,28.6,18100,2026-11-08
+100% ECP,published path sigma low (IE 0.95 NI 1.57),29.4,3.7,33.1,,2026-11-08
+100% ECP,published path sigma high (IE 1.38 NI 2.27),23.0,4.5,27.5,,2026-11-08
+100% ECP + 4.7 GW offshore,published path sigma low (IE 0.95 NI 1.57),22.7,11.8,34.5,,2026-11-08
+100% ECP + 4.7 GW offshore,published path sigma high (IE 1.38 NI 2.27),17.8,14.3,32.0,,2026-11-08
