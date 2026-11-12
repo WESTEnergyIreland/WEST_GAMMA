@@ -210,6 +210,31 @@ From Mark's review of the gas check (4 November). Gas supply only; no other resu
 
 Worst days are unchanged (393 in 2026; 648 and 593 in 2050). In 2035 the worst day is within 1% of supply on both pathways.
 
+## Referee round 2: sensitivity switches and data tidy-up: 12 November 2026
+
+From the second referee review of the Phase 1 paper (methods and data). No published result changes: every switch is off by default, and the base run reproduces 59.2% and 69.8% fossil share in 2050.
+- **`GAMMA_IMPORT_SHARE`** (default 4). The fixed share of primary energy counted as imported electricity. The dispatch has no imports in the main runs, so firm plant has already met that demand. `GAMMA_IMPORT_SHARE=0` removes the allowance.
+- **`GAMMA_FLAT_GROWTH=1`**. Demand growth since 2026 that is neither heat-pump nor transport load (mostly data centres) is added as flat load instead of scaling the recorded demand shape.
+- **`GAMMA_RESIDUAL_SCALE`** (default 1). Multiplier on the wind and solar residual curtailment; 0 removes it.
+- **Minimum units comment corrected.** The floor is 6 units x 150 MW = 900 MW (4 in IE, 2 in NI). The comment said 7 x 150 = 1,050 MW. The seventh all-island unit is not counted and 150 MW per unit has no published source. The value is unchanged.
+- **Stale data copies removed.** `system_dd_hourly_ie.csv`, `system_dd_hourly_ni.csv` and `system_dd_hourly_all_island.csv` in the repository root. Gamma reads the copies in `Data_inputs/`; the root IE and all-island copies differed from them.
+- Still open: `build_all_island_dd.py` is not in the repository, so the hourly dispatch-down files cannot be rebuilt from the TSOs' workbooks. Whoever holds it should add it.
+
+| Result, 2050 (all-island) | Default | No fixed imports | Flat underlying growth |
+|---|---|---|---|
+| EirGrid_Extended fossil share of primary energy (%) | 59.2 | 61.7 | 59.2 |
+| Historical_Trend fossil share of primary energy (%) | 69.8 | 72.7 | 69.8 |
+| EirGrid_Extended firm capacity (GW) | 14.4 | 14.4 | 13.2 |
+| Historical_Trend firm capacity (GW) | 12.3 | 12.3 | 11.5 |
+| EirGrid_Extended worst gas day, no interconnector flows (GWh/d) | 692 | 692 | 664 |
+| Historical_Trend worst gas day, no interconnector flows (GWh/d) | 588 | 588 | 557 |
+
+| EirGrid comparison, Ireland total dispatch down (%) | EirGrid | Gamma | Gamma, residual at zero | Difference at zero (points) |
+|---|---|---|---|---|
+| 2030 Initial | 17.6 | 13.1 | 10.0 | -7.6 |
+| 2030 33% ECP + 2.6 GW offshore | 26.8 | 23.7 | 20.8 | -6.0 |
+| 2035 66% ECP + 4.7 GW offshore | 28.5 | 28.3 | 25.6 | -2.9 |
+
 ## How to run
 
 1. Install Python 3.10 or later, then from the repository folder: `pip install -r requirements.txt`.
