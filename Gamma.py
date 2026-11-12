@@ -267,7 +267,13 @@ INTERVAL_HOURS = 0.25
 INTERCONNECTOR_DISPATCH = os.environ.get('GAMMA_IC_DISPATCH', '0') == '1'
 # Imported electricity in the Overall Transition Progress shares: fixed share of the total, with
 # fossil and renewables scaled to the remainder (100% - this).
-FIXED_IMPORT_SHARE_PCT = 4.0
+FIXED_IMPORT_SHARE_PCT = float(os.environ.get('GAMMA_IMPORT_SHARE', '4.0'))  # GAMMA_IMPORT_SHARE=0: no fixed imports (sensitivity)
+# Sensitivity switches (referee round 2, 12 November 2026). Defaults reproduce the published results.
+# GAMMA_FLAT_GROWTH=1: demand growth since 2026 that is neither heat-pump nor transport load
+#   (underlying growth, mostly data centres) is added as flat load instead of scaling today's shape.
+# GAMMA_RESIDUAL_SCALE: multiplier on the residual curtailment for wind and solar (0 = none).
+FLAT_UNDERLYING_GROWTH = os.environ.get('GAMMA_FLAT_GROWTH', '0') == '1'
+RESIDUAL_CURTAILMENT_SCALE = float(os.environ.get('GAMMA_RESIDUAL_SCALE', '1.0'))
 # Primary energy basis for the headline shares (the red box). Fuels for heat and transport are
 # counted as delivered; electricity from firm plant is counted as the fuel burnt to make it, at
 # the firm fleet efficiency below; wind, solar and heat-pump ambient heat are counted as the
@@ -394,14 +400,15 @@ FIRM_RESIDUAL_PERCENTILE = 99.9
 MAX_DAILY_BESS_GROSS_THROUGHPUT_PER_MWH = 1.0  # compatibility only; Gamma code aggregate dispatch does not use this cap
 
 # Minimum Units Online (MUON) assumptions.
-# Default SEM requirement: 4 conventional units in IE plus 3 in NI.
-# Each online unit is assumed to operate at a minimum stable output of 150 MW.
+# The floor counts the jurisdictional minimums only: 4 conventional units in IE plus 2 in NI.
+# The all-island requirement is 7 units; the seventh may be in either jurisdiction and is not
+# counted here. Each unit is assumed to hold 150 MW (authors' assumption, no published source).
 DEFAULT_MUON_UNITS_IE = 4
 DEFAULT_MUON_UNITS_NI = 2
 MUON_MIN_GEN_PER_UNIT_MW = 150.0
 DEFAULT_MUON_FLOOR_MW = (
     DEFAULT_MUON_UNITS_IE + DEFAULT_MUON_UNITS_NI
-) * MUON_MIN_GEN_PER_UNIT_MW  # e.g. 7 x 150 MW = 1,050 MW
+) * MUON_MIN_GEN_PER_UNIT_MW  # 6 x 150 MW = 900 MW
 
 # redbox 4pc fixed 25-10-26
 
@@ -3155,7 +3162,15 @@ def _run_demonstrator():
             if n == 0 or shape.mean() <= 0:
                 return shape
             extra = min(heat_extra_twh(year), 0.9 * demand_twh)
-            base = shape * ((demand_twh - extra) * 1e6 / 8760.0) / shape.mean()
+            flat_twh = 0.0
+            if FLAT_UNDERLYING_GROWTH and year > start_year:
+                n_yr = year - start_year
+                trans_cap = ALL_ISLAND_TRANSPORT_DEMAND_TWH / TRANSPORT_DISPLACEMENT_FACTOR
+                trans_0 = BASE_TRANSPORT_ELECTRICITY_TWH_2025 + DEFAULT_TRANSPORT_DEMAND_GROWTH_TWH_PER_YEAR
+                trans_extra = max(0.0, min(trans_cap, trans_0 + n_yr * transport_demand_growth_rate) - trans_0)
+                flat_twh = max(0.0, demand_twh - base_demand_twh - extra - trans_extra)
+            base = shape * ((demand_twh - extra - flat_twh) * 1e6 / 8760.0) / shape.mean()
+            base = base + flat_twh * 1e6 / 8760.0
             w = df_wy['heat_weight'].to_numpy(dtype=float) if 'heat_weight' in df_wy else np.full(n, np.nan)
             if extra > 0 and np.isfinite(w).all() and w.sum() > 0:
                 sample_mwh = extra * 1e6 * (n * INTERVAL_HOURS / 8760.0)
@@ -3381,7 +3396,7 @@ def _run_demonstrator():
                                      HISTORICAL_SNSP_PCT / 100.0, solar_capacity_2026_gw,
                                      *storage_for_year(start_year), weather_years=[2026])
         base_weather_oversupply_2026 = base_run['curt_pct']
-        other_curt_pct = max(0.0, base_2026_curt - base_weather_oversupply_2026)
+        other_curt_pct = RESIDUAL_CURTAILMENT_SCALE * max(0.0, base_2026_curt - base_weather_oversupply_2026)
         print(f">> 2026 curtailment {base_2026_curt:.2f}% = modelled SNSP {base_weather_oversupply_2026:.2f}% "
               f"(at {HISTORICAL_SNSP_PCT:.0f}%) + other causes held fixed {other_curt_pct:.2f}%")
         base_model_cons_2026 = base_run['cons_pct']
@@ -3393,7 +3408,7 @@ def _run_demonstrator():
         # curtailment less the modelled 2026 solar SNSP/min-gen curtailment, and keeps a fixed offset
         # to the wind 'other' path in later years.
         if SOLAR_OTHER_CURT_CALIBRATED and pd.notna(solar_curt_last12_pct):
-            solar_other_2026 = max(0.0, solar_curt_last12_pct - base_run['solar_curt_pct'])
+            solar_other_2026 = RESIDUAL_CURTAILMENT_SCALE * max(0.0, solar_curt_last12_pct - base_run['solar_curt_pct'])
         else:
             solar_other_2026 = other_curt_pct
         solar_other_offset = solar_other_2026 - other_curt_pct
