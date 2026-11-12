@@ -394,14 +394,16 @@ FIRM_RESIDUAL_PERCENTILE = 99.9
 MAX_DAILY_BESS_GROSS_THROUGHPUT_PER_MWH = 1.0  # compatibility only; Gamma code aggregate dispatch does not use this cap
 
 # Minimum Units Online (MUON) assumptions.
-# Default SEM requirement: 4 conventional units in IE plus 3 in NI.
+# 2026 requirement (TSOs' Weekly Operational Constraints Update, 2026): at least 7 units on load
+# all-island, of which at least 4 in IE and at least 2 in NI. The seventh may be in either
+# jurisdiction, so the anchor year uses the all-island total. Before 12 November 2026 the anchor
+# year used the scenario's own unit counts (4 + 2 or 4 + 1), not the requirement in force.
 # Each online unit is assumed to operate at a minimum stable output of 150 MW.
+HISTORICAL_MUON_UNITS = 7
 DEFAULT_MUON_UNITS_IE = 4
 DEFAULT_MUON_UNITS_NI = 2
 MUON_MIN_GEN_PER_UNIT_MW = 150.0
-DEFAULT_MUON_FLOOR_MW = (
-    DEFAULT_MUON_UNITS_IE + DEFAULT_MUON_UNITS_NI
-) * MUON_MIN_GEN_PER_UNIT_MW  # e.g. 7 x 150 MW = 1,050 MW
+DEFAULT_MUON_FLOOR_MW = HISTORICAL_MUON_UNITS * MUON_MIN_GEN_PER_UNIT_MW  # 7 x 150 MW = 1,050 MW
 
 # redbox 4pc fixed 25-10-26
 
@@ -1599,11 +1601,17 @@ def _run_demonstrator():
     # Solar capacity history is not in the inputs, so actual solar CF is left blank.
     hist_eval_rows = []
     solar_curt_last12_pct = np.nan
+    # Months of the anchor year covered by the wind dispatch-down records. The residual is calibrated
+    # on these months only, so recorded and modelled curtailment cover the same period.
+    wind_record_months_2026 = []
     for tech, fname in DD_ALL_ISLAND_FILES.items():
         path = input_path(fname)
         if not os.path.exists(path):
             continue
         h = pd.read_csv(path, parse_dates=['datetime'])
+        if tech == 'Wind':
+            rec = h[(h['datetime'].dt.year == TRANSITION_BASE_YEAR) & (h['hh_count'] > 0)]
+            wind_record_months_2026 = sorted(int(m) for m in rec['datetime'].dt.month.unique())
         if tech == 'Solar':
             last12 = h[h['datetime'] > h['datetime'].max() - pd.Timedelta(days=365)]
             if last12['av_mwh'].sum() > 0:
@@ -2623,8 +2631,8 @@ def _run_demonstrator():
         snsp_limit_pct = float(sc['snsp_limit_pct'])
         snsp_limit_fraction = snsp_limit_pct / 100.0
         # Convert the scenario's regional unit counts into one all-island minimum-
-        # generation floor. Defaults are 4 IE + 3 NI = 7 units, so the default
-        # floor is 7 x 150 MW = 1,050 MW.
+        # generation floor. These apply after the anchor year; the anchor year uses
+        # HISTORICAL_MUON_UNITS (7 x 150 MW = 1,050 MW), see muon_units_for_year.
         muon_units_ie = max(0, int(round(float(sc['muon_units_ie']))))
         muon_units_ni = max(0, int(round(float(sc['muon_units_ni']))))
         total_muon_units = muon_units_ie + muon_units_ni
@@ -2694,8 +2702,9 @@ def _run_demonstrator():
         print(f">> Solar build-out: IE {bs_ie:.3f} + NI {bs_ni:.3f} = {solar_build_rate_gw:.3f} GW/year")
         print(f">> Capacity: {final_2026_wind_capacity_gw:.2f} GW onshore in 2026; offshore build from 2027")
         print(f">> Selected Forecast Operational SNSP Limit: {snsp_limit_pct:.1f}%")
-        print(f">> MUON floor: IE {muon_units_ie} + NI {muon_units_ni} = {total_muon_units} units; "
-              f"{total_muon_units} x {MUON_MIN_GEN_PER_UNIT_MW:.0f} MW = {muon_floor_mw:.0f} MW SEM")
+        print(f">> MUON floor after 2026 (scenario value, unless a path sets it): IE {muon_units_ie} + NI {muon_units_ni} "
+              f"= {total_muon_units} units; {total_muon_units} x {MUON_MIN_GEN_PER_UNIT_MW:.0f} MW = {muon_floor_mw:.0f} MW SEM. "
+              f"2026: {HISTORICAL_MUON_UNITS} units, {HISTORICAL_MUON_UNITS * MUON_MIN_GEN_PER_UNIT_MW:.0f} MW")
         print(f">> Standalone storage in 2026: {storage_power_2026_mw:.0f} MW / {storage_energy_2026_mwh:.0f} MWh")
         print(f">> Storage build-out: {storage_power_build_rate_mw:.0f} MW/yr and {storage_energy_build_rate_mwh:.0f} MWh/yr")
         print(f">> Total storage in 2026: {storage_power_2026_mw:.0f} MW / {storage_energy_2026_mwh:.0f} MWh")
@@ -3110,8 +3119,15 @@ def _run_demonstrator():
             return snsp_limit_fraction
 
         def muon_units_for_year(year):
-            ie = path_value('muon_units_ie', year, muon_units_ie) if path_has('muon_units_ie') else muon_units_ie
-            ni = path_value('muon_units_ni', year, muon_units_ni) if path_has('muon_units_ni') else muon_units_ni
+            """Minimum units (IE, rest): the 2026 requirement in the anchor year, then the path or
+            the scenario value. A path's straight line to its first listed year starts from the
+            2026 requirement, as SNSP does."""
+            ie_2026 = float(min(DEFAULT_MUON_UNITS_IE, HISTORICAL_MUON_UNITS))
+            rest_2026 = float(HISTORICAL_MUON_UNITS) - ie_2026   # NI's two plus the unit that may be in either
+            if year <= start_year:
+                return ie_2026, rest_2026
+            ie = path_value('muon_units_ie', year, ie_2026) if path_has('muon_units_ie') else muon_units_ie
+            ni = path_value('muon_units_ni', year, rest_2026) if path_has('muon_units_ni') else muon_units_ni
             return max(0.0, ie), max(0.0, ni)
 
         def muon_floor_for_year(year):
@@ -3205,6 +3221,14 @@ def _run_demonstrator():
             gas_records[(year, wy)] = day
             return day
 
+        def curt_pct_in_months(df_wy, curt_w, avail, wy):
+            """Modelled wind curtailment (% of available) over the months of the anchor year that
+            the dispatch-down records cover. NaN for any other weather year."""
+            if wy != TRANSITION_BASE_YEAR or not wind_record_months_2026:
+                return np.nan
+            in_rec = df_wy['month'].isin(wind_record_months_2026).values
+            return 100 * curt_w[in_rec].sum() / avail[in_rec].sum() if avail[in_rec].sum() > 0 else np.nan
+
         def run_weather_years(year, demand_twh, snsp_fraction, solar_gw,
                               storage_power_mw, storage_energy_mwh, weather_years=None):
             """Run selected SEM weather years and average their annual results (V9 zonal)."""
@@ -3264,6 +3288,7 @@ def _run_demonstrator():
                     'avail_twh': tot_av * to_annual_twh,
                     'dispatch_twh': d['usable_w'].sum() * to_annual_twh,
                     'curt_pct': 100 * d['curt_w'].sum() / tot_av,
+                    'curt_pct_record_months': curt_pct_in_months(df_wy, d['curt_w'], avail, wy),
                     'cons_pct': 100 * d['con_w'].sum() / tot_av,
                     'IE_pts': 100 * reg_w['IE'].sum() / tot_av,
                     'NI_pts': 100 * reg_w['NI'].sum() / tot_av,
@@ -3380,10 +3405,16 @@ def _run_demonstrator():
         base_run = run_weather_years(start_year, base_demand_twh,
                                      HISTORICAL_SNSP_PCT / 100.0, solar_capacity_2026_gw,
                                      *storage_for_year(start_year), weather_years=[2026])
-        base_weather_oversupply_2026 = base_run['curt_pct']
+        # Recorded 2026 curtailment covers the months in the dispatch-down records (January to August
+        # at 12 November 2026). The modelled value is taken over the same months. Before 12 November
+        # 2026 it was the full modelled year, including the October-December forecast months.
+        base_weather_oversupply_2026 = base_run.get('curt_pct_record_months', np.nan)
+        if not np.isfinite(base_weather_oversupply_2026):
+            base_weather_oversupply_2026 = base_run['curt_pct']
         other_curt_pct = max(0.0, base_2026_curt - base_weather_oversupply_2026)
         print(f">> 2026 curtailment {base_2026_curt:.2f}% = modelled SNSP {base_weather_oversupply_2026:.2f}% "
-              f"(at {HISTORICAL_SNSP_PCT:.0f}%) + other causes held fixed {other_curt_pct:.2f}%")
+              f"(at {HISTORICAL_SNSP_PCT:.0f}%, months {wind_record_months_2026[:1]}-{wind_record_months_2026[-1:]} "
+              f"as recorded; full modelled year {base_run['curt_pct']:.2f}%) + other causes held fixed {other_curt_pct:.2f}%")
         base_model_cons_2026 = base_run['cons_pct']
         print(f">> Modelled 2026 constraint: {base_model_cons_2026:.2f}% of all-island available wind "
               f"(IE {base_run['IE_own_pct']:.2f}% of IE wind, NI {base_run['NI_own_pct']:.2f}% of NI wind); "
