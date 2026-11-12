@@ -266,7 +266,8 @@ INTERVAL_HOURS = 0.25
 # GAMMA_IC_DISPATCH=1 turns them on for a sensitivity run without editing this file.
 INTERCONNECTOR_DISPATCH = os.environ.get('GAMMA_IC_DISPATCH', '0') == '1'
 # Imported electricity in the Overall Transition Progress shares: fixed share of the total, with
-# fossil and renewables scaled to the remainder (100% - this).
+# fossil and renewables scaled to the remainder (100% - this). Main runs only: with
+# INTERCONNECTOR_DISPATCH on, the shares use the imports in the dispatch and this is not applied.
 FIXED_IMPORT_SHARE_PCT = float(os.environ.get('GAMMA_IMPORT_SHARE', '4.0'))  # GAMMA_IMPORT_SHARE=0: no fixed imports (sensitivity)
 # Sensitivity switches (referee round 2, 12 November 2026). Defaults reproduce the published results.
 # Demand growth since 2026 that is neither heat-pump nor transport load (underlying growth, mostly
@@ -3843,7 +3844,12 @@ def _run_demonstrator():
         #   fossil    = remaining heat fuel + remaining transport fuel + firm electricity consumed
         #   renewable = ambient heat + domestic wind/solar consumed + BESS discharge
         #   imported  = FIXED_IMPORT_SHARE_PCT, the remainder of 100% (decision of 24 Oct 2026;
-        #               fossil and renewables are scaled to 100% - that share)
+        #               fossil and renewables are scaled to 100% - that share). This applies to
+        #               the main runs, which have no imports in the dispatch. With
+        #               INTERCONNECTOR_DISPATCH on, imports are the electricity imported in the
+        #               dispatch and the fixed share is not applied (12 Nov 2026): it was added
+        #               on top of the dispatched imports before, which counted imports twice
+        #               and left the dispatched imports out of the denominator.
         # Avoided transport fuel is not energy and is not counted (fixed earlier under #7).
         # Firm generation is treated as fossil; bioenergy, hydro, waste and biofuels are not in
         # scope, so the renewable share is a lower bound against SEAI's published RES.
@@ -3878,21 +3884,29 @@ def _run_demonstrator():
         gfec = sim_df['Gross_Final_Energy_TWh']
         share = lambda num: np.where(gfec > 0.0, 100.0 * num / gfec, 0.0)
         domestic = sim_df['Total_Fossil_Energy_TWh'] + sim_df['Total_Renewable_Energy_TWh']
-        domestic_pct = 100.0 - FIXED_IMPORT_SHARE_PCT
+        if INTERCONNECTOR_DISPATCH:
+            domestic_pct = 100.0
+            dispatched_import_twh = sim_df['Import_TWh']
+        else:
+            domestic_pct = 100.0 - FIXED_IMPORT_SHARE_PCT
+            dispatched_import_twh = 0.0
+        final_total = domestic + dispatched_import_twh
         # Final energy (RED gross final consumption) shares, kept for comparison with SEAI's RES.
         sim_df['Final_Fossil_Fuel_Pct'] = np.where(
-            domestic > 0.0, domestic_pct * sim_df['Total_Fossil_Energy_TWh'] / domestic, 0.0)
+            final_total > 0.0, domestic_pct * sim_df['Total_Fossil_Energy_TWh'] / final_total, 0.0)
         sim_df['Final_Renewables_Pct'] = np.where(
-            domestic > 0.0, domestic_pct * sim_df['Total_Renewable_Energy_TWh'] / domestic, 0.0)
+            final_total > 0.0, domestic_pct * sim_df['Total_Renewable_Energy_TWh'] / final_total, 0.0)
         # Headline shares (red box): primary energy. Firm electricity counts as the gas burnt to
-        # make it, at that year's fleet efficiency; imports stay at the fixed share.
+        # make it, at that year's fleet efficiency; imported electricity counts at the electricity
+        # delivered (fixed share in the main runs, dispatched imports with INTERCONNECTOR_DISPATCH).
         firm_eff = sim_df['Firm_Fleet_Efficiency_%'] / 100.0
         sim_df['Firm_Gas_Burnt_TWh'] = sim_df['Fossil_Electricity_Consumed_TWh'] / firm_eff
         sim_df['Primary_Fossil_TWh'] = (sim_df['Remaining_Heat_Fossil_TWh']
                                         + sim_df['Remaining_Transport_Fossil_TWh']
                                         + sim_df['Firm_Gas_Burnt_TWh'])
         sim_df['Primary_Renewable_TWh'] = sim_df['Total_Renewable_Energy_TWh']
-        primary_domestic = sim_df['Primary_Fossil_TWh'] + sim_df['Primary_Renewable_TWh']
+        primary_domestic = (sim_df['Primary_Fossil_TWh'] + sim_df['Primary_Renewable_TWh']
+                            + dispatched_import_twh)
         sim_df['Overall_Fossil_Fuel_Pct'] = np.where(
             primary_domestic > 0.0, domestic_pct * sim_df['Primary_Fossil_TWh'] / primary_domestic, 0.0)
         sim_df['Overall_Renewables_Pct'] = np.where(
@@ -3942,7 +3956,8 @@ def _run_demonstrator():
             a = anchor.iloc[0]
             print(f">> 2026 shares of primary energy (excl. aviation and marine): fossil "
                   f"{a['Overall_Fossil_Fuel_Pct']:.1f}%, renewables {a['Overall_Renewables_Pct']:.1f}%, "
-                  f"imported electricity {a['Overall_Imported_Electricity_Pct']:.1f}% (fixed). Domestic final-energy "
+                  f"imported electricity {a['Overall_Imported_Electricity_Pct']:.1f}% "
+                  f"({'from the dispatch' if INTERCONNECTOR_DISPATCH else 'fixed'}). Domestic final-energy "
                   f"accounting: fossil {a['Final_Fossil_Fuel_Pct']:.1f}%. Modelled RES Overall (share of gross final "
                   f"energy) {a['RES_Overall_RED_%']:.1f}% (SEAI published 17.1% for IE in 2025, incl. bioenergy and "
                   f"biofuels not modelled here)")
