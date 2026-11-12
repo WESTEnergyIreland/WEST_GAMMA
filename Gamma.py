@@ -3413,8 +3413,8 @@ def _run_demonstrator():
             base_weather_oversupply_2026 = base_run['curt_pct']
         other_curt_pct = max(0.0, base_2026_curt - base_weather_oversupply_2026)
         print(f">> 2026 curtailment {base_2026_curt:.2f}% = modelled SNSP {base_weather_oversupply_2026:.2f}% "
-              f"(at {HISTORICAL_SNSP_PCT:.0f}%, months {wind_record_months_2026[:1]}-{wind_record_months_2026[-1:]} "
-              f"as recorded; full modelled year {base_run['curt_pct']:.2f}%) + other causes held fixed {other_curt_pct:.2f}%")
+              f"(at {HISTORICAL_SNSP_PCT:.0f}%, months {wind_record_months_2026[0] if wind_record_months_2026 else '-'} to "
+              f"{wind_record_months_2026[-1] if wind_record_months_2026 else '-'} as recorded; full modelled year {base_run['curt_pct']:.2f}%) + other causes held fixed {other_curt_pct:.2f}%")
         base_model_cons_2026 = base_run['cons_pct']
         print(f">> Modelled 2026 constraint: {base_model_cons_2026:.2f}% of all-island available wind "
               f"(IE {base_run['IE_own_pct']:.2f}% of IE wind, NI {base_run['NI_own_pct']:.2f}% of NI wind); "
