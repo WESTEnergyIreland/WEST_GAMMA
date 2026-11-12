@@ -133,9 +133,9 @@ $$\eta^{fleet} = \left(\frac{1-p}{0.55} + \frac{p}{0.38}\right)^{-1}.$$
 
 Electricity from firm plant (including the residual $R_y$) counts as gas burnt, $G_y = F^{cons}_y/\eta^{fleet}_y$. With remaining fossil heat $H^{f}_y$ and transport fuel $T^{f}_y$, ambient heat $A^{hp}_y = (\mathrm{COP}-1)E^{heat,el}_y$, and wind, solar and battery output consumed $V^{cons}_y$:
 
-$$\text{fossil share of primary energy} = (1 - m)\,\frac{H^f_y + T^f_y + G_y}{H^f_y + T^f_y + G_y + A^{hp}_y + V^{cons}_y}, \qquad m = 0.04 .$$
+$$\text{fossil share of primary energy} = \frac{H^f_y + T^f_y + G_y}{H^f_y + T^f_y + G_y + A^{hp}_y + V^{cons}_y + M_y} .$$
 
-The share of gross final energy is the same with $G_y$ replaced by $F^{cons}_y$. Full decarbonisation is the first $y$ with fossil share $\le 10\%$. Setting $m = 0$ multiplies every fossil share by $1/(1-m) = 1.042$.
+The share of gross final energy is the same with $G_y$ replaced by $F^{cons}_y$. Full decarbonisation is the first $y$ with fossil share $\le 10\%$. $M_y$ is the electricity imported in the dispatch: zero in the main runs, which have no interconnector flows, and the dispatched imports in the interconnector runs (`GAMMA_IC_DISPATCH=1`). Until 12 November 2026 the main runs multiplied the share by $(1 - m)$ with $m = 0.04$, a fixed allowance for imported electricity; `GAMMA_IMPORT_SHARE=4` restores it and multiplies every fossil share by 0.96.
 
 ## 10. Hydrogen for firm plant
 
