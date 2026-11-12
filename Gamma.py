@@ -979,7 +979,10 @@ def write_evaluation_outputs(evaluation_store, historical_evaluation):
         if act is not None and col in act and act[col].notna().any():
             last = act.dropna(subset=[col]).iloc[-1]
         for name, ev_df in evaluation_store.items():
-            f = ev_df[ev_df['Data_Type'] == 'Forecast']
+            # The anchor year is not plotted: it is one weather year completed with forecast
+            # months, on year-end capacity, so it is not comparable with the weather-year means
+            # that follow or with the recorded years before it (12 Nov 2026).
+            f = ev_df[(ev_df['Data_Type'] == 'Forecast') & (ev_df['Year'] > TRANSITION_BASE_YEAR)]
             x, y = list(f['Year']), list(f[col])
             if last is not None and len(x) and last['Year'] < x[0]:
                 x, y = [last['Year']] + x, [last[col]] + y
@@ -993,7 +996,7 @@ def write_evaluation_outputs(evaluation_store, historical_evaluation):
     axes[0, 0].legend(fontsize=7, ncol=2)
     fig.suptitle('Capacity factors and curtailment by scenario\n'
                  '(curtailment excludes grid constraint; solar CF on MEC basis; forecasts are weather-year means '
-                 'starting from the last full recorded year)', fontsize=12)
+                 f'from {TRANSITION_BASE_YEAR + 1}, joined to the last full recorded year)', fontsize=12)
     fig.tight_layout()
     fig.savefig(os.path.join(SCENARIO_OUTPUT_DIR, EVALUATION_CHART), dpi=CHART_DPI)
     plt.close(fig)
