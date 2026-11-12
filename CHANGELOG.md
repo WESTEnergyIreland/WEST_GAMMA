@@ -210,6 +210,51 @@ From Mark's review of the gas check (4 November). Gas supply only; no other resu
 
 Worst days are unchanged (393 in 2026; 648 and 593 in 2050). In 2035 the worst day is within 1% of supply on both pathways.
 
+## Underlying demand growth as flat load: 12 November 2026
+
+Change to the model (group decision, recorded in `CONTEXT.md`). Demand growth since 2026 that is neither heat-pump nor transport load is added as flat load, because most of it is data-centre demand. It scaled the recorded demand shape before, which overstated peak demand, firm capacity and the worst gas day. `GAMMA_FLAT_GROWTH=0` reproduces the earlier results. The fixed 4% import allowance stays in the headline fossil share (also in `CONTEXT.md`).
+
+Rerun: main pathways to 2100, EirGrid validation and GSS-2 prediction (with sigma interval ends and the 40% cover case), published network path after 2035, interconnector sensitivity, grid reinforcement study, sensitivity study, and the validation with the residual at zero. Figures 6 and 8 redrawn. Not rerun: the 2035 case on each weather year (22.3% to 28.5% in paper Section 6.2), Section 6.3 60% cover and EirGrid-order constraint (Table S6), the Table 9 rows for the residual, COP and firm efficiencies, the 45% offshore case, Figures 4, 5 and S2, and Supplementary S5 to S8. GSS-2 prediction rows dated 12 November added to `analysis/gss2_prediction_2035.csv`; earlier rows kept.
+
+| Result | Before | Now |
+|---|---|---|
+| Firm capacity, EirGrid_Extended 2035 / 2050 / 2100 (GW) | 11.1 / 14.4 / 24.9 | 10.5 / 13.2 / 21.8 |
+| Firm capacity, Historical_Trend 2035 / 2050 / 2075 (GW) | 10.0 / 12.3 / 16.3 | 9.7 / 11.5 / 14.6 |
+| Worst gas day, no flows, EirGrid_Extended 2035 / 2050 (GWh/d) | 528 / 692 | 513 / 664 |
+| Worst gas day, no flows, Historical_Trend 2035 / 2050 / 2075 (GWh/d) | 486 / 588 / 767 | 474 / 557 / 702 |
+| Worst gas day at 70% of interconnector capacity, EirGrid_Extended 2035 / 2050 (GWh/d) | 430 / 594 | 415 / 565 |
+| Same, Historical_Trend 2035 / 2050 / 2075 (GWh/d) | 387 / 490 / 668 | 376 / 458 / 603 |
+| Worst gas day at 100%, 2050, EirGrid_Extended / Historical_Trend (GWh/d) | 534 / 448 | 507 / 416 |
+| First gas shortfall, no flows / 70% / 100%, EirGrid_Extended | 2031 / 2042 / 2046 | 2033 / 2044 / 2048 |
+| Same, Historical_Trend | 2037 / 2050 / 2056 | 2039 / 2055 / 2063 |
+| First shortfall in the second-worst / median weather year, EirGrid_Extended | 2032 / 2035 | 2034 / 2037 |
+| Same, Historical_Trend | 2037 / 2042 | 2040 / 2045 |
+| First shortfall with 25 / 50 GWh/d more entry capacity, EirGrid_Extended | 2035 / 2037 | 2036 / 2039 |
+| Same, Historical_Trend | 2041 / 2044 | 2043 / 2047 |
+| Days short a year in 2050, EirGrid_Extended / Historical_Trend | 7.6 / 2.5 | 6.0 / 1.5 |
+| Dispatch down, EirGrid_Extended 2030 / 2036 / 2050 / 2100 (%) | 22.0 / 20.7 / 32.1 / 48.0 | 21.9 / 20.6 / 32.0 / 47.8 |
+| Dispatch down at 0% / 70% / 100% interconnector use, EirGrid_Extended 2050 (%) | 32.1 / 26.8 / 24.5 | 32.0 / 26.8 / 24.6 |
+| Wind and solar share of demand, EirGrid_Extended 2035 / 2050 / 2100 (%) | 63.5 / 75.1 / 81.5 | 63.6 / 74.9 / 81.1 |
+| Same, Historical_Trend 2050 / 2075 / 2100 (%) | 66.6 / 68.3 / 68.9 | 66.5 / 68.1 / 68.5 |
+| Fossil share of primary energy, EirGrid_Extended 2050 / 2100 (%) | 59.2 / 27.2 | 59.2 / 26.8 |
+| Same, Historical_Trend 2050 / 2075 (%) | 69.8 / 59.9 | unchanged |
+| Fossil share at 70% interconnector use, Historical_Trend 2050 (%) | 68.5 | 68.4 |
+| Firm fleet efficiency / peaking share, EirGrid_Extended 2050 (%) | 46.5 / 41 | 46.7 / 40 |
+| Electrolysis for firm plant on hydrogen, 2050, EirGrid_Extended / Historical_Trend (TWh) | 40.1 / 50.7 | 39.9 / 50.4 |
+| GSS-1 validation, Gamma minus EirGrid total, 2030 Initial / 2030 + 2.6 GW offshore / 2035 (points) | -4.5 / -3.1 / -0.2 | -4.6 / -3.2 / -0.1 |
+| Same at sigma interval ends | -3.9 to -4.9 / -2.6 to -3.5 / +0.8 to -0.9 | -4.1 to -5.1 / -2.7 to -3.5 / +0.8 to -0.9 |
+| Same with the residual at zero | -7.6 / -6.0 / -2.9 | -7.8 / -6.0 / -2.9 |
+| GSS-1 2035 with 40% cover, Gamma minus EirGrid (points) | -2.9 | unchanged |
+| GSS-2 prediction, published path, 100% ECP / with 4.7 GW offshore (%) | 29.9 (27.5-33.1) / 34.9 (33.9-36.1) | 29.9 (27.4-33.1) / 34.8 (33.9-36.1) |
+| Same, cover 40% (%) | 19.9 / 30.8 | 19.8 / 30.8 |
+| Published path after 2035, 2050: constraint / curtailment / total / fossil (%) | 18.2 / 18.9 / 37.1 / 61.6 | unchanged |
+| Delivered solar / wind, 2050, limits kept and removed (TWh) | 11.2 to 14.1 / 42.3 to 41.5 | 11.1 to 13.9 / 42.4 to 41.5 |
+| Fossil 2050 at IE headroom growth 0 / 1 / 2 / 4 / 7.3 %/yr, limits kept (%) | 61.9 / 61.4 / 61.0 / 60.4 / 59.8 | 61.9 / 61.4 / 61.0 / 60.4 / 59.7 |
+| Marginal yield at 7.3%/yr, next 10.5 GW / 10.5 GW after (TWh/GW) | 0.29 / 0.20 | 0.28 / 0.20 |
+| Electrification +150% / build +150%, fossil 2050 (%) | 43.4 / 54.2 | 43.4 / 54.0 |
+
+The headline "within 4.5 points of EirGrid" becomes 4.6 points: the 2030 Initial total is 12.96% against EirGrid's 17.6% (was 13.1%).
+
 ## Referee round 2: sensitivity switches and data tidy-up: 12 November 2026
 
 From the second referee review of the Phase 1 paper (methods and data). No published result changes: every switch is off by default, and the base run reproduces 59.2% and 69.8% fossil share in 2050.

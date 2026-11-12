@@ -18,6 +18,9 @@
 # rerun the published path with Ireland's and Northern Ireland's sigma at the ends of the block-bootstrap
 # interval (analysis/sigma_identification.py). ie_headroom_mw is now a median limit of a wider distribution
 # (sigma 1.17 against 0.88), so it is not comparable with the earlier rows.
+# Revised 12 November 2026, still before publication: demand growth since 2026 that is neither heat-pump nor
+# transport load is added as flat load (it scaled the recorded demand shape before). The published path moves by
+# at most 0.1 points: 100% ECP 29.9% (27.4-33.1), with 4.7 GW offshore 34.8% (33.9-36.1). Earlier rows are kept.
 case,network,gamma_constraint_pct,gamma_curtailment_pct,gamma_total_pct,ie_headroom_mw,model_version
 100% ECP,published path,34.4,5.3,39.8,5376,2026-10-28
 100% ECP,cover 40%,10.0,13.5,23.4,11686,2026-10-28
@@ -45,3 +48,11 @@ case,network,gamma_constraint_pct,gamma_curtailment_pct,gamma_total_pct,ie_headr
 100% ECP + 4.7 GW offshore,cover 40%,8.9,21.9,30.8,18100,2026-11-11
 100% ECP + 4.7 GW offshore,published path sigma low (IE 0.95 NI 1.57),21.6,14.5,36.1,,2026-11-11
 100% ECP + 4.7 GW offshore,published path sigma high (IE 1.38 NI 2.27),16.9,17.0,33.9,,2026-11-11
+100% ECP,published path,25.8,4.1,29.9,11789,2026-11-12
+100% ECP,cover 40%,12.2,7.6,19.8,18100,2026-11-12
+100% ECP + 4.7 GW offshore,published path,18.9,15.9,34.8,11789,2026-11-12
+100% ECP + 4.7 GW offshore,cover 40%,8.9,21.9,30.8,18100,2026-11-12
+100% ECP,published path sigma low (IE 0.95 NI 1.57),29.4,3.7,33.1,,2026-11-12
+100% ECP,published path sigma high (IE 1.38 NI 2.27),23.0,4.4,27.4,,2026-11-12
+100% ECP + 4.7 GW offshore,published path sigma low (IE 0.95 NI 1.57),21.6,14.5,36.1,,2026-11-12
+100% ECP + 4.7 GW offshore,published path sigma high (IE 1.38 NI 2.27),16.9,17.0,33.9,,2026-11-12
