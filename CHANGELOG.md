@@ -3,6 +3,36 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## 2026 curtailment calibration: seven minimum units and the months on record: 12 November 2026
+
+Two corrections to the model, both in how the 2026 anchor year is calibrated. Found in the referee review of 11 to 12 November.
+
+1. Minimum units. The requirement in force in 2026 is at least 7 units on load all-island, with at least 4 in Ireland and at least 2 in Northern Ireland (TSOs' Weekly Operational Constraints Update, week 36 of 2026). The anchor year used the scenario's own unit counts: 4 + 2 (900 MW) in Historical_Trend and 4 + 1 (750 MW) in the EirGrid runs. It now uses `HISTORICAL_MUON_UNITS = 7`, a floor of 1,050 MW at 150 MW per unit, and a scenario path's straight line to its first listed year starts from 7. Scenario and path values after 2026 are unchanged. The floor now binds in 219 hours of 2026.
+2. Residual curtailment. Recorded 2026 wind curtailment (4.90%) covers January to August, the months in the dispatch-down records. It was compared with modelled curtailment over the full modelled year, which includes the October to December forecast months. The modelled value is now taken over the same months as the records. Modelled curtailment in January to August is lower than over the full year, so the residual rises. The records support a higher autumn share: September to December curtailment was at or above the January to August share in 2021, 2022, 2023 and 2025, and the full-year share averaged 1.13 times the January to August share over 2021 to 2025. The solar residual is unchanged in method (last twelve months of records against the modelled year).
+
+Rerun: EirGrid_Validation_2030_Initial, EirGrid_Validation_2030_2035, EirGrid_Extended and Historical_Trend to 2100 (charts off), and `analysis/eirgrid_validation.py`. Not rerun: the GSS-2 prediction (the registered rows stand as registered and are not replaced), sigma interval ends, published network path after 2035, interconnector sensitivity, grid reinforcement study, sensitivity study, and the paper figures. These need a rerun before the paper is updated.
+
+| Result | Before | Now |
+|---|---|---|
+| 2026 minimum units floor (MW) | 750 or 900 | 1,050 |
+| Modelled 2026 wind curtailment from the operating rules, full year / January to August (%) | 2.23 / not computed | 2.34 / 1.83 |
+| Wind residual in 2026 (points of available wind) | 2.67 | 3.07 |
+| Solar residual in 2026 (points of available solar) | 6.44 | 6.41 |
+| Modelled 2026 wind curtailment, full year (%) | 4.90 | 5.60 |
+| Modelled 2026 dispatch down, wind and solar (%) | 15.2 | 15.7 |
+| GSS-1 validation, Gamma minus EirGrid total, 2030 Initial / 2030 + 2.6 GW offshore / 2035 (points) | -4.5 / -3.1 / -0.2 | -4.1 / -2.8 / +0.1 |
+| Gamma curtailment, same cases (%) | 3.8 / 12.4 / 14.8 | 4.1 / 12.7 / 15.1 |
+| EirGrid_Extended dispatch down 2030 / 2035 / 2050 / 2100 (%) | 22.0 / 24.7 / 32.1 / 48.0 | 22.3 / 25.0 / 32.3 / 48.2 |
+| Historical_Trend dispatch down 2035 / 2050 / 2100 (%) | 18.6 / 20.0 / 24.8 | 18.9 / 20.3 / 25.0 |
+| Wind and solar share of demand, EirGrid_Extended 2030 / 2050 / 2100 (%) | 54.2 / 75.1 / 81.5 | 53.9 / 74.8 / 81.2 |
+| Fossil share of primary energy, EirGrid_Extended 2035 / 2050 / 2100 (%) | 74.0 / 59.2 / 27.2 | 74.1 / 59.4 / 27.6 |
+| Same, Historical_Trend 2050 / 2075 (%) | 69.8 / 59.9 | 69.9 / 60.0 |
+| Firm capacity 2050 / 2100, EirGrid_Extended (GW) | 14.4 / 24.9 | unchanged |
+
+Each correction alone, EirGrid_Extended: seven units gives a wind residual of 2.56 points and a 2050 fossil share of 59.2%; the months on record gives 3.15 points and 59.4%.
+
+Paper text to update once this is merged and the remaining runs are done: the sentence under equation 5 ("900 MW for the 2026 requirement"), the residual values in the main text and Supplementary S2 (2.23% and 2.67%), the statement that the minimum units floor contributes nothing, Table 4, and every figure quoted from the rows above.
+
 ## Offshore wind yield set to EirGrid's study profile: 11 November 2026
 
 Correction to the model. Offshore availability used the onshore per-GW shape unscaled, so offshore wind ran at the onshore capacity factor (28% over the thirteen weather years). It now uses the same weather multiplied by a factor k and capped at installed capacity in each interval (the approach of the regulators' SEM PLEXOS model), with k = 1.242 solved so that offshore availability averages 40% in weather year 2020, the year of EirGrid's ECP constraint studies. EirGrid's vendor offshore profile implies about 40% that year (GSS-1 workbook, project extract of 25 October). Over all thirteen weather years offshore averages 35.1% against 28.3% onshore. `GAMMA_OFFSHORE_CF` sets the 2020 target (e.g. 0.45, the GCS planning value). The scaled shape keeps offshore fully correlated with onshore, which overstates coincident surplus.

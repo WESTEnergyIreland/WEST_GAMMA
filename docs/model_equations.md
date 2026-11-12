@@ -18,7 +18,7 @@ Source for Supplementary Section S2 and the equations in Section 4 of the Phase 
 | $C_{z,t}$ | expected constraint in zone $z$ | MW |
 | $D_t$ | electricity demand (generated basis) | MW |
 | $s$ | SNSP limit | – |
-| $P^{\min}$ | minimum synchronous output (150 MW per required unit) | MW |
+| $P^{\min}$ | minimum synchronous output (150 MW per required unit; 7 units, 1,050 MW, in 2026) | MW |
 | $L_t$ | operating ceiling on non-synchronous output | MW |
 | $P^{ch}_t, P^{dis}_t$ | battery charge and discharge | MW |
 | $S_t$ | battery state of charge | MWh |
@@ -101,6 +101,7 @@ $$X_t = \sum_z C_{z,t} + K_t + P^{ch}_t + V_t .$$
 
 Recorded high frequency and minimum generation curtailment that the ceiling does not reproduce is carried as a residual:
 $$\kappa = c^{rec}_{2026} - c^{mod}_{2026}. \tag{6}$$
+Both terms cover the months of 2026 in the dispatch-down records (January to August at 12 November 2026): $c^{rec}_{2026}$ is recorded curtailment and $c^{mod}_{2026}$ modelled curtailment over those months, each as a share of available wind in the same months.
 On the delivered basis, residual energy in year $y$ is
 $$R_y = \kappa\,\frac{A_{2026}}{Q_{2026}}\,Q_y,$$
 where $A$ is available and $Q$ dispatched wind (or solar) energy. Since $\kappa A_{2026}/Q_{2026} < 1$, $R_y < Q_y$. It is deducted from delivered energy and supplied by firm plant.
