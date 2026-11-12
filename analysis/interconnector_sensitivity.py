@@ -9,8 +9,10 @@ How it works:
 1. Copies Gamma.py and Data_inputs to analysis/ic_run/ (the real inputs are not touched).
 2. Writes a scenario workbook there with one row per pathway and availability, target year 2075.
 3. Runs Gamma.py there with GAMMA_IC_DISPATCH=1, so interconnector flows enter the 15-minute
-   dispatch. The 0% case has no flows and must reproduce the main run; the script checks this
-   against scenario_outputs/ if a main run is present.
+   dispatch. The 0% case has no flows and must reproduce the main run's dispatch; the script
+   checks this against scenario_outputs/ if a main run is present. Its fossil share is higher
+   than the main run's, because these runs count the imports in the dispatch (none at 0%) and
+   the main runs count a fixed 4% of primary energy as imported electricity.
 4. Writes analysis/output/interconnector_sensitivity.csv and .md.
 
 Interconnector capacity is Gamma's: 1,450 MW existing, Celtic 700 MW from April 2028 and
@@ -103,6 +105,7 @@ def collect():
                     'firm_generation_TWh': round(r['Fossil_Firm_Generation_TWh'], 1),
                     'fossil_primary_TWh': round(fossil, 1),
                     'fossil_share_primary_pct': round(r['Primary_Fossil_Share_Pct'], 1),
+                    'import_share_primary_pct': abs(round(r['Primary_Imported_Electricity_Share_Pct'], 1)),
                     'gas_annual_TWh_GCV': round(r['Gas_Power_TWh_GCV'] + r['Gas_NonPower_TWh_GCV'], 1),
                     'gas_worst_day_GWh': round(r['Gas_Worst_Day_GWh'], 0),
                     'gas_worst_day_power_GWh': round(r['Gas_Worst_Day_Power_GWh'], 0)
@@ -125,7 +128,7 @@ def check_against_main(df):
         m = pd.read_csv(p).set_index('Year')
         z = pd.read_csv(os.path.join(RUN_DIR, 'scenario_outputs', run_name(base, 0.0),
                                      'forecast_results.csv')).set_index('Year')
-        for c in ('Primary_Fossil_Share_Pct', 'Gas_Worst_Day_GWh', 'Fossil_Firm_Generation_TWh'):
+        for c in ('Primary_Fossil_TWh', 'Gas_Worst_Day_GWh', 'Fossil_Firm_Generation_TWh'):
             d = (m.loc[z.index, c] - z[c]).abs().max()
             msgs.append(f'{base}: 0% case against main run, max difference in {c} = {d:.4f}')
     return msgs
