@@ -242,7 +242,7 @@ ALL_ISLAND_HEAT_DEMAND_TWH = 70.6      # IE 41.3 (SEAI NEP 2026 results dataset)
 ALL_ISLAND_TRANSPORT_DEMAND_TWH = 62.2  # land transport: IE 46.5 (SEAI, excl. aviation and navigation) + NI 15.7 (DESNZ road); paper Section 4.4
 BASE_HEAT_ELECTRICITY_TWH_2025 = 1.0
 BASE_TRANSPORT_ELECTRICITY_TWH_2025 = 1.5
-HEAT_COP = 3.5
+HEAT_COP = float(os.environ.get('GAMMA_HEAT_COP', '3.5'))  # override for analysis/robustness_study.py
 # Heat-pump demand profile (Cian's review). Heat-pump electricity added after 2026 follows hourly
 # heating degree hours from Met Eireann hourly temperature (Dublin Airport, station 532) instead of
 # today's demand shape: weight = max(0, base - T) / COP(T), with COP falling HEAT_COP_SLOPE per K
@@ -280,8 +280,8 @@ FIXED_IMPORT_SHARE_PCT = 4.0
 # is the peaking tranche (OCGT and engines). Fleet efficiency is the energy-weighted result, so
 # it falls as firm plant moves from baseload to peaking duty. Part-load and start-up losses
 # inside each tranche are not modelled. Values are placeholders for group agreement.
-FIRM_CCGT_EFFICIENCY = 0.55
-FIRM_PEAKER_EFFICIENCY = 0.38
+FIRM_CCGT_EFFICIENCY = float(os.environ.get('GAMMA_FIRM_CCGT_EFF', '0.55'))      # overrides for
+FIRM_PEAKER_EFFICIENCY = float(os.environ.get('GAMMA_FIRM_PEAKER_EFF', '0.38'))  # analysis/robustness_study.py
 FIRM_PEAKER_MAX_HOURS = 1500
 # Firm plant on green hydrogen instead of gas: the same turbines and tranches, burning hydrogen
 # made by electrolysis at ELECTROLYSER_EFFICIENCY (LHV). At a fleet efficiency of 50% each TWh
@@ -398,7 +398,7 @@ MAX_DAILY_BESS_GROSS_THROUGHPUT_PER_MWH = 1.0  # compatibility only; Gamma code 
 # Each online unit is assumed to operate at a minimum stable output of 150 MW.
 DEFAULT_MUON_UNITS_IE = 4
 DEFAULT_MUON_UNITS_NI = 2
-MUON_MIN_GEN_PER_UNIT_MW = 150.0
+MUON_MIN_GEN_PER_UNIT_MW = float(os.environ.get('GAMMA_MUON_MW_PER_UNIT', '150'))  # override for analysis/robustness_study.py
 DEFAULT_MUON_FLOOR_MW = (
     DEFAULT_MUON_UNITS_IE + DEFAULT_MUON_UNITS_NI
 ) * MUON_MIN_GEN_PER_UNIT_MW  # e.g. 7 x 150 MW = 1,050 MW
@@ -420,6 +420,10 @@ DEFAULT_STORAGE_INITIAL_SOC_PCT = 50.0  # fixed; not a scenario input (affects o
 # never exceed what is left to curtail. Both give identical 2026 results. Default 'delivered' from
 # 30 October 2026 (group decision); set GAMMA_RESIDUAL_BASIS=available to reproduce earlier results.
 RESIDUAL_CURTAILMENT_BASIS = os.environ.get('GAMMA_RESIDUAL_BASIS', 'delivered')
+# Robustness test only (analysis/robustness_study.py): multiplies the calibrated wind and solar residual
+# curtailment. 1 = as calibrated; 0 = no residual; 2 = doubled. With any value other than 1 the 2026
+# modelled curtailment no longer matches the record.
+RESIDUAL_CURTAILMENT_SCALE = float(os.environ.get('GAMMA_RESIDUAL_SCALE', '1'))
 CHART_DPI = 600  # resolution of saved PNG charts; 600 suits print journals (files are larger, runs slightly slower)
 DEFAULT_PC_STORAGE_HYBRID = 5.0
 
@@ -3381,7 +3385,7 @@ def _run_demonstrator():
                                      HISTORICAL_SNSP_PCT / 100.0, solar_capacity_2026_gw,
                                      *storage_for_year(start_year), weather_years=[2026])
         base_weather_oversupply_2026 = base_run['curt_pct']
-        other_curt_pct = max(0.0, base_2026_curt - base_weather_oversupply_2026)
+        other_curt_pct = RESIDUAL_CURTAILMENT_SCALE * max(0.0, base_2026_curt - base_weather_oversupply_2026)
         print(f">> 2026 curtailment {base_2026_curt:.2f}% = modelled SNSP {base_weather_oversupply_2026:.2f}% "
               f"(at {HISTORICAL_SNSP_PCT:.0f}%) + other causes held fixed {other_curt_pct:.2f}%")
         base_model_cons_2026 = base_run['cons_pct']
@@ -3393,7 +3397,7 @@ def _run_demonstrator():
         # curtailment less the modelled 2026 solar SNSP/min-gen curtailment, and keeps a fixed offset
         # to the wind 'other' path in later years.
         if SOLAR_OTHER_CURT_CALIBRATED and pd.notna(solar_curt_last12_pct):
-            solar_other_2026 = max(0.0, solar_curt_last12_pct - base_run['solar_curt_pct'])
+            solar_other_2026 = RESIDUAL_CURTAILMENT_SCALE * max(0.0, solar_curt_last12_pct - base_run['solar_curt_pct'])
         else:
             solar_other_2026 = other_curt_pct
         solar_other_offset = solar_other_2026 - other_curt_pct
