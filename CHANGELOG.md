@@ -210,6 +210,32 @@ From Mark's review of the gas check (4 November). Gas supply only; no other resu
 
 Worst days are unchanged (393 in 2026; 648 and 593 in 2050). In 2035 the worst day is within 1% of supply on both pathways.
 
+## Remaining reruns on the flat-growth model: 12 November 2026
+
+No model change. The cases listed as not rerun in the entry below are now rerun on `main` after PR #58, and Figures 4 and S2 are redrawn (`analysis/output/paper/`). The Section 6.3 figures had not been rerun since before the offshore yield correction of 11 November, so most of their change comes from that correction, not from flat growth.
+
+| Result | Paper before | Now |
+|---|---|---|
+| GSS-1 2035 case on each weather year 2014 to 2025, Ireland total (%) | 22.3 to 28.5 | 22.3 to 28.4 |
+| Cover that reproduces EirGrid's constraint in Gamma's order; constraint 2030 / 2035 (%) | 60%; 6.3 / 6.0 | 60%; 6.0 / 5.6 |
+| Constraint with 40% cover, 2030 / 2035 (%) | 7.4 / 7.5 | 7.1 / 7.1 |
+| Constraint in EirGrid's order, published path, 2030 / 2035 (%) | 5.1 / 4.2 | 4.1 / 3.4 |
+| Same with 40% cover (%) | 2.4 / 1.1 | 1.8 / 0.7 |
+| Total with 40% cover, 2030 / 2035 (%) | 20.0 / 22.9 (supplement) | 21.8 / 25.6 |
+| Fossil share 2050, EirGrid_Extended, residual at zero / doubled (%) | 57.5 / 60.9 | unchanged |
+| Same at COP 2.5 (%) | 61.6 | unchanged |
+| Same at firm efficiencies 60% and 42% / 50% and 34% (%) | 58.7 / 59.8 | unchanged |
+| Same with offshore at 45% in 2020 (%) | 58.9 | 58.8 |
+| Every firm unit at 35%: fossil share higher by (points, 2050 and 2100, both pathways) | 1.4 to 4.0 | 1.4 to 4.1 |
+| COP 3.9: fossil share lower by (points) | 0.8 to 2.3 | unchanged |
+| Historical_Trend on slower operating rules: largest change in dispatch down / fossil share (points) | 1.4 / 0.2 | 1.4 / 0.3 |
+| Figure 4 day (14 January 2048): wind and solar of demand (GWh) | 40 of 234 | 40 of 226 |
+| Figure S2 day (25 April 2048): wind and solar above demand | 10:45 to 18:00 | 10:30 to 18:30 |
+| Year delivered wind and solar, with battery discharge, reaches 57.8 TWh (EirGrid_Extended / Historical_Trend) | 2049 / 2073 | 2048 / 2072 |
+| Hydrogen need at fleet efficiency overtaken by dispatch down from (EirGrid_Extended) | 2062 (supplement) | 2060 |
+
+Counted in EirGrid's order, Gamma's constraint on the published path is now 1.6 to 2.6 points below EirGrid's, not within 0.7 points. The paper's conclusion on this is reworded to say so.
+
 ## Underlying demand growth as flat load: 12 November 2026
 
 Change to the model (group decision, recorded in `CONTEXT.md`). Demand growth since 2026 that is neither heat-pump nor transport load is added as flat load, because most of it is data-centre demand. It scaled the recorded demand shape before, which overstated peak demand, firm capacity and the worst gas day. `GAMMA_FLAT_GROWTH=0` reproduces the earlier results. The fixed 4% import allowance stays in the headline fossil share (also in `CONTEXT.md`).
