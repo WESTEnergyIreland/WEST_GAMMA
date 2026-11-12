@@ -85,7 +85,11 @@ def monthly_panel(ax, sc, title, end):
     ax.axvline(pd.Timestamp(2026, 1, 1), color='0.5', lw=0.8, ls=':')
     ax.set_title(f"{title}, January 2019 to December {end}", loc='left', fontsize=11, fontweight='bold')
     ax.set_xlim(m['date'].iloc[0], m['date'].iloc[-1])
-    ax.xaxis.set_major_locator(mdates.YearLocator(2))
+    # About eight to ten labels whatever the span: every 2 years to 2035, 5 to 2059, 10 beyond.
+    span = end - m['date'].iloc[0].year
+    step = 2 if span <= 16 else 5 if span <= 40 else 10
+    ax.xaxis.set_major_locator(mdates.YearLocator(step))
+    ax.xaxis.set_minor_locator(mdates.YearLocator(1))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
     ax.set_ylabel('GWh per month')
     ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f'{v:,.0f}'))
