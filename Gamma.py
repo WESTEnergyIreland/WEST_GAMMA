@@ -3912,6 +3912,20 @@ def _run_demonstrator():
             primary_domestic > 0.0, domestic_pct * sim_df['Primary_Fossil_TWh'] / primary_domestic, 0.0)
         sim_df['Overall_Renewables_Pct'] = np.where(
             primary_domestic > 0.0, domestic_pct * sim_df['Primary_Renewable_TWh'] / primary_domestic, 0.0)
+        # Electricity-equivalent basis (12 Nov 2026), against the primary energy fallacy. Fuel for
+        # heat and transport not yet electrified counts as the electricity that would replace it
+        # (heat / HEAT_COP, transport / TRANSPORT_DISPLACEMENT_FACTOR); firm and imported
+        # electricity count as electricity delivered; ambient heat is not counted, because the
+        # heat pump's electricity is already in wind, solar or firm output. The result is the
+        # fossil share of the electricity a fully electrified system would need.
+        sim_df['Elec_Equiv_Fossil_TWh'] = (
+            sim_df['Remaining_Heat_Fossil_TWh'] / HEAT_COP
+            + sim_df['Remaining_Transport_Fossil_TWh'] / TRANSPORT_DISPLACEMENT_FACTOR
+            + sim_df['Fossil_Electricity_Consumed_TWh'])
+        elec_equiv_total = (sim_df['Elec_Equiv_Fossil_TWh'] + sim_df['Renewable_Electricity_Consumed_TWh']
+                            + dispatched_import_twh)
+        sim_df['Elec_Equiv_Fossil_Share_Pct'] = np.where(
+            elec_equiv_total > 0.0, 100.0 * sim_df['Elec_Equiv_Fossil_TWh'] / elec_equiv_total, 0.0)
         sim_df['Overall_Imported_Electricity_Pct'] = (
             100.0 - sim_df['Overall_Fossil_Fuel_Pct'] - sim_df['Overall_Renewables_Pct'])
         # What replacing gas in firm plant with green hydrogen would take (physical, no costs).
@@ -3949,7 +3963,7 @@ def _run_demonstrator():
             'Overall_Imported_Electricity_Pct', 'RES_Overall_RED_%', 'RES_E_RED_%',
             'Final_Fossil_Fuel_Pct', 'Final_Renewables_Pct', 'Primary_Fossil_TWh',
             'Primary_Renewable_TWh', 'Firm_Gas_Burnt_TWh', 'Firm_On_H2_Hydrogen_TWh',
-            'Firm_On_H2_Electrolysis_TWh'
+            'Firm_On_H2_Electrolysis_TWh', 'Elec_Equiv_Fossil_TWh', 'Elec_Equiv_Fossil_Share_Pct'
         ] + list(SHARE_COLUMN_NAMES.values()):
             sim_df[c] = sim_df[c].round(3 if c.endswith('_TWh') else 2)
         anchor = sim_df.loc[sim_df['Year'] == TRANSITION_BASE_YEAR]
@@ -3970,6 +3984,8 @@ def _run_demonstrator():
         decarb_year_strict = first_year_at_or_below(DECARBONISED_FOSSIL_PCT_STRICT)
         sc['Full_Decarbonisation_Year'] = decarb_year if decarb_year else f'not by {final_year}'
         sc['Full_Decarbonisation_Year_5pct'] = decarb_year_strict if decarb_year_strict else f'not by {final_year}'
+        hit = sim_df.loc[sim_df['Elec_Equiv_Fossil_Share_Pct'] <= DECARBONISED_FOSSIL_PCT, 'Year']
+        sc['Full_Decarbonisation_Year_Elec_Equiv'] = int(hit.min()) if not hit.empty else f'not by {final_year}'
         def transition_box(year):
             """Text of the red box: primary energy shares and what firm plant would need."""
             r = sim_df.loc[sim_df['Year'] == year].iloc[0]

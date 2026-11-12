@@ -135,7 +135,13 @@ Electricity from firm plant (including the residual $R_y$) counts as gas burnt, 
 
 $$\text{fossil share of primary energy} = \frac{H^f_y + T^f_y + G_y}{H^f_y + T^f_y + G_y + A^{hp}_y + V^{cons}_y + M_y} .$$
 
-The share of gross final energy is the same with $G_y$ replaced by $F^{cons}_y$. Full decarbonisation is the first $y$ with fossil share $\le 10\%$. $M_y$ is the electricity imported in the dispatch: zero in the main runs, which have no interconnector flows, and the dispatched imports in the interconnector runs (`GAMMA_IC_DISPATCH=1`). Until 12 November 2026 the main runs multiplied the share by $(1 - m)$ with $m = 0.04$, a fixed allowance for imported electricity; `GAMMA_IMPORT_SHARE=4` restores it and multiplies every fossil share by 0.96.
+The share of gross final energy is the same with $G_y$ replaced by $F^{cons}_y$.
+
+The electricity-equivalent share counts fuel for heat and transport not yet electrified as the electricity that would replace it, and firm and imported electricity as electricity delivered. Ambient heat is not counted, because the heat pump's electricity is already in $V^{cons}_y$ or $F^{cons}_y$:
+
+$$\text{fossil share, electricity equivalent} = \frac{H^f_y/\mathrm{COP} + T^f_y/k^{tr} + F^{cons}_y}{H^f_y/\mathrm{COP} + T^f_y/k^{tr} + F^{cons}_y + V^{cons}_y + M_y},$$
+
+with $\mathrm{COP} = 3.5$ and the transport displacement factor $k^{tr} = 3.0$. It is the fossil share of the electricity a fully electrified system would need, and removes the primary energy fallacy for heat and transport as well as for firm plant (output `Elec_Equiv_Fossil_Share_Pct`). Full decarbonisation is the first $y$ with fossil share $\le 10\%$. $M_y$ is the electricity imported in the dispatch: zero in the main runs, which have no interconnector flows, and the dispatched imports in the interconnector runs (`GAMMA_IC_DISPATCH=1`). Until 12 November 2026 the main runs multiplied the share by $(1 - m)$ with $m = 0.04$, a fixed allowance for imported electricity; `GAMMA_IMPORT_SHARE=4` restores it and multiplies every fossil share by 0.96.
 
 ## 10. Hydrogen for firm plant
 
