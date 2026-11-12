@@ -1,0 +1,49 @@
+case,group,label,scenario,year,fossil_share_pct,dispatch_down_pct,constraint_pct,curtailment_pct,fossil_firm_twh,firm_capacity_gw
+base,base,Base (as in the paper),EirGrid_Extended,2035,74.01,24.72,13.43,11.3,19.17,11.14
+base,base,Base (as in the paper),EirGrid_Extended,2050,59.22,32.07,0.0,32.07,13.04,14.38
+base,base,Base (as in the paper),Historical_Trend,2035,78.1,18.59,8.71,9.88,19.93,9.98
+base,base,Base (as in the paper),Historical_Trend,2050,69.78,19.99,0.0,19.99,18.46,12.34
+kappa_0,dispatch down,Residual curtailment set to zero (wind and solar),EirGrid_Extended,2035,73.12,21.83,13.43,8.41,17.72,11.14
+kappa_0,dispatch down,Residual curtailment set to zero (wind and solar),EirGrid_Extended,2050,57.47,29.48,0.0,29.48,10.66,14.38
+kappa_0,dispatch down,Residual curtailment set to zero (wind and solar),Historical_Trend,2035,77.42,15.47,8.71,6.76,18.78,9.98
+kappa_0,dispatch down,Residual curtailment set to zero (wind and solar),Historical_Trend,2050,68.68,16.76,0.0,16.76,16.7,12.34
+kappa_x2,dispatch down,Residual curtailment doubled,EirGrid_Extended,2035,74.89,27.61,13.43,14.19,20.62,11.14
+kappa_x2,dispatch down,Residual curtailment doubled,EirGrid_Extended,2050,60.92,34.66,0.0,34.66,15.42,14.38
+kappa_x2,dispatch down,Residual curtailment doubled,Historical_Trend,2035,78.77,21.71,8.71,13.0,21.08,9.98
+kappa_x2,dispatch down,Residual curtailment doubled,Historical_Trend,2050,70.86,23.22,0.0,23.22,20.23,12.34
+pmin_400,dispatch down,400 MW per minimum unit (residual recalibrated),EirGrid_Extended,2035,73.55,23.22,13.43,9.79,18.43,11.14
+pmin_400,dispatch down,400 MW per minimum unit (residual recalibrated),EirGrid_Extended,2050,58.59,31.15,0.0,31.15,12.19,14.38
+pmin_400,dispatch down,400 MW per minimum unit (residual recalibrated),Historical_Trend,2035,77.68,16.69,8.71,7.98,19.24,9.98
+pmin_400,dispatch down,400 MW per minimum unit (residual recalibrated),Historical_Trend,2050,69.16,18.16,0.0,18.16,17.48,12.34
+no_limits_from_2027,dispatch down,No zonal network limits from 2027,EirGrid_Extended,2035,72.54,19.52,0.0,19.52,16.72,11.14
+no_limits_from_2027,dispatch down,No zonal network limits from 2027,EirGrid_Extended,2050,59.22,32.07,0.0,32.07,13.04,14.38
+no_limits_from_2027,dispatch down,No zonal network limits from 2027,Historical_Trend,2035,77.44,15.44,0.0,15.44,18.8,9.98
+no_limits_from_2027,dispatch down,No zonal network limits from 2027,Historical_Trend,2050,69.78,19.99,0.0,19.99,18.46,12.34
+published_path_kept,dispatch down,Network limits kept after 2035,EirGrid_Extended,2035,74.01,24.72,13.43,11.3,19.17,11.14
+published_path_kept,dispatch down,Network limits kept after 2035,EirGrid_Extended,2050,61.62,37.09,18.2,18.9,17.16,14.38
+published_path_kept,dispatch down,Network limits kept after 2035,Historical_Trend,2035,78.1,18.59,8.71,9.88,19.93,9.98
+published_path_kept,dispatch down,Network limits kept after 2035,Historical_Trend,2050,71.13,24.49,13.54,10.95,20.76,12.34
+network_frozen,dispatch down,Network frozen at 2026 headroom,EirGrid_Extended,2035,74.14,25.2,14.57,10.62,19.4,11.14
+network_frozen,dispatch down,Network frozen at 2026 headroom,EirGrid_Extended,2050,61.95,37.71,20.17,17.54,17.69,14.38
+network_frozen,dispatch down,Network frozen at 2026 headroom,Historical_Trend,2035,78.2,19.08,9.82,9.26,20.11,9.99
+network_frozen,dispatch down,Network frozen at 2026 headroom,Historical_Trend,2050,71.41,25.41,15.63,9.78,21.24,12.34
+frozen_sigma_low,dispatch down,"Network frozen, sigma low (IE 0.8, NI 1.2)",EirGrid_Extended,2035,74.64,26.93,17.79,9.15,20.24,11.14
+frozen_sigma_low,dispatch down,"Network frozen, sigma low (IE 0.8, NI 1.2)",EirGrid_Extended,2050,63.04,39.71,25.14,14.57,19.44,14.38
+frozen_sigma_low,dispatch down,"Network frozen, sigma low (IE 0.8, NI 1.2)",Historical_Trend,2035,78.33,19.76,11.12,8.64,20.35,9.98
+frozen_sigma_low,dispatch down,"Network frozen, sigma low (IE 0.8, NI 1.2)",Historical_Trend,2050,72.0,27.37,19.57,7.8,22.24,12.34
+frozen_sigma_high,dispatch down,"Network frozen, sigma high (IE 2.0, NI 2.5)",EirGrid_Extended,2035,73.63,23.39,11.09,12.3,18.54,11.14
+frozen_sigma_high,dispatch down,"Network frozen, sigma high (IE 2.0, NI 2.5)",EirGrid_Extended,2050,60.73,35.43,13.95,21.47,15.76,14.38
+frozen_sigma_high,dispatch down,"Network frozen, sigma high (IE 2.0, NI 2.5)",Historical_Trend,2035,78.06,18.39,8.52,9.87,19.86,9.99
+frozen_sigma_high,dispatch down,"Network frozen, sigma high (IE 2.0, NI 2.5)",Historical_Trend,2050,70.88,23.65,11.72,11.93,20.34,12.34
+eff_high,driver,Firm efficiencies 60% and 42%,EirGrid_Extended,2035,73.65,24.72,13.43,11.3,19.17,11.14
+eff_high,driver,Firm efficiencies 60% and 42%,EirGrid_Extended,2050,58.74,32.07,0.0,32.07,13.04,14.38
+eff_high,driver,Firm efficiencies 60% and 42%,Historical_Trend,2035,77.79,18.59,8.71,9.88,19.93,9.98
+eff_high,driver,Firm efficiencies 60% and 42%,Historical_Trend,2050,69.36,19.99,0.0,19.99,18.46,12.34
+eff_low,driver,Firm efficiencies 50% and 34%,EirGrid_Extended,2035,74.44,24.72,13.43,11.3,19.17,11.14
+eff_low,driver,Firm efficiencies 50% and 34%,EirGrid_Extended,2050,59.81,32.07,0.0,32.07,13.04,14.38
+eff_low,driver,Firm efficiencies 50% and 34%,Historical_Trend,2035,78.45,18.59,8.71,9.88,19.93,9.98
+eff_low,driver,Firm efficiencies 50% and 34%,Historical_Trend,2050,70.26,19.99,0.0,19.99,18.46,12.34
+heat_cop_2p5,driver,Heat COP 2.5,EirGrid_Extended,2035,75.27,24.72,13.43,11.3,19.17,11.14
+heat_cop_2p5,driver,Heat COP 2.5,EirGrid_Extended,2050,61.62,32.07,0.0,32.07,13.04,14.38
+heat_cop_2p5,driver,Heat COP 2.5,Historical_Trend,2035,79.22,18.59,8.71,9.88,19.93,9.98
+heat_cop_2p5,driver,Heat COP 2.5,Historical_Trend,2050,71.77,19.99,0.0,19.99,18.46,12.34

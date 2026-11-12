@@ -3,6 +3,23 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Robustness study of the 2050 results: 12 November 2026
+
+No model change. New script `analysis/robustness_study.py` runs EirGrid_Extended and Historical_Trend to 2050 with one assumption changed at a time and writes `analysis/output/robustness/robustness_results.csv` and `robustness_table.md`. It answers one question from the referee review: whether the 2050 fossil share depends on the parts of the model that set constraint and curtailment.
+
+`Gamma.py` gains five environment overrides for the study: `GAMMA_RESIDUAL_SCALE` (multiplies the wind and solar residual), `GAMMA_MUON_MW_PER_UNIT`, `GAMMA_FIRM_CCGT_EFF`, `GAMMA_FIRM_PEAKER_EFF` and `GAMMA_HEAT_COP`. Defaults are unchanged; the base case reproduces the paper (59.2% and 69.8%).
+
+| 2050, all thirteen weather years | Base | Range across the dispatch-down cases |
+|---|---|---|
+| Fossil share of primary energy, EirGrid_Extended (%) | 59.2 | 57.5 to 63.0 |
+| Same, Historical_Trend (%) | 69.8 | 68.7 to 72.0 |
+| Dispatch down, EirGrid_Extended (%) | 32.1 | 29.5 to 39.7 |
+| Fossil firm generation, EirGrid_Extended (TWh) | 13.0 | 10.7 to 19.4 |
+
+The dispatch-down cases are: residual at zero and doubled; 400 MW per minimum unit; no network limits from 2027; network limits kept after 2035; network frozen at 2026 headroom, also with sigma at 0.8 (IE) and 1.2 (NI) and at 2.0 and 2.5. The lowest fossil share is with no residual and the highest with a frozen network and low sigma. Contrast cases outside the dispatch-down model: firm efficiencies of 60% and 42% give 58.7%, 50% and 34% give 59.8%, and a heat COP of 2.5 gives 61.6% (EirGrid_Extended).
+
+The fossil share moves by -1.7 to +3.8 points; fossil firm generation moves by -18% to +49%. Not tested: a 2025 anchor year, constraint drawn per interval, a bounded constraint curve, bioenergy and the imports factor.
+
 ## Offshore wind yield set to EirGrid's study profile: 11 November 2026
 
 Correction to the model. Offshore availability used the onshore per-GW shape unscaled, so offshore wind ran at the onshore capacity factor (28% over the thirteen weather years). It now uses the same weather multiplied by a factor k and capped at installed capacity in each interval (the approach of the regulators' SEM PLEXOS model), with k = 1.242 solved so that offshore availability averages 40% in weather year 2020, the year of EirGrid's ECP constraint studies. EirGrid's vendor offshore profile implies about 40% that year (GSS-1 workbook, project extract of 25 October). Over all thirteen weather years offshore averages 35.1% against 28.3% onshore. `GAMMA_OFFSHORE_CF` sets the 2020 target (e.g. 0.45, the GCS planning value). The scaled shape keeps offshore fully correlated with onshore, which overstates coincident surplus.
