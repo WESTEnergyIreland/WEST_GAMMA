@@ -3,6 +3,13 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Context for the two validation exercises: 12 November 2026
+
+No model change. New script `analysis/validation_context.py` writes `analysis/output/validation_context/`. It supports the wording of the paper's validation sections after the referee review.
+
+1. Persistence benchmark for the one-year-ahead constraint hindcast (paper Table 3). Assuming each year's constraint share equals the year before gives a mean absolute error of 12.9% in Ireland, 36.2% in Northern Ireland and 13.8% all-island, against the model's 11.8%, 33.0% and 10.3%. On its 2024 to 2026 fit years the constraint curve explains 50% of hourly variance in Ireland and 45% in Northern Ireland (34% and 39% for a flat share of output). Ireland's fitted median limit, 7,982 MW, is above the highest hourly available output on record, 5,038 MW.
+2. Weather-year spread of the ECP-GSS-1 comparison (paper Table 4). The 2030 and 2035 offshore cases run on each complete weather year, 2014 to 2025, give Ireland totals of 18.0% to 23.7% and 22.3% to 28.5% (means 20.9% and 25.5%). EirGrid's weather year, 2020, is at or near the top of both ranges. The residual carried from 2026 is 2.7 to 3.2 points of each total.
+
 ## Offshore wind yield set to EirGrid's study profile: 11 November 2026
 
 Correction to the model. Offshore availability used the onshore per-GW shape unscaled, so offshore wind ran at the onshore capacity factor (28% over the thirteen weather years). It now uses the same weather multiplied by a factor k and capped at installed capacity in each interval (the approach of the regulators' SEM PLEXOS model), with k = 1.242 solved so that offshore availability averages 40% in weather year 2020, the year of EirGrid's ECP constraint studies. EirGrid's vendor offshore profile implies about 40% that year (GSS-1 workbook, project extract of 25 October). Over all thirteen weather years offshore averages 35.1% against 28.3% onshore. `GAMMA_OFFSHORE_CF` sets the 2020 target (e.g. 0.45, the GCS planning value). The scaled shape keeps offshore fully correlated with onshore, which overstates coincident surplus.
