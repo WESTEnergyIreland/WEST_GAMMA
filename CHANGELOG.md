@@ -3,6 +3,12 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Evaluation chart: anchor year not plotted: 12 November 2026
+
+No model change and no result moves. `scenario_outputs/evaluation_curtailment_cf.png` no longer plots the 2026 model year on the forecast lines; they run from the last full recorded year to the 2027 weather-year mean. The 2026 point is one weather year completed with forecast months, on year-end capacity, and it is not comparable with the years either side: it gave a wind delivered capacity factor of 26.8% (2025 record 24.1%, 2027 forecast 24.0%) and a solar delivered capacity factor of 9.9% (2025 record 12.5%, 2027 forecast 11.1 to 11.5%). The CSV still holds the 2026 row.
+
+Two causes, both in the anchor year and neither changed here. The October to December 2026 forecast months total 4,800 GWh of wind generation, above every recorded fourth quarter (highest 4,362 GWh, in 2022; 4,135 GWh in 2025). Solar capacity grew through 2026, so year-end capacity understates the capacity factor of the energy recorded during the year.
+
 ## Offshore wind yield set to EirGrid's study profile: 11 November 2026
 
 Correction to the model. Offshore availability used the onshore per-GW shape unscaled, so offshore wind ran at the onshore capacity factor (28% over the thirteen weather years). It now uses the same weather multiplied by a factor k and capped at installed capacity in each interval (the approach of the regulators' SEM PLEXOS model), with k = 1.242 solved so that offshore availability averages 40% in weather year 2020, the year of EirGrid's ECP constraint studies. EirGrid's vendor offshore profile implies about 40% that year (GSS-1 workbook, project extract of 25 October). Over all thirteen weather years offshore averages 35.1% against 28.3% onshore. `GAMMA_OFFSHORE_CF` sets the 2020 target (e.g. 0.45, the GCS planning value). The scaled shape keeps offshore fully correlated with onshore, which overstates coincident surplus.
