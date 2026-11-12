@@ -3,6 +3,32 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Headline shares count no imported electricity: 12 November 2026
+
+Change to the accounting (decision recorded in `CONTEXT.md`, for group agreement). `FIXED_IMPORT_SHARE_PCT` now defaults to 0 (was 4). The main runs have no interconnector flows in the dispatch, so firm plant meets all demand not met by wind, solar and batteries, and the shares now count no imported electricity. The fixed 4% of primary energy counted as imported electricity before was about 7.9 TWh a year; the dispatch imports 3.8 TWh in 2050 on EirGrid_Extended with interconnectors at 70% of capacity and 5.2 TWh at 100%. `GAMMA_IMPORT_SHARE=4` restores the allowance.
+
+No change to the dispatch: dispatch down, firm generation, firm capacity, gas and the renewable shares of electricity demand and of gross final energy are unchanged. Every fossil share from a run without interconnector dispatch rises by the factor 1/0.96. The interconnector sensitivity (entry below) is unchanged, and its 0% case now equals the main run.
+
+Rerun on this code: main pathways to 2100; published network path after 2035; `analysis/sensitivity_study.py`; `analysis/grid_reinforcement_study.py`; EirGrid_Extended with the residual at zero and doubled, heat COP 2.5, firm efficiencies 60% and 42% and 50% and 34%, and offshore at 45% in 2020; both pathways with every firm unit at 35% and with COP 3.9. The COP and efficiency cases were run by changing the constants in a copy of `Gamma.py`. Figure 6 redrawn (`analysis/output/paper/figure6_projections.png`). Not rerun: the network-frozen and sigma cases of the robustness study (branch `analysis/robustness-study`), whose switches are not on `main`; the upper end of the range across dispatch-down assumptions, 63.0%, is scaled to 65.6%.
+
+| Fossil share of primary energy (%) unless stated | Before | Now |
+|---|---|---|
+| EirGrid_Extended 2026 / 2035 / 2050 / 2075 / 2100 | 86.0 / 74.0 / 59.2 / 41.0 / 26.8 | 89.5 / 77.1 / 61.7 / 42.7 / 27.9 |
+| Historical_Trend 2035 / 2050 / 2075 / 2100 | 78.1 / 69.8 / 59.9 / 51.6 | 81.3 / 72.7 / 62.4 / 53.7 |
+| Fossil share of gross final energy, EirGrid_Extended 2050 / 2100; Historical_Trend 2050 | 56.1 / 20.3; 67.3 | 58.4 / 21.1; 70.1 |
+| Published network path kept after 2035, EirGrid_Extended 2050 | 61.6 | 64.2 |
+| IE headroom growth 0 / 1 / 2 / 4 / 7.3% a year, limits kept, 2050 | 61.9 / 61.4 / 61.0 / 60.4 / 59.7 | 64.4 / 63.9 / 63.5 / 62.9 / 62.2 |
+| Electrification +150% / build +150%, 2050 | 43.4 / 54.0 | 45.2 / 56.3 |
+| Residual at zero / doubled, 2050 | 57.5 / 60.9 | 59.9 / 63.4 |
+| Heat COP 2.5, 2050 | 61.6 | 64.2 |
+| Firm efficiencies 60% and 42% / 50% and 34%, 2050 | 58.7 / 59.8 | 61.1 / 62.3 |
+| Offshore at 45% in 2020, 2050 | 58.8 | 61.3 |
+| Range across dispatch-down assumptions, 2050 | 57.5 to 63.0 | 59.9 to 65.6 (upper end scaled) |
+| Every firm unit at 35%: share higher by (points, 2050 and 2100, both pathways) | 1.4 to 4.0 | 1.4 to 4.2 |
+| COP 3.9: share lower by (points) | 0.8 to 2.3 | 0.8 to 2.4 |
+
+Neither pathway reaches the 10% threshold by 2100, as before.
+
 ## Energy shares in interconnector runs use the dispatched imports: 12 November 2026
 
 Correction to the accounting. No change to the dispatch or to the main runs. With interconnector flows in the dispatch (`GAMMA_IC_DISPATCH=1`), the fixed 4% import allowance (`FIXED_IMPORT_SHARE_PCT`) was still applied on top of the imports in the dispatch, and the dispatched imports were left out of the denominator of the shares. Imports were counted twice, and the imported share was reported as 4% whatever was imported. In these runs the shares now use the electricity imported in the dispatch, counted at the electricity delivered, and no fixed allowance. The same applies to the gross final energy shares.
