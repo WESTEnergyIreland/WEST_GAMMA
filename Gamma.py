@@ -265,10 +265,12 @@ INTERVAL_HOURS = 0.25
 # issue #5. Interconnectors appear only in the chart-only sensitivities (50% import / max export).
 # GAMMA_IC_DISPATCH=1 turns them on for a sensitivity run without editing this file.
 INTERCONNECTOR_DISPATCH = os.environ.get('GAMMA_IC_DISPATCH', '0') == '1'
-# Imported electricity in the Overall Transition Progress shares: fixed share of the total, with
-# fossil and renewables scaled to the remainder (100% - this). Main runs only: with
-# INTERCONNECTOR_DISPATCH on, the shares use the imports in the dispatch and this is not applied.
-FIXED_IMPORT_SHARE_PCT = float(os.environ.get('GAMMA_IMPORT_SHARE', '4.0'))  # GAMMA_IMPORT_SHARE=0: no fixed imports (sensitivity)
+# Imported electricity in the Overall Transition Progress shares. Default 0 from 12 November 2026:
+# the shares count only the imports in the dispatch, which are zero in the main runs
+# (INTERCONNECTOR_DISPATCH off), so the headline shares hold no imported electricity.
+# GAMMA_IMPORT_SHARE=4 restores the fixed 4% allowance used before (fossil and renewables scaled
+# to 96%); it applies to runs without interconnector dispatch only.
+FIXED_IMPORT_SHARE_PCT = float(os.environ.get('GAMMA_IMPORT_SHARE', '0.0'))
 # Sensitivity switches (referee round 2, 12 November 2026). Defaults reproduce the published results.
 # Demand growth since 2026 that is neither heat-pump nor transport load (underlying growth, mostly
 #   data centres) is added as flat load. Default from 12 November 2026 (group decision);
@@ -3843,13 +3845,12 @@ def _run_demonstrator():
         # consumed in Ireland, so the three shares sum to 100%:
         #   fossil    = remaining heat fuel + remaining transport fuel + firm electricity consumed
         #   renewable = ambient heat + domestic wind/solar consumed + BESS discharge
-        #   imported  = FIXED_IMPORT_SHARE_PCT, the remainder of 100% (decision of 24 Oct 2026;
-        #               fossil and renewables are scaled to 100% - that share). This applies to
-        #               the main runs, which have no imports in the dispatch. With
-        #               INTERCONNECTOR_DISPATCH on, imports are the electricity imported in the
-        #               dispatch and the fixed share is not applied (12 Nov 2026): it was added
-        #               on top of the dispatched imports before, which counted imports twice
-        #               and left the dispatched imports out of the denominator.
+        #   imported  = the electricity imported in the dispatch: zero in the main runs, which
+        #               have no interconnector flows, and the dispatched imports with
+        #               INTERCONNECTOR_DISPATCH on. FIXED_IMPORT_SHARE_PCT (default 0 from
+        #               12 Nov 2026; 4 before) is an optional fixed allowance for runs without
+        #               interconnector dispatch: fossil and renewables are scaled to
+        #               100% - that share.
         # Avoided transport fuel is not energy and is not counted (fixed earlier under #7).
         # Firm generation is treated as fossil; bioenergy, hydro, waste and biofuels are not in
         # scope, so the renewable share is a lower bound against SEAI's published RES.
@@ -3957,7 +3958,7 @@ def _run_demonstrator():
             print(f">> 2026 shares of primary energy (excl. aviation and marine): fossil "
                   f"{a['Overall_Fossil_Fuel_Pct']:.1f}%, renewables {a['Overall_Renewables_Pct']:.1f}%, "
                   f"imported electricity {a['Overall_Imported_Electricity_Pct']:.1f}% "
-                  f"({'from the dispatch' if INTERCONNECTOR_DISPATCH else 'fixed'}). Domestic final-energy "
+                  f"({'from the dispatch' if INTERCONNECTOR_DISPATCH or FIXED_IMPORT_SHARE_PCT == 0 else 'fixed'}). Domestic final-energy "
                   f"accounting: fossil {a['Final_Fossil_Fuel_Pct']:.1f}%. Modelled RES Overall (share of gross final "
                   f"energy) {a['RES_Overall_RED_%']:.1f}% (SEAI published 17.1% for IE in 2025, incl. bioenergy and "
                   f"biofuels not modelled here)")
