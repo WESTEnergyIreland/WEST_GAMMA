@@ -3,6 +3,25 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Electricity-equivalent fossil share: 12 November 2026
+
+New output, no change to any existing result. The primary energy share counts fossil fuel at the energy burnt and wind and solar at the electricity delivered, which overstates the wind and solar needed to replace fossil fuel (the primary energy fallacy). The gross final energy share removes this only for firm plant. Heat and transport fuel is still counted at the fuel burnt in both, while the electricity that replaces it is about a third as much (COP 3.5, transport factor 3.0).
+
+`Elec_Equiv_Fossil_Share_Pct` counts remaining heat fuel / COP, remaining transport fuel / 3.0 and firm electricity consumed, over that plus wind, solar and battery output consumed and dispatched imports. `Elec_Equiv_Fossil_TWh` gives the numerator, and the scenario summary gives `Full_Decarbonisation_Year_Elec_Equiv` (first year at or below 10%). Equation in `docs/model_equations.md`, section 9.
+
+Main pathways rerun to 2100 (charts off). Every existing column is unchanged.
+
+| Fossil share (%) | 2026 | 2035 | 2050 | 2075 | 2100 |
+|---|---|---|---|---|---|
+| EirGrid_Extended, primary energy | 89.5 | 77.1 | 61.7 | 42.7 | 27.9 |
+| EirGrid_Extended, gross final energy | 88.2 | 74.8 | 58.4 | 36.9 | 21.1 |
+| EirGrid_Extended, electricity equivalent | 78.8 | 58.6 | 39.7 | 23.4 | 14.4 |
+| Historical_Trend, primary energy | 89.5 | 81.3 | 72.7 | 62.4 | 53.7 |
+| Historical_Trend, gross final energy | 88.2 | 79.4 | 70.1 | 58.4 | 48.2 |
+| Historical_Trend, electricity equivalent | 78.8 | 65.2 | 54.2 | 44.5 | 37.6 |
+
+On the electricity-equivalent basis fossil fuel falls below half in 2040 on EirGrid_Extended (2066 on primary energy) and 2060 on Historical_Trend (not by 2100 on primary energy). Neither pathway reaches 10% by 2100 on any basis.
+
 ## Headline shares count no imported electricity: 12 November 2026
 
 Change to the accounting (decision recorded in `CONTEXT.md`, for group agreement). `FIXED_IMPORT_SHARE_PCT` now defaults to 0 (was 4). The main runs have no interconnector flows in the dispatch, so firm plant meets all demand not met by wind, solar and batteries, and the shares now count no imported electricity. The fixed 4% of primary energy counted as imported electricity before was about 7.9 TWh a year; the dispatch imports 3.8 TWh in 2050 on EirGrid_Extended with interconnectors at 70% of capacity and 5.2 TWh at 100%. `GAMMA_IMPORT_SHARE=4` restores the allowance.
