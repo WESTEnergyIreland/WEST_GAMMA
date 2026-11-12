@@ -269,10 +269,11 @@ INTERCONNECTOR_DISPATCH = os.environ.get('GAMMA_IC_DISPATCH', '0') == '1'
 # fossil and renewables scaled to the remainder (100% - this).
 FIXED_IMPORT_SHARE_PCT = float(os.environ.get('GAMMA_IMPORT_SHARE', '4.0'))  # GAMMA_IMPORT_SHARE=0: no fixed imports (sensitivity)
 # Sensitivity switches (referee round 2, 12 November 2026). Defaults reproduce the published results.
-# GAMMA_FLAT_GROWTH=1: demand growth since 2026 that is neither heat-pump nor transport load
-#   (underlying growth, mostly data centres) is added as flat load instead of scaling today's shape.
+# Demand growth since 2026 that is neither heat-pump nor transport load (underlying growth, mostly
+#   data centres) is added as flat load. Default from 12 November 2026 (group decision);
+#   GAMMA_FLAT_GROWTH=0 scales today's demand shape instead and reproduces earlier results.
 # GAMMA_RESIDUAL_SCALE: multiplier on the residual curtailment for wind and solar (0 = none).
-FLAT_UNDERLYING_GROWTH = os.environ.get('GAMMA_FLAT_GROWTH', '0') == '1'
+FLAT_UNDERLYING_GROWTH = os.environ.get('GAMMA_FLAT_GROWTH', '1') == '1'
 RESIDUAL_CURTAILMENT_SCALE = float(os.environ.get('GAMMA_RESIDUAL_SCALE', '1.0'))
 # Primary energy basis for the headline shares (the red box). Fuels for heat and transport are
 # counted as delivered; electricity from firm plant is counted as the fuel burnt to make it, at
