@@ -3,6 +3,33 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Energy shares in interconnector runs use the dispatched imports: 12 November 2026
+
+Correction to the accounting. No change to the dispatch or to the main runs. With interconnector flows in the dispatch (`GAMMA_IC_DISPATCH=1`), the fixed 4% import allowance (`FIXED_IMPORT_SHARE_PCT`) was still applied on top of the imports in the dispatch, and the dispatched imports were left out of the denominator of the shares. Imports were counted twice, and the imported share was reported as 4% whatever was imported. In these runs the shares now use the electricity imported in the dispatch, counted at the electricity delivered, and no fixed allowance. The same applies to the gross final energy shares.
+
+The main runs have no flows in the dispatch and keep the fixed 4% allowance (decision of 12 November, `CONTEXT.md`), so the headline shares are unchanged: 59.2% and 69.8% in 2050. The 0% interconnector case has no imports, so it now equals the main run without the allowance (61.7%; `GAMMA_IMPORT_SHARE=0`), not the headline.
+
+`analysis/interconnector_sensitivity.py` rerun (six cases to 2075). Only the fossil share changes; dispatch down, firm generation, imports, exports and every gas column are identical to the committed output. A new column, `import_share_primary_pct`, gives imported electricity as a share of primary energy. The script's check of the 0% case against a main run now compares fossil primary energy in TWh, not the share.
+
+| Fossil share of primary energy (%), all-island, 0% / 70% / 100% of interconnector capacity | Before | Now |
+|---|---|---|
+| EirGrid_Extended, 2026 | 86.0 / 85.5 / 85.3 | 89.5 / 85.8 / 84.4 |
+| EirGrid_Extended, 2035 | 74.0 / 72.4 / 71.8 | 77.1 / 71.7 / 69.9 |
+| EirGrid_Extended, 2050 | 59.2 / 59.0 / 58.7 | 61.7 / 60.2 / 59.4 |
+| EirGrid_Extended, 2075 | 41.0 / 41.2 / 41.0 | 42.7 / 42.5 / 42.1 |
+| Historical_Trend, 2035 | 78.1 / 76.5 / 75.9 | 81.3 / 75.0 / 73.0 |
+| Historical_Trend, 2050 | 69.8 / 68.4 / 67.9 | 72.7 / 68.4 / 66.9 |
+| Historical_Trend, 2075 | 59.9 / 58.6 / 58.0 | 62.4 / 59.2 / 57.8 |
+
+| Imported electricity (% of primary energy), 70% / 100% | 2026 | 2035 | 2050 | 2075 |
+|---|---|---|---|---|
+| EirGrid_Extended | 3.6 / 4.9 | 4.9 / 6.6 | 2.0 / 2.8 | 1.0 / 1.4 |
+| Historical_Trend | 3.6 / 4.9 | 5.8 / 7.7 | 4.0 / 5.4 | 3.1 / 4.3 |
+
+For the group. The fixed 4% is close to the 70% case in 2026 (3.6%). On EirGrid_Extended in 2050 the 70% case imports 2.0% and the 100% case 2.8%, so the headline 59.2% is below the 59.4% the dispatch gives with interconnectors at full capacity. Counted this way, flows at 70% lower the 2050 fossil share by 1.5 points on EirGrid_Extended and 4.3 points on Historical_Trend (0.2 and 1.4 points before).
+
+Paper: the fossil share column of Table 8 and the three shares quoted in Section 7.3 (59.2%, 59.0% and 58.7%; 69.8%, 68.4% and 67.9%) change to the values above. Not rerun: `analysis/grid_reinforcement_study.py` with interconnectors on, which is no longer in the paper.
+
 ## Offshore wind yield set to EirGrid's study profile: 11 November 2026
 
 Correction to the model. Offshore availability used the onshore per-GW shape unscaled, so offshore wind ran at the onshore capacity factor (28% over the thirteen weather years). It now uses the same weather multiplied by a factor k and capped at installed capacity in each interval (the approach of the regulators' SEM PLEXOS model), with k = 1.242 solved so that offshore availability averages 40% in weather year 2020, the year of EirGrid's ECP constraint studies. EirGrid's vendor offshore profile implies about 40% that year (GSS-1 workbook, project extract of 25 October). Over all thirteen weather years offshore averages 35.1% against 28.3% onshore. `GAMMA_OFFSHORE_CF` sets the 2020 target (e.g. 0.45, the GCS planning value). The scaled shape keeps offshore fully correlated with onshore, which overstates coincident surplus.

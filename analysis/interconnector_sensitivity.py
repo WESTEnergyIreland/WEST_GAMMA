@@ -105,7 +105,7 @@ def collect():
                     'firm_generation_TWh': round(r['Fossil_Firm_Generation_TWh'], 1),
                     'fossil_primary_TWh': round(fossil, 1),
                     'fossil_share_primary_pct': round(r['Primary_Fossil_Share_Pct'], 1),
-                    'import_share_primary_pct': round(r['Primary_Imported_Electricity_Share_Pct'], 1),
+                    'import_share_primary_pct': abs(round(r['Primary_Imported_Electricity_Share_Pct'], 1)),
                     'gas_annual_TWh_GCV': round(r['Gas_Power_TWh_GCV'] + r['Gas_NonPower_TWh_GCV'], 1),
                     'gas_worst_day_GWh': round(r['Gas_Worst_Day_GWh'], 0),
                     'gas_worst_day_power_GWh': round(r['Gas_Worst_Day_Power_GWh'], 0)
