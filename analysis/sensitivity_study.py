@@ -27,9 +27,8 @@ import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-TAG = os.environ.get('GAMMA_RESIDUAL_BASIS', 'delivered')   # Gamma's default; 'available' is the old basis
-RUN_DIR = os.path.join(HERE, 'sensitivity_run' + ('' if TAG == 'delivered' else '_' + TAG))
-OUT = os.path.join(HERE, 'output', 'sensitivity' + ('' if TAG == 'delivered' else '_' + TAG))
+RUN_DIR = os.path.join(HERE, 'sensitivity_run')
+OUT = os.path.join(HERE, 'output', 'sensitivity')
 
 BASE = 'EirGrid_Extended'                 # scenario row the variants are copied from
 FACTORS = (1.5, 2.0, 2.5)                 # +50%, +100%, +150%

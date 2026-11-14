@@ -27,7 +27,6 @@ Source for Supplementary Section S2 and the equations in Section 4 of the Phase 
 | $V_t$ | wind and solar delivered to demand | MW |
 | $K_t$ | curtailment by the operating ceiling | MW |
 | $F_t$ | firm (synchronous) output | MW |
-| $\kappa$ | residual curtailment not simulated by the operating rules | – |
 
 ## 1. Network constraint (`expected_constraint_mw`)
 
@@ -97,13 +96,9 @@ $$X_t = \sum_z C_{z,t} + K_t + P^{ch}_t + V_t .$$
 
 **Reporting split (EirGrid's order).** The part of constraint that would be curtailed anyway, $\min\big(\sum_z C_{z,t},\ \max(0, X_t - L_t)\big)$, is reported as curtailment in the EirGrid-order columns. Totals are unchanged.
 
-## 4. Residual curtailment (annual)
+## 4. Residual curtailment (removed)
 
-Recorded high frequency and minimum generation curtailment that the ceiling does not reproduce is carried as a residual:
-$$\kappa = c^{rec}_{2026} - c^{mod}_{2026}. \tag{6}$$
-On the delivered basis, residual energy in year $y$ is
-$$R_y = \kappa\,\frac{A_{2026}}{Q_{2026}}\,Q_y,$$
-where $A$ is available and $Q$ dispatched wind (or solar) energy. Since $\kappa A_{2026}/Q_{2026} < 1$, $R_y < Q_y$. It is deducted from delivered energy and supplied by firm plant.
+From 14 November 2026 Gamma has no residual curtailment. Curtailment is only what the operating ceiling $L_t$ removes, and delivered energy is what the dispatch delivers. The recorded high frequency, RoCoF and other curtailment that the ceiling does not reproduce is not modelled (see `CHANGELOG.md`). Equation (6) is not used.
 
 ## 5. Weather years and annual results
 
@@ -131,7 +126,7 @@ $$\eta^{fleet} = \left(\frac{1-p}{0.55} + \frac{p}{0.38}\right)^{-1}.$$
 
 ## 9. Energy shares
 
-Electricity from firm plant (including the residual $R_y$) counts as gas burnt, $G_y = F^{cons}_y/\eta^{fleet}_y$. With remaining fossil heat $H^{f}_y$ and transport fuel $T^{f}_y$, ambient heat $A^{hp}_y = (\mathrm{COP}-1)E^{heat,el}_y$, and wind, solar and battery output consumed $V^{cons}_y$:
+Electricity from firm plant counts as gas burnt, $G_y = F^{cons}_y/\eta^{fleet}_y$. With remaining fossil heat $H^{f}_y$ and transport fuel $T^{f}_y$, ambient heat $A^{hp}_y = (\mathrm{COP}-1)E^{heat,el}_y$, and wind, solar and battery output consumed $V^{cons}_y$:
 
 $$\text{fossil share of primary energy} = \frac{H^f_y + T^f_y + G_y}{H^f_y + T^f_y + G_y + A^{hp}_y + V^{cons}_y + M_y} .$$
 

@@ -34,7 +34,7 @@ def gamma_ireland(scenario, year):
         return None
     r = r.iloc[0]
     s = pd.read_csv(os.path.join(RESULTS, scenario, 'summary_system.csv')).set_index('Year').loc[year]
-    curtailment = s['SNSP_Curtailment_%'] + s['MinGen_Curtailment_%'] + s['Other_incl_RoCoF_%']
+    curtailment = s['SNSP_Curtailment_%'] + s['MinGen_Curtailment_%']
     surplus = s['Surplus_%'] if 'Surplus_%' in s.index else float('nan')
     return {'gamma_constraint_pct': r['Con_WS_IE_%'], 'gamma_curtailment_pct': curtailment,
             'gamma_total_pct': r['Con_WS_IE_%'] + curtailment,
