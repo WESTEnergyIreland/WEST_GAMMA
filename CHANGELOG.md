@@ -3,6 +3,40 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Fixed residual curtailment removed: 14 November 2026
+
+Change to the model. The residual ('other') curtailment is removed. It was the recorded 2026 curtailment less the curtailment the operating rules simulate, held in every later year and supplied by firm plant. Curtailment is now only what the SNSP and minimum generation ceilings remove, and firm generation is only what the dispatch needs. `GAMMA_RESIDUAL_SCALE`, `GAMMA_RESIDUAL_BASIS`, `SOLAR_OTHER_CURT_CALIBRATED` and the `other_curt_pct_2050` scenario input are gone, as are the `Other_incl_RoCoF_%` and `*_Curtail_Other_%` output columns.
+
+Reason. The residual was fitted in the 2026 run, so it absorbed whatever that run did not simulate. In the interconnector runs the 2026 run includes exports, which lower modelled curtailment, so the fitted residual was larger and held 2026 dispatch down at the recorded 15.2% in every interconnector case. The same residual then sat in every later year and cut the dispatch down avoided by exports in Table 6. With it removed, the fall in dispatch down between the 0% case and the 70% and 100% cases equals the wind and solar exported (EirGrid_Extended 2050: 6.6 and 9.3 points of 91.7 TWh available, against 6.1 and 8.5 TWh exported).
+
+Consequence. 2026 dispatch down in Gamma is now 12.3% of available wind and solar, against 15.2% recorded for the all-island fleet. Gamma no longer reproduces the recorded 2026 curtailment, and the EirGrid validation is lower by about 3 points (below). Recorded curtailment that the rules do not simulate (high frequency, RoCoF, other) is not in the model.
+
+Rerun on this code: EirGrid_Extended and Historical_Trend to 2100, the two EirGrid validation cases, and `analysis/interconnector_sensitivity.py`. Not rerun: the published network path, `analysis/sensitivity_study.py`, `analysis/grid_reinforcement_study.py`, `analysis/cover_recalibration.py`, the GSS-2 prediction, Figures 6 and 8, and the paper's other tables. The 40% headroom cover was fitted with the residual in place and needs refitting. Gas worst day and first shortfall year are unchanged, because the gas check uses the dispatch and not the firm top-up.
+
+| Fossil share of primary energy (%) | Before | Now |
+|---|---|---|
+| EirGrid_Extended 2026 / 2035 / 2050 / 2075 / 2100 | 89.5 / 77.1 / 61.7 / 42.7 / 27.9 | 89.2 / 76.1 / 59.8 / 39.3 / 23.2 |
+| Historical_Trend 2035 / 2050 / 2075 / 2100 | 81.3 / 72.7 / 62.4 / 53.7 | 80.6 / 71.5 / 60.7 / 51.6 |
+
+| Dispatch down, % of available wind and solar | Before | Now |
+|---|---|---|
+| EirGrid_Extended 2026 / 2035 / 2050 / 2075 | 15.2 / 24.7 / 32.0 / 41.9 | 12.3 / 21.8 / 29.4 / 39.7 |
+| Historical_Trend 2035 / 2050 / 2075 | 18.6 / 20.0 / 22.7 | 15.4 / 16.8 / 19.6 |
+
+| Table 6, 2050 (interconnector use 0% / 70% / 100%) | Before | Now |
+|---|---|---|
+| EirGrid_Extended, fossil share of primary energy (%) | 61.7 / 60.2 / 59.4 | 59.8 / 57.1 / 56.0 |
+| EirGrid_Extended, dispatch down (%) | 32.0 / 26.8 / 24.6 | 29.4 / 22.8 / 20.1 |
+| Historical_Trend, fossil share of primary energy (%) | 72.7 / 68.4 / 66.9 | 71.5 / 66.5 / 64.7 |
+| Historical_Trend, dispatch down (%) | 20.0 / 14.8 / 12.8 | 16.8 / 9.8 / 7.4 |
+| Worst gas day (GWh/d), both pathways | unchanged | unchanged |
+
+| EirGrid validation, Gamma less EirGrid total dispatch down, Ireland (points) | Before | Now |
+|---|---|---|
+| S1 2030 Initial / S4 2030 33% ECP / S8 2035 66% ECP | -4.6 / -3.2 / -0.1 | -7.8 / -6.0 / -2.9 |
+
+The paper's statement that totals are within 4.6 points of EirGrid's no longer holds; the range is now 2.9 to 7.8 points, all below EirGrid's.
+
 ## Electricity-equivalent fossil share: 12 November 2026
 
 New output, no change to any existing result. The primary energy share counts fossil fuel at the energy burnt and wind and solar at the electricity delivered, which overstates the wind and solar needed to replace fossil fuel (the primary energy fallacy). The gross final energy share removes this only for firm plant. Heat and transport fuel is still counted at the fuel burnt in both, while the electricity that replaces it is about a third as much (COP 3.5, transport factor 3.0).

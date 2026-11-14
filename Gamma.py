@@ -275,9 +275,7 @@ FIXED_IMPORT_SHARE_PCT = float(os.environ.get('GAMMA_IMPORT_SHARE', '0.0'))
 # Demand growth since 2026 that is neither heat-pump nor transport load (underlying growth, mostly
 #   data centres) is added as flat load. Default from 12 November 2026 (group decision);
 #   GAMMA_FLAT_GROWTH=0 scales today's demand shape instead and reproduces earlier results.
-# GAMMA_RESIDUAL_SCALE: multiplier on the residual curtailment for wind and solar (0 = none).
 FLAT_UNDERLYING_GROWTH = os.environ.get('GAMMA_FLAT_GROWTH', '1') == '1'
-RESIDUAL_CURTAILMENT_SCALE = float(os.environ.get('GAMMA_RESIDUAL_SCALE', '1.0'))
 # Primary energy basis for the headline shares (the red box). Fuels for heat and transport are
 # counted as delivered; electricity from firm plant is counted as the fuel burnt to make it, at
 # the firm fleet efficiency below; wind, solar and heat-pump ambient heat are counted as the
@@ -425,12 +423,6 @@ DEFAULT_STORAGE_ENERGY_2026_MWH = 0.0
 DEFAULT_STORAGE_CHARGE_EFFICIENCY = 0.9
 DEFAULT_STORAGE_DISCHARGE_EFFICIENCY = 0.9
 DEFAULT_STORAGE_INITIAL_SOC_PCT = 50.0  # fixed; not a scenario input (affects only the first day of each weather year)
-# Residual ('other') curtailment basis. 'available': kappa x available energy (original; grows without
-# limit as capacity is overbuilt, so delivered output can fall when capacity is added). 'delivered':
-# the same 2026 energy, held as a share of the energy the rules would otherwise deliver, so it can
-# never exceed what is left to curtail. Both give identical 2026 results. Default 'delivered' from
-# 30 October 2026 (group decision); set GAMMA_RESIDUAL_BASIS=available to reproduce earlier results.
-RESIDUAL_CURTAILMENT_BASIS = os.environ.get('GAMMA_RESIDUAL_BASIS', 'delivered')
 CHART_DPI = 600  # resolution of saved PNG charts; 600 suits print journals (files are larger, runs slightly slower)
 DEFAULT_PC_STORAGE_HYBRID = 5.0
 
@@ -458,9 +450,6 @@ SOLAR_CAPACITY_FACTOR = 0.137
 # Report project lists. When present, the 2026 solar capacity and IE share come from its latest
 # month, and actual solar CF is reported in the evaluation table.
 SOLAR_CAPACITY_FILE = "solar_capacity_monthly.csv"
-# Calibrate solar 'other' curtailment to recorded solar curtailment over the last 12 months
-# (True), instead of using wind's 'other' share (False).
-SOLAR_OTHER_CURT_CALIBRATED = True
 SOLAR_CAPACITY_2026_GW = None             # None = estimate from the last 12 months of solar
                                           # availability records / (capacity factor x 8760 h)
 SOLAR_CAPACITY_FALLBACK_GW = 2.0          # used only if there are no solar records
@@ -1609,16 +1598,11 @@ def _run_demonstrator():
     # + other + TSO test. Minimum generation is not recorded separately in these files.
     # Solar capacity history is not in the inputs, so actual solar CF is left blank.
     hist_eval_rows = []
-    solar_curt_last12_pct = np.nan
     for tech, fname in DD_ALL_ISLAND_FILES.items():
         path = input_path(fname)
         if not os.path.exists(path):
             continue
         h = pd.read_csv(path, parse_dates=['datetime'])
-        if tech == 'Solar':
-            last12 = h[h['datetime'] > h['datetime'].max() - pd.Timedelta(days=365)]
-            if last12['av_mwh'].sum() > 0:
-                solar_curt_last12_pct = 100.0 * last12['curtailment_mwh'].sum() / last12['av_mwh'].sum()
         h['year'] = h['datetime'].dt.year
         g = h.groupby('year').agg(hours=('av_mwh', 'size'), av=('av_mwh', 'sum'), ao=('ao_mwh', 'sum'),
                                   con=('constraint_mwh', 'sum'), curt=('curtailment_mwh', 'sum'),
@@ -2220,7 +2204,7 @@ def _run_demonstrator():
                                  'transport_demand_growth_twh_per_year', 'units',
                                  'new_build_ie_pct', 'solar_build_rate_gw',
                                  'solar_new_build_ie_pct', 'capacity_source', 'pipeline_target_year',
-                                 'pipeline_build_pct', 'other_curt_pct_2050',
+                                 'pipeline_build_pct',
                                  'total_demand_growth_twh_per_year',      # calculated in the workbook; not read
                                  'offshore_connection', 'celtic_energised_year', 'mares_energised_year',
                                  'ic_export_availability', 'ic_import_availability', 'ic_capacity_credit',
@@ -2342,14 +2326,6 @@ def _run_demonstrator():
                     sc['defaulted'].append('pipeline_target_year')
             else:
                 sc['pipeline_target_year'] = row.get('pipeline_target_year')
-            # 'Other' curtailment in 2050 (% of available output); blank = hold the 2026 residual
-            try:
-                sc['other_curt_pct_2050'] = (np.nan if is_blank(row, 'other_curt_pct_2050')
-                                             else float(row.get('other_curt_pct_2050')))
-            except (TypeError, ValueError):
-                record_check('scenarios', sc['scenario'], 'other_curt_pct_2050 is a number', 'FAIL',
-                             f"got '{row.get('other_curt_pct_2050')}'")
-                sc['other_curt_pct_2050'] = np.nan
             if cs != 'pipeline' and 'pipeline_build_pct' in sc['defaulted']:
                 sc['defaulted'].remove('pipeline_build_pct')     # only matters for pipeline scenarios
             scenarios.append(sc)
@@ -2391,10 +2367,6 @@ def _run_demonstrator():
                             if not lo <= float(sc[k]) <= hi]
             record_check(stage, name, 'inputs within allowed ranges', 'FAIL' if out_of_range else 'PASS',
                          '; '.join(out_of_range))
-            oc = sc.get('other_curt_pct_2050', np.nan)
-            if pd.notna(oc) and not 0 <= oc <= 20:
-                record_check(stage, name, 'inputs within allowed ranges', 'FAIL',
-                             f"other_curt_pct_2050={oc:g} (allowed 0-20, blank = hold 2026 value)")
             if sc['storage_power_build_rate_mw'] > 0 and sc['storage_energy_build_rate_mwh'] < sc['storage_power_build_rate_mw'] * 0.25:
                 record_check(stage, name, 'storage build MWh/MW at least 0.25 h', 'WARN',
                              f"{sc['storage_power_build_rate_mw']:g} MW/yr with {sc['storage_energy_build_rate_mwh']:g} "
@@ -3400,54 +3372,18 @@ def _run_demonstrator():
                                      HISTORICAL_SNSP_PCT / 100.0, solar_capacity_2026_gw,
                                      *storage_for_year(start_year), weather_years=[2026])
         base_weather_oversupply_2026 = base_run['curt_pct']
-        other_curt_pct = RESIDUAL_CURTAILMENT_SCALE * max(0.0, base_2026_curt - base_weather_oversupply_2026)
-        print(f">> 2026 curtailment {base_2026_curt:.2f}% = modelled SNSP {base_weather_oversupply_2026:.2f}% "
-              f"(at {HISTORICAL_SNSP_PCT:.0f}%) + other causes held fixed {other_curt_pct:.2f}%")
+        print(f">> 2026 curtailment: recorded {base_2026_curt:.2f}%, modelled SNSP and minimum generation "
+              f"{base_weather_oversupply_2026:.2f}% (at {HISTORICAL_SNSP_PCT:.0f}%); no residual is added")
         base_model_cons_2026 = base_run['cons_pct']
         print(f">> Modelled 2026 constraint: {base_model_cons_2026:.2f}% of all-island available wind "
               f"(IE {base_run['IE_own_pct']:.2f}% of IE wind, NI {base_run['NI_own_pct']:.2f}% of NI wind); "
               f"spreadsheet 2026 figure: {base_2026_cons:.2f}%")
-        # Solar 'other' curtailment is calibrated separately (recorded solar curtailment has risen far
-        # faster than wind's: 0.6% in 2022 to 6.7% in 2025). It is the last 12 months of recorded solar
-        # curtailment less the modelled 2026 solar SNSP/min-gen curtailment, and keeps a fixed offset
-        # to the wind 'other' path in later years.
-        if SOLAR_OTHER_CURT_CALIBRATED and pd.notna(solar_curt_last12_pct):
-            solar_other_2026 = RESIDUAL_CURTAILMENT_SCALE * max(0.0, solar_curt_last12_pct - base_run['solar_curt_pct'])
-        else:
-            solar_other_2026 = other_curt_pct
-        solar_other_offset = solar_other_2026 - other_curt_pct
-        print(f">> Modelled 2026 solar: constraint {base_run['solar_cons_pct']:.2f}% and SNSP curtailment "
-              f"{base_run['solar_curt_pct']:.2f}% of solar available output; solar 'other' curtailment "
-              f"{solar_other_2026:.2f}% (recorded solar curtailment, last 12 months: {solar_curt_last12_pct:.2f}%)")
-        # 'Other' curtailment path: the 2026 residual held flat, or (other_curt_pct_2050 set)
-        # interpolated linearly to the 2050 value. Applied to wind and solar alike.
-        other_curt_2050 = sc.get('other_curt_pct_2050', np.nan)
-
-        def other_curt_for_year(y):
-            if pd.isna(other_curt_2050) or y <= start_year:
-                return other_curt_pct
-            f = min(1.0, (y - start_year) / (final_year - start_year))
-            return other_curt_pct + f * (other_curt_2050 - other_curt_pct)
-
-        def solar_other_for_year(y):
-            return max(0.0, other_curt_for_year(y) + solar_other_offset)
-
-        if pd.notna(other_curt_2050):
-            print(f">> 'Other' curtailment: {other_curt_pct:.2f}% in 2026, moving linearly to "
-                  f"{other_curt_2050:.2f}% in {final_year} (other_curt_pct_2050)")
-        else:
-            print(f">> 'Other' curtailment: held at {other_curt_pct:.2f}% every year "
-                  f"(other_curt_pct_2050 blank)")
-
         capacity_rows, balance_err_by_year = [], {}
         evaluation_rows = []
         summary_rows_by_kind = {'wind': [], 'solar': [], 'total': [], 'system': []}
         summary_gap = 0.0          # largest gap between zone sums and the all-island figures (% pts)
-        resid_ratio_w = resid_ratio_s = None   # 2026 available/delivered ratios ('delivered' residual basis)
         for yr in simulation_years:
             say(str(yr) if yr in (2026, 2030, 2040, 2050) else '.', end='')     # progress on the console
-            other_yr = other_curt_for_year(yr)
-            other_s_yr = solar_other_for_year(yr)
             years_elapsed = yr - start_year
             onshore_gw, offshore_gw, zone_caps = zone_caps_for_year(yr)
             cap = onshore_gw + offshore_gw
@@ -3475,30 +3411,18 @@ def _run_demonstrator():
                 for k in ('gas_worst_day_gwh', 'gas_worst_power_gwh', 'gas_days_short', 'gas_shortfall_gwh'):
                     run[k] = peak_run[k]
 
-            if RESIDUAL_CURTAILMENT_BASIS == 'delivered':
-                if yr == start_year:
-                    resid_ratio_w = run['avail_twh'] / run['dispatch_twh'] if run['dispatch_twh'] > 0 else 1.0
-                    resid_ratio_s = (run['solar_avail_twh'] / run['solar_dispatch_twh']
-                                     if run['solar_dispatch_twh'] > 0 else 1.0)
-                if run['avail_twh'] > 0:
-                    other_yr = other_yr * resid_ratio_w * run['dispatch_twh'] / run['avail_twh']
-                if run['solar_avail_twh'] > 0:
-                    other_s_yr = other_s_yr * resid_ratio_s * run['solar_dispatch_twh'] / run['solar_avail_twh']
-            avg_raw_curt_pct = other_yr + run['curt_pct']
+            avg_raw_curt_pct = run['curt_pct']
             sim_constraint_pct = run['cons_pct']
             total_loss_pct = min(100.0, avg_raw_curt_pct + sim_constraint_pct)
 
-            implied_gen_twh = max(0.0, run['dispatch_twh'] - (other_yr / 100.0) * run['avail_twh'])
+            implied_gen_twh = run['dispatch_twh']
             sim_cf = implied_gen_twh * 1000.0 / (cap * 8760.0) if cap > 0 else 0.0
 
             wind_pct_of_demand = (implied_gen_twh / yr_demand) * 100.0
 
-            solar_curt = other_s_yr + run['solar_curt_pct'] if solar_cap > 0 else 0.0
+            solar_curt = run['solar_curt_pct'] if solar_cap > 0 else 0.0
             solar_con = run['solar_cons_pct'] if solar_cap > 0 else 0.0
-            solar_gen_twh = max(0.0, run['solar_dispatch_twh'] - (other_s_yr / 100.0) * run['solar_avail_twh'])
-            ws_avail_twh = run['avail_twh'] + run['solar_avail_twh']
-            other_ws_yr = ((other_yr * run['avail_twh'] + other_s_yr * run['solar_avail_twh']) / ws_avail_twh
-                           if ws_avail_twh > 0 else other_yr)
+            solar_gen_twh = run['solar_dispatch_twh']
             solar_cf = solar_gen_twh * 1000.0 / (solar_cap * 8760.0) if solar_cap > 0 else 0.0
             solar_pct_of_demand = 100.0 * solar_gen_twh / yr_demand
 
@@ -3517,15 +3441,9 @@ def _run_demonstrator():
             remaining_heat_twh = max(0.0, ALL_ISLAND_HEAT_DEMAND_TWH - heat_electrified_twh)
             remaining_transport_twh = max(0.0, ALL_ISLAND_TRANSPORT_DEMAND_TWH - transport_electrified_twh)
             # The dispatch residual already includes weather lulls, SNSP/MUON limits
-            # and battery discharge. The model's fixed 'other' renewable loss also
-            # has to be supplied by firm generation. Cap at annual electricity demand.
-            other_renewable_loss_twh = (other_yr * run['avail_twh'] + other_s_yr * run['solar_avail_twh']) / 100.0
-            firm_generation_twh = min(
-                yr_demand,
-                max(0.0, run['firm_generation_twh'] + other_renewable_loss_twh)
-            )
+            # and battery discharge. Cap at annual electricity demand.
+            firm_generation_twh = min(yr_demand, max(0.0, run['firm_generation_twh']))
             # Peaking share of firm output from the 15-minute screening split (weather-year mean);
-            # the fixed 'other' loss top-up is assumed to follow the same split.
             firm_peaking_share = (run['firm_peaking_twh'] / run['firm_generation_twh']
                                   if run['firm_generation_twh'] > 0 else 0.0)
             firm_fleet_eff = float(fleet_efficiency(firm_peaking_share))
@@ -3630,13 +3548,12 @@ def _run_demonstrator():
             sim_results.append(row_out)
 
             # Curtailment and capacity-factor tracking (EVALUATION_CSV). Available CF is the weather
-            # resource before any dispatch-down; delivered CF is after constraint, curtailment and
-            # the fixed 'other' loss. Curtailment is split by the ceiling that bound (SNSP or min gen)
-            # plus the fixed 'other' share (high frequency, RoCoF and other historical reasons).
-            def tech_eval(prefix, cap_gw, avail, gen, con, c_snsp, c_mingen, exported, other_pct):
+            # resource before any dispatch-down; delivered CF is after constraint and curtailment.
+            # Curtailment is split by the ceiling that bound (SNSP or min gen).
+            def tech_eval(prefix, cap_gw, avail, gen, con, c_snsp, c_mingen, exported):
                 hours = 8760.0
                 pct = lambda x: 100.0 * x / avail if avail > 0 else np.nan
-                curt = c_snsp + c_mingen + other_pct / 100.0 * avail
+                curt = c_snsp + c_mingen
                 return {f'{prefix}_Capacity_GW': round(cap_gw, 3),
                         f'{prefix}_Available_TWh': round(avail, 3),
                         f'{prefix}_Generation_TWh': round(gen, 3),
@@ -3646,7 +3563,6 @@ def _run_demonstrator():
                         f'{prefix}_Constraint_%': round(pct(con), 2),
                         f'{prefix}_Curtail_SNSP_%': round(pct(c_snsp), 2),
                         f'{prefix}_Curtail_MinGen_%': round(pct(c_mingen), 2),
-                        f'{prefix}_Curtail_Other_%': round(other_pct, 2) if avail > 0 else np.nan,
                         f'{prefix}_Curtailment_%': round(pct(curt), 2),
                         f'{prefix}_Dispatch_Down_%': round(pct(con + curt), 2),
                         f'{prefix}_Constrained_TWh': round(con, 3),
@@ -3655,9 +3571,9 @@ def _run_demonstrator():
                   'Demand_TWh': round(yr_demand, 2), 'SNSP_Limit_%': round(100 * snsp_yr, 1),
                   'MUON_Floor_MW': round(muon_floor_for_year(yr))}
             ev.update(tech_eval('Wind', cap, run['avail_twh'], implied_gen_twh, run['all_wind_con_twh'],
-                                run['wind_curt_snsp_twh'], run['wind_curt_mingen_twh'], run['wind_export_twh'], other_yr))
+                                run['wind_curt_snsp_twh'], run['wind_curt_mingen_twh'], run['wind_export_twh']))
             ev.update(tech_eval('Solar', solar_cap, run['solar_avail_twh'], solar_gen_twh, run['all_solar_con_twh'],
-                                run['solar_curt_snsp_twh'], run['solar_curt_mingen_twh'], run['solar_export_twh'], other_s_yr))
+                                run['solar_curt_snsp_twh'], run['solar_curt_mingen_twh'], run['solar_export_twh']))
             ws_av = run['avail_twh'] + run['solar_avail_twh']
             ev['WindSolar_Curtailment_%'] = round(100 * (ev['Wind_Curtailed_TWh'] + ev['Solar_Curtailed_TWh']) / ws_av, 2) if ws_av > 0 else np.nan
             ev['WindSolar_Dispatch_Down_%'] = round(100 * (ev['Wind_Curtailed_TWh'] + ev['Solar_Curtailed_TWh']
@@ -3691,7 +3607,7 @@ def _run_demonstrator():
 
             def zone_limit_mw(z):
                 return OFFSHORE_CONNECTION_RATIO * off_total_gw * 1000.0 if z == 'OFFSHORE' else headrooms_yr[z]
-            pct = lambda num, den, extra=0.0: round(100.0 * num / den + extra, 2) if den > 0 else np.nan
+            pct = lambda num, den: round(100.0 * num / den, 2) if den > 0 else np.nan
             zw = {z: (run[f'z_wind_avail_{z}'], run[f'z_wind_con_{z}'], run[f'z_wind_curt_{z}']) for z in Z}
             zs = {z: (run[f'z_solar_avail_{z}'], run[f'z_solar_con_{z}'], run[f'z_solar_curt_{z}']) for z in Z}
             # All percentages in the summaries are energy over energy (TWh constrained / TWh available,
@@ -3700,31 +3616,31 @@ def _run_demonstrator():
             s_con, s_curt = sum(zs[z][1] for z in Z), sum(zs[z][2] for z in Z)
             w_row = {'Year': yr, 'Capacity_GW': row_out['Wind_Cap_GW'], 'Offshore_Capacity_GW': row_out['Wind_Offshore_GW'],
                      'Available_TWh': round(run['avail_twh'], 2), 'Generation_TWh': row_out['Wind_Gen_TWh'],
-                     'Constraint_%': pct(w_con, run['avail_twh']), 'Curtailment_%': pct(w_curt, run['avail_twh'], other_yr),
-                     'Total_Loss_%': pct(w_con + w_curt, run['avail_twh'], other_yr),
+                     'Constraint_%': pct(w_con, run['avail_twh']), 'Curtailment_%': pct(w_curt, run['avail_twh']),
+                     'Total_Loss_%': pct(w_con + w_curt, run['avail_twh']),
                      'Share_of_Demand_%': row_out['Wind_%_SEM'],
                      'Offshore_Constraint_%': row_out['Con_OFFSHORE_%']}
             w_row.update({f'{z}_capacity_MW': round(1000 * wind_zone_gw(z)) for z in Z})
             w_row.update({f'{z}_constraint_%': pct(zw[z][1], zw[z][0]) for z in Z})
-            w_row.update({f'{z}_curtailment_%': pct(zw[z][2], zw[z][0], other_yr) for z in Z})
+            w_row.update({f'{z}_curtailment_%': pct(zw[z][2], zw[z][0]) for z in Z})
             s_av = run['solar_avail_twh']
             s_row = {'Year': yr, 'Capacity_GW': row_out['Solar_Cap_GW'], 'Available_TWh': row_out['Solar_Avail_TWh'],
                      'Generation_TWh': row_out['Solar_Gen_TWh'], 'Constraint_%': pct(s_con, s_av),
-                     'Curtailment_%': pct(s_curt, s_av, other_s_yr) if s_av > 0 else np.nan,
-                     'Total_Loss_%': pct(s_con + s_curt, s_av, other_s_yr) if s_av > 0 else np.nan,
+                     'Curtailment_%': pct(s_curt, s_av) if s_av > 0 else np.nan,
+                     'Total_Loss_%': pct(s_con + s_curt, s_av) if s_av > 0 else np.nan,
                      'Share_of_Demand_%': row_out['Solar_%']}
             s_row.update({f'{z}_capacity_MW': round(1000 * sol_caps.get(z, 0.0)) for z in Z})
             s_row.update({f'{z}_constraint_%': pct(zs[z][1], zs[z][0]) for z in Z})
-            s_row.update({f'{z}_curtailment_%': pct(zs[z][2], zs[z][0], other_s_yr) for z in Z})
+            s_row.update({f'{z}_curtailment_%': pct(zs[z][2], zs[z][0]) for z in Z})
             av_ws = run['avail_twh'] + run['solar_avail_twh']
             con_ws, curt_ws = w_con + s_con, w_curt + s_curt
             t_row = {'Year': yr, 'Demand_TWh': row_out['Dem_TWh'],
                      'Capacity_GW': round(row_out['Wind_Cap_GW'] + row_out['Solar_Cap_GW'], 2),
                      'Available_TWh': round(av_ws, 2),
                      'Generation_TWh': round(row_out['Wind_Gen_TWh'] + row_out['Solar_Gen_TWh'], 2),
-                     'Constraint_%': pct(con_ws, av_ws), 'Curtailment_%': pct(curt_ws, av_ws, other_ws_yr),
+                     'Constraint_%': pct(con_ws, av_ws), 'Curtailment_%': pct(curt_ws, av_ws),
                      'Surplus_%': pct(run['sys_curt_surplus_twh'], av_ws),
-                     'Total_Loss_%': pct(con_ws + curt_ws, av_ws, other_ws_yr),
+                     'Total_Loss_%': pct(con_ws + curt_ws, av_ws),
                      'Share_of_Demand_%': row_out['Wind+Solar_%'],
                      'Storage_Power_MW': row_out['Storage_Power_MW'], 'Storage_Energy_MWh': row_out['Storage_Energy_MWh'],
                      'Storage_Discharge_TWh': row_out['Storage_Discharge_TWh'],
@@ -3735,9 +3651,7 @@ def _run_demonstrator():
             t_row.update({f'{z}_limit_MW': round(zone_limit_mw(z)) for z in Z})
             t_row.update({f'{z}_capacity_MW': round(1000 * (wind_zone_gw(z) + sol_caps.get(z, 0.0))) for z in Z})
             t_row.update({f'{z}_constraint_%': pct(zw[z][1] + zs[z][1], zw[z][0] + zs[z][0]) for z in Z})
-            t_row.update({f'{z}_curtailment_%': pct(zw[z][2] + zs[z][2], zw[z][0] + zs[z][0],
-                                                    (other_yr * zw[z][0] + other_s_yr * zs[z][0]) / (zw[z][0] + zs[z][0])
-                                                    if (zw[z][0] + zs[z][0]) > 0 else other_yr) for z in Z})
+            t_row.update({f'{z}_curtailment_%': pct(zw[z][2] + zs[z][2], zw[z][0] + zs[z][0]) for z in Z})
             # System summary: wind + solar dispatch-down by reason, % of available wind + solar
             sys_row = {'Year': yr, 'Demand_TWh': row_out['Dem_TWh'], 'Available_TWh': round(av_ws, 2),
                        'SNSP_Limit_%': round(100 * snsp_yr, 1), 'MUON_Floor_MW': round(muon_floor_for_year(yr)),
@@ -3747,14 +3661,13 @@ def _run_demonstrator():
                        'Operational_Curtailment_Oversupply_%': pct(run['operational_curtailment_oversupply_twh'], av_ws),
                        'SNSP_Curtailment_%': pct(run['sys_curt_snsp_twh'], av_ws),
                        'MinGen_Curtailment_%': pct(run['sys_curt_mingen_twh'], av_ws),
-                       'Other_incl_RoCoF_%': round(other_ws_yr, 2),
                        # EirGrid's three-way split: surplus is inside SNSP/MinGen above; operational
                        # curtailment is everything in curtailment that is not surplus.
                        'Surplus_%': pct(run['sys_curt_surplus_twh'], av_ws),
-                       'Operational_Curtailment_%': round(pct(run['sys_curt_snsp_twh'] + run['sys_curt_mingen_twh']
-                                                          - run['sys_curt_surplus_twh'], av_ws) + other_ws_yr, 2),
+                       'Operational_Curtailment_%': pct(run['sys_curt_snsp_twh'] + run['sys_curt_mingen_twh']
+                                                        - run['sys_curt_surplus_twh'], av_ws),
                        'Surplus_Before_Constraint_%': pct(run['sys_surplus_pre_twh'], av_ws),
-                       'Total_Dispatch_Down_%': pct(con_ws + curt_ws, av_ws, other_ws_yr),
+                       'Total_Dispatch_Down_%': pct(con_ws + curt_ws, av_ws),
                        'SNSP_Binding_Hours': round(run['sys_hours_snsp']),
                        'MinGen_Binding_Hours': round(run['sys_hours_mingen']),
                        'Storage_Recovered_Constraint_TWh': round(run['sys_recovered_twh'], 3),
@@ -4144,7 +4057,7 @@ def _run_demonstrator():
               .rename(columns=lambda c: c.replace('_constraint_%', ' con').replace('_curtailment_%', ' curt')).to_string())
         print("\nSystem dispatch-down by reason (% of available wind + solar; physical and reporting reclassification):")
         print(summaries['system'].set_index('Year').loc[tz.index][['Constraint_%', 'SNSP_Curtailment_%', 'MinGen_Curtailment_%',
-                                                                  'Other_incl_RoCoF_%', 'Total_Dispatch_Down_%']].to_string())
+                                                                  'Total_Dispatch_Down_%']].to_string())
         try:
             capacity_df.to_csv(os.path.join(out_dir, CAPACITY_BY_ZONE_CSV), index=False, float_format='%.1f')
             print(f">> Capacity by zone and year saved to '{os.path.join(out_dir, CAPACITY_BY_ZONE_CSV)}'")
@@ -4262,12 +4175,8 @@ def _run_demonstrator():
                 sp_y, se_y = storage_for_year(y)
                 d_year = dispatch_year(df_wy['spec_avail_mw_per_gw'].values, solar_year, demand_year, y,
                                        snsp_y, sp_y, se_y)
-                if RESIDUAL_CURTAILMENT_BASIS == 'delivered' and resid_ratio_w is not None:
-                    usable_w_year = d_year['usable_w'] * (1.0 - other_curt_for_year(y) / 100.0 * resid_ratio_w)
-                    usable_s_year = d_year['usable_s'] * (1.0 - solar_other_for_year(y) / 100.0 * resid_ratio_s)
-                else:
-                    usable_w_year = np.maximum(0.0, d_year['usable_w'] - (other_curt_for_year(y) / 100.0) * avail_year)
-                    usable_s_year = np.maximum(0.0, d_year['usable_s'] - (solar_other_for_year(y) / 100.0) * solar_year)
+                usable_w_year = d_year['usable_w']
+                usable_s_year = d_year['usable_s']
                 months_year = df_wy['month'].to_numpy()
                 for m in sorted(df_wy['month'].dropna().unique()):
                     mask = months_year == m
@@ -5070,7 +4979,7 @@ def _run_demonstrator():
             sc_final_year = int(sc.get('target_year', 2050))
             say(f"      {sc_final_year}: constraint {sy.loc[sc_final_year, 'Constraint_%']:.1f}% "
                 f"[{sy.loc[sc_final_year, 'Constraint_Low_%']:.1f}-{sy.loc[sc_final_year, 'Constraint_High_%']:.1f}], "
-                f"curtailment {sy.loc[sc_final_year, 'SNSP_Curtailment_%'] + sy.loc[sc_final_year, 'MinGen_Curtailment_%'] + sy.loc[sc_final_year, 'Other_incl_RoCoF_%']:.1f}%, "
+                f"curtailment {sy.loc[sc_final_year, 'SNSP_Curtailment_%'] + sy.loc[sc_final_year, 'MinGen_Curtailment_%']:.1f}%, "
                 f"wind+solar {tw.loc[sc_final_year, 'Share_of_Demand_%']:.0f}% of demand")
             say_checks('results', sc['scenario'])
             all_results.append(res)
@@ -5191,13 +5100,13 @@ def _run_demonstrator():
 
         say("")
         say("RESULTS  (wind + solar dispatch-down, % of available)")
-        say(f"   {'scenario':<26} {'year':>4}  {'constraint':>17}  {'SNSP':>5}  {'min gen':>7}  {'other':>5}  {'total':>6}  {'RES share':>9}")
+        say(f"   {'scenario':<26} {'year':>4}  {'constraint':>17}  {'SNSP':>5}  {'min gen':>7}  {'total':>6}  {'RES share':>9}")
         for name, v in summary_store.items():
             sy, tw = v['system'].set_index('Year'), v['total'].set_index('Year')
             for y in report_years(name):
                 band = f"{sy.loc[y, 'Constraint_%']:.1f} [{sy.loc[y, 'Constraint_Low_%']:.1f}-{sy.loc[y, 'Constraint_High_%']:.1f}]"
                 say(f"   {name if y == report_years(name)[0] else '':<26} {y:>4}  {band:>17}  {sy.loc[y, 'SNSP_Curtailment_%']:>5.1f}  "
-                    f"{sy.loc[y, 'MinGen_Curtailment_%']:>7.1f}  {sy.loc[y, 'Other_incl_RoCoF_%']:>5.1f}  "
+                    f"{sy.loc[y, 'MinGen_Curtailment_%']:>7.1f}  "
                     f"{sy.loc[y, 'Total_Dispatch_Down_%']:>6.1f}  {tw.loc[y, 'Share_of_Demand_%']:>8.0f}%")
         if evaluation_store:
             say("")

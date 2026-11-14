@@ -31,7 +31,7 @@ An independent, evidence-based assessment of Ireland's energy system, aiming for
 - Validation is against EirGrid only (ECP-GSS-1 and the PLEXOS 2028, 2030 and 2035 cases with offshore), plus a run at actual historical build rates.
 - At most three scenarios in the paper, using SEAI projected demand and actual build rates.
 - The paper says "full decarbonisation", not "net zero".
-- Residual curtailment is held on the delivered basis (PRs #24 and #25, 30 October 2026). See `CHANGELOG.md`.
+- Residual curtailment was held on the delivered basis (PRs #24 and #25, 30 October 2026) and was removed on 14 November 2026 (see below).
 - Projections have no zonal network limits from 2036 (PR #30, 1 November 2026). This is a bounding case that favours renewables, not a forecast; it replaces any post-2035 reinforcement rate. The 40% headroom cover is not presented as EirGrid's implied network growth: it matches GSS-1 only when constraint is counted in Gamma's order (PR #29).
 - Gamma keeps its own order of calculation (network, then system-wide limits). The paper validates on total dispatch down and reports the EirGrid-order split alongside.
 - 2 November 2026: transport ceiling is land transport only (62.2 TWh all-island); EirGrid_Extended and Historical_Trend raise battery fleet duration to 4 h by 2035 with the MW build unchanged; the paper names each share by its denominator (primary energy, gross final energy, electricity demand) and uses SEAI's RES Overall only for the gross final share. See `CHANGELOG.md`.
@@ -39,6 +39,7 @@ An independent, evidence-based assessment of Ireland's energy system, aiming for
 
 - 12 November 2026: the headline fossil share counts no imported electricity. The fixed 4% allowance (`FIXED_IMPORT_SHARE_PCT`) is off by default, because the main runs have no imports in the dispatch and the allowance was larger than the imports the dispatch gives in 2050 even with interconnectors at full capacity. This reverses the decision of earlier the same day to keep it. Headline 2050 fossil share: 61.7% on EirGrid_Extended and 72.7% on Historical_Trend (59.2% and 69.8% with the allowance). Imports are shown only in the interconnector sensitivity, from the dispatch (60.2% and 68.4% at 70% of capacity). For group agreement.
 - 12 November 2026: demand growth since 2026 that is neither heat-pump nor transport load is added as flat load, because most of it is data-centre demand. It was scaled on the recorded demand shape before, which overstated peak demand, firm capacity and the worst gas day. `GAMMA_FLAT_GROWTH=0` reproduces the earlier results.
+- 14 November 2026: the fixed residual curtailment is removed from Gamma. Curtailment is only what the SNSP and minimum generation ceilings remove. 2026 dispatch down is now 12.3% against 15.2% recorded, and the validation against EirGrid falls about 3 points lower. For group agreement. See `CHANGELOG.md`.
 - 8 November 2026: target journal under discussion (Energy Economics raised). Every quantity the model computes is written as an equation in `docs/model_equations.md` and Supplementary S2; keep them in step with `Gamma.py`.
 
 ## Where things live

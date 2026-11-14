@@ -87,7 +87,7 @@ def collect():
         s = pd.read_csv(os.path.join(o, name(cover), 'summary_system.csv')).set_index('Year')
         for y, e in EIRGRID.items():
             con = f.loc[y, 'Con_WS_IE_%']
-            curt = s.loc[y, 'SNSP_Curtailment_%'] + s.loc[y, 'MinGen_Curtailment_%'] + s.loc[y, 'Other_incl_RoCoF_%']
+            curt = s.loc[y, 'SNSP_Curtailment_%'] + s.loc[y, 'MinGen_Curtailment_%']
             total = con + curt
             surplus_before = s.loc[y, 'Surplus_Before_Constraint_%']
             op_curt = curt - s.loc[y, 'Surplus_%']
