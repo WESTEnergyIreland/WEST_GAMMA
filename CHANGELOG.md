@@ -3,6 +3,28 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Analyses rerun after the residual was removed: 14 November 2026
+
+Follows PR #65. Reruns only; no code change. Outputs committed: `analysis/output/grid_reinforcement/`, `analysis/output/sensitivity/`, `analysis/output/cover_recalibration/`, and Figures 6 and 8 (`analysis/output/paper/`).
+
+Rerun: `analysis/grid_reinforcement_study.py`, `analysis/sensitivity_study.py`, `analysis/cover_recalibration.py`; both pathways with the published network path kept after 2035 (`reinforcement_steps = NI:2032:950` only); EirGrid_Extended with heat COP 2.5, firm efficiencies 60%/42% and 50%/34%, and offshore at 45% in 2020 (`GAMMA_OFFSHORE_CF=0.45`); both pathways with every firm unit at 35% and with COP 3.9 (constants changed in a copy of `Gamma.py`). The residual cases (zero and doubled) no longer exist. Not rerun: the GSS-2 prediction, Supplementary S5 to S8, Figures 4, 5 and 7, and the network-frozen and sigma cases of the robustness study.
+
+Decision needed. The 40% headroom cover (`headroom_pipeline_cover_pct`) was fitted before the residual was removed. Refitted against ECP-GSS-1 on the constraint as Gamma removes it, the best cover is now 60% (RMS error 0.35 points). On total dispatch down and on EirGrid's category order the best fit is 0%. The validation scenarios still use 40%; it is not changed here.
+
+| Fossil share of primary energy (%), 2050 unless stated | Before | Now |
+|---|---|---|
+| Published network path kept, EirGrid_Extended / Historical_Trend | 64.2 / not recorded | 62.6 / 73.0 |
+| IE headroom growth 0 / 1 / 2 / 4 / 7.3% a year, limits kept | 64.4 / 63.9 / 63.5 / 62.9 / 62.2 | 62.9 / 62.4 / 61.9 / 61.2 / 60.5 |
+| Electrification +150% / build +150% | 45.2 / 56.3 | 42.7 / 53.9 |
+| Heat COP 2.5 | 64.2 | 62.4 |
+| Firm efficiencies 60% and 42% / 50% and 34% | 61.1 / 62.3 | 59.4 / 60.4 |
+| Offshore at 45% in 2020 | 61.3 | 59.4 |
+| Every firm unit at 35%: change (points), 2050 / 2100, EirGrid_Extended; Historical_Trend | 1.4 to 4.2 (both pathways) | +1.6 / +1.0; +2.2 / +3.9 |
+| COP 3.9: change (points), 2050 / 2100, EirGrid_Extended; Historical_Trend | -0.8 to -2.4 (both pathways) | -1.0 / -2.5; -0.8 / -1.8 |
+| Marginal yield of next 10.5 GW / 10.5 GW after, 0% a year, TWh/GW (fleet average) | 0.33 / 0.23 (1.18) | 0.34 / 0.24 (1.22) |
+
+Paper: update after review. Tables 5, 6 and 8, the validation sentences, Section 7.3, the abstract and the highlights all move; the 2100 result is unchanged (neither pathway reaches 10% fossil share).
+
 ## Fixed residual curtailment removed: 14 November 2026
 
 Change to the model. The residual ('other') curtailment is removed. It was the recorded 2026 curtailment less the curtailment the operating rules simulate, held in every later year and supplied by firm plant. Curtailment is now only what the SNSP and minimum generation ceilings remove, and firm generation is only what the dispatch needs. `GAMMA_RESIDUAL_SCALE`, `GAMMA_RESIDUAL_BASIS`, `SOLAR_OTHER_CURT_CALIBRATED` and the `other_curt_pct_2050` scenario input are gone, as are the `Other_incl_RoCoF_%` and `*_Curtail_Other_%` output columns.
