@@ -1733,7 +1733,8 @@ def _run_demonstrator():
                  initial_soc_pct=DEFAULT_STORAGE_INITIAL_SOC_PCT,
                  pc_storage_hybrid=DEFAULT_PC_STORAGE_HYBRID,
                  muon_floor_mw=DEFAULT_MUON_FLOOR_MW,
-                 offshore_own=False, export_cap_mw=0.0, import_cap_mw=0.0):
+                 offshore_own=False, export_cap_mw=0.0, import_cap_mw=0.0,
+                 historical_import_mw=None, historical_export_mw=None):
         """Quarter-hour gamma.py dispatch with Marcel's zonal/offshore constraints and V10's aggregated BESS fleet.
 
         Order of operation:
@@ -1774,6 +1775,23 @@ def _run_demonstrator():
         wind = wind_onshore + wind_offshore
         if not (len(wind_onshore) == len(wind_offshore) == len(solar) == len(demand)):
             raise ValueError("onshore wind, offshore wind, solar and demand arrays must have equal length")
+
+        # Optional FIXED observed flows for a historical sensitivity only.
+        # Unlike import_cap_mw/export_cap_mw these are exogenous flows, not
+        # capacity which dispatch chooses to use. All regular runs use zeros.
+        n_intervals = len(demand)
+        forced_import = (np.zeros(n_intervals) if historical_import_mw is None
+                         else np.asarray(historical_import_mw, dtype=float))
+        forced_export = (np.zeros(n_intervals) if historical_export_mw is None
+                         else np.asarray(historical_export_mw, dtype=float))
+        if (forced_import.shape != (n_intervals,) or forced_export.shape != (n_intervals,)
+                or not np.isfinite(forced_import).all()
+                or not np.isfinite(forced_export).all()
+                or (forced_import < 0).any() or (forced_export < 0).any()):
+            raise ValueError('Historical imports/exports must be nonnegative, finite MW arrays matching demand')
+        if (historical_import_mw is not None or historical_export_mw is not None) and (
+                import_cap_mw != 0 or export_cap_mw != 0):
+            raise ValueError('Do not combine recorded historical flows with optional interconnector capacity dispatch')
 
         reg, zone_detail = zonal_constraint_mw(
             wind_onshore, wind_offshore, solar, headrooms, zone_caps_gw,
@@ -1821,9 +1839,11 @@ def _run_demonstrator():
         def operational_limit(native_demand_mw, charge_mw):
             """Combined SNSP/MUON ceiling for non-synchronous output."""
             effective_demand_mw = native_demand_mw + charge_mw
-            snsp_ceiling_mw = f * effective_demand_mw
+            # Recorded HVDC imports count in the SNSP numerator and occupy
+            # generation room. Recorded exports add to system demand instead.
+            snsp_ceiling_mw = max(0.0, f * effective_demand_mw - forced_import_i)
             muon_ceiling_mw = max(
-                0.0, effective_demand_mw - muon_floor_mw
+                0.0, effective_demand_mw - forced_import_i - muon_floor_mw
             )
             return (
                 min(snsp_ceiling_mw, muon_ceiling_mw),
@@ -1832,7 +1852,9 @@ def _run_demonstrator():
             )
 
         for i in range(n):
-            native_demand_mw = max(0.0, demand[i])
+            forced_import_i = float(forced_import[i])
+            forced_export_i = float(forced_export[i])
+            native_demand_mw = max(0.0, demand[i] + forced_export_i)
             post_constraint_vre_mw = max(0.0, post[i])
             available_vre_mw = max(0.0, wind[i] + solar[i])
             unconstrained_vre_fraction = (
@@ -1841,8 +1863,8 @@ def _run_demonstrator():
             )
 
             no_charge_limit_mw = min(
-                f * native_demand_mw,
-                max(0.0, native_demand_mw - muon_floor_mw)
+                max(0.0, f * native_demand_mw - forced_import_i),
+                max(0.0, native_demand_mw - forced_import_i - muon_floor_mw)
             )
             potential_curtailment_mw = max(
                 0.0, post_constraint_vre_mw - no_charge_limit_mw
@@ -1890,7 +1912,8 @@ def _run_demonstrator():
             )
             # Wind/solar serving native demand can't exceed that demand. The SNSP/MUON ceiling
             # counts charging as demand, but the charging MW are already supplied from VRE.
-            direct_vre_mw = min(vre_after_charge_mw, limit_mw, native_demand_mw)
+            direct_vre_mw = min(vre_after_charge_mw, limit_mw,
+                                max(0.0, native_demand_mw - forced_import_i))
             curtailment_mw = max(
                 0.0, vre_after_charge_mw - direct_vre_mw
             )
@@ -1950,7 +1973,7 @@ def _run_demonstrator():
             if import_cap_mw > 0.0 and charge_mw <= 1e-9 and export_mw <= 0.0:
                 import_mw = min(
                     import_cap_mw,
-                    max(0.0, native_demand_mw - direct_vre_mw - discharge_mw),
+                    max(0.0, native_demand_mw - forced_import_i - direct_vre_mw - discharge_mw),
                     max(0.0, f * native_demand_mw - direct_vre_mw - discharge_mw),
                     max(0.0, native_demand_mw - muon_floor_mw - direct_vre_mw - discharge_mw),
                 )
@@ -1970,11 +1993,12 @@ def _run_demonstrator():
             a['limit'][i] = limit_mw
             a['snspceil'][i] = snsp_ceiling_mw
             a['muonceil'][i] = muon_ceiling_mw
-            a['export'][i] = export_mw
+            a['export'][i] = export_mw + forced_export_i
             a['export_vre'][i] = export_vre_mw
             a['export_sync'][i] = export_sync_mw
-            a['imp'][i] = import_mw
-            snsp_numerator_mw = direct_vre_mw + export_vre_mw + discharge_mw + import_mw
+            a['imp'][i] = import_mw + forced_import_i
+            snsp_numerator_mw = (direct_vre_mw + export_vre_mw + discharge_mw
+                                 + import_mw + forced_import_i)
             a['snsppct'][i] = (
                 100.0 * snsp_numerator_mw / effective_demand_mw
                 if effective_demand_mw > 0.0 else 0.0
@@ -3368,9 +3392,327 @@ def _run_demonstrator():
             out['headrooms'] = headrooms
             return out
 
+
+
+        # HISTORICAL CURTAILMENT TEST - Gamma's real dispatch engine
+        # Uses actual wind, solar, demand and recorded network constraint.
+        # No residual correction. Batteries disabled for this test.
+
+        # Save interval-level backcast comparisons for daily and monthly plots.
+        historical_curtailment_intervals = []
+
+        for test_year in (2020, 2021, 2022, 2023, 2024, 2025):
+            hist = merged.loc[
+                merged['year'] == test_year
+            ].sort_values('parsed_date').copy()
+
+            times = hist['parsed_date'].dt.floor('h')
+            series = {}
+
+            for tech in ('Wind', 'Solar'):
+                df = pd.read_csv(
+                    input_path(DD_ALL_ISLAND_FILES[tech]),
+                    parse_dates=['datetime']
+                ).set_index('datetime')
+
+                df = df.loc[df['hh_count'] > 0].copy()
+                df = df[~df.index.duplicated(keep='first')]
+                factor = 2.0 / df['hh_count']
+
+                # Actual output remaining after grid constraint
+                post = (
+                    (df['av_mwh'] - df['constraint_mwh'])
+                    .clip(lower=0) * factor
+                )
+
+                series[tech] = post.reindex(times).to_numpy()
+                if tech == 'Wind':
+                    actual = df['curtailment_mwh'].reindex(times).to_numpy()
+                    available = df['av_mwh'].reindex(times).to_numpy()
+
+            demand = hist['sem_demand'].to_numpy(dtype=float)
+            valid = (
+                np.isfinite(demand)
+                & np.isfinite(series['Wind'])
+                & np.isfinite(series['Solar'])
+                & np.isfinite(actual)
+                & np.isfinite(available)
+            )
+
+            # Run Gamma's actual 15-minute dispatch calculation.
+            # Grid constraint has already been removed using records.
+            no_constraint = {z: 1e12 for z in HEADROOM_ZONES}
+            caps = {'NI': 1.0}
+
+            # Historical MUON requirements (150 MW per unit assumed).
+            dates = hist.loc[valid, 'parsed_date'].to_numpy()
+
+            if test_year == 2020:
+                muon = np.full(valid.sum(), 900.0)
+            elif test_year <= 2023:
+                muon = np.full(valid.sum(), 1200.0)
+            elif test_year == 2024:
+                muon = np.where(
+                    dates < np.datetime64('2024-04-07'),
+                    1200.0,
+                    1050.0
+                )
+            else:
+                muon = np.full(valid.sum(), 1050.0)
+
+            predicted_wind = np.zeros(valid.sum())
+
+            for floor in np.unique(muon):
+                mask = muon == floor
+
+                segment = dispatch(
+                    series['Wind'][valid][mask],
+                    np.zeros(mask.sum()),
+                    series['Solar'][valid][mask],
+                    demand[valid][mask],
+                    no_constraint,
+                    caps, {}, caps,
+                    HISTORICAL_SNSP_PCT / 100.0,
+                    storage_power_mw=0.0,
+                    storage_energy_mwh=0.0,
+                    muon_floor_mw=float(floor)
+                )
+
+                predicted_wind[mask] = segment['curt_w']
+
+            result = {'curt_w': predicted_wind}
+
+            # Actual curtailment / availability are HOURLY MWh values repeated
+            # across four quarter-hour rows; allocate each hour equally to
+            # the four rows. Gamma's output is MW over each 15-minute row.
+            if test_year >= 2021 and valid.any():
+                historical_curtailment_intervals.append(pd.DataFrame({
+                    'DateTime': hist.loc[valid, 'parsed_date'].to_numpy(),
+                    'Actual_MWh': actual[valid] / 4.0,
+                    'Gamma_MWh': np.asarray(result['curt_w']) * INTERVAL_HOURS,
+                    'Available_MWh': available[valid] / 4.0,
+                    'Demand_MW': demand[valid],
+                    'Wind_Post_MW': series['Wind'][valid],
+                    'Solar_Post_MW': series['Solar'][valid],
+                }))
+
+            predicted_pct = (
+                100 * result['curt_w'].sum()
+                / available[valid].sum()
+            )
+            actual_pct = (
+                100 * actual[valid].sum()
+                / available[valid].sum()
+            )
+
+            say(
+                f"CURTAILMENT {test_year}: "
+                f"Actual {actual_pct:.2f}% | "
+                f"Gamma {predicted_pct:.2f}% | "
+                f"Difference {predicted_pct-actual_pct:+.2f} pts"
+            )
+
+
+        # Daily / monthly wind-curtailment backcast comparisons (2021-2025)
+        if historical_curtailment_intervals:
+            comparison_intervals = pd.concat(
+                historical_curtailment_intervals, ignore_index=True
+            )
+            comparison_intervals['DateTime'] = pd.to_datetime(
+                comparison_intervals['DateTime']
+            )
+            os.makedirs(SCENARIO_OUTPUT_DIR, exist_ok=True)
+
+            for freq, name, graph_title in (
+                ('D', 'daily', 'Daily'),
+                ('MS', 'monthly', 'Monthly'),
+            ):
+                comparison = (
+                    comparison_intervals.set_index('DateTime')
+                    .resample(freq)[['Actual_MWh', 'Gamma_MWh', 'Available_MWh']]
+                    .sum()
+                )
+                comparison = comparison.loc[
+                    comparison['Available_MWh'] > 0
+                ].copy()
+                comparison['Actual_Pct'] = (
+                    100.0 * comparison['Actual_MWh']
+                    / comparison['Available_MWh']
+                )
+                comparison['Gamma_Pct'] = (
+                    100.0 * comparison['Gamma_MWh']
+                    / comparison['Available_MWh']
+                )
+                comparison['Error_pp'] = (
+                    comparison['Gamma_Pct'] - comparison['Actual_Pct']
+                )
+                csv_path = os.path.join(
+                    SCENARIO_OUTPUT_DIR, f'backcast_wind_curtailment_{name}.csv'
+                )
+                png_path = os.path.join(
+                    SCENARIO_OUTPUT_DIR, f'backcast_wind_curtailment_{name}.png'
+                )
+                comparison.to_csv(csv_path, float_format='%.5f')
+
+                fig, ax = plt.subplots(figsize=(15, 5))
+                ax.plot(comparison.index, comparison['Actual_Pct'],
+                        label='Recorded', linewidth=1.4)
+                ax.plot(comparison.index, comparison['Gamma_Pct'],
+                        label='Gamma backcast', linewidth=1.2, alpha=0.85)
+                ax.set(title=f'{graph_title} wind curtailment: recorded vs Gamma (2021-2025)',
+                       xlabel='Date', ylabel='Curtailment (% of available wind energy)')
+                ax.set_ylim(bottom=0)
+                ax.grid(alpha=0.25)
+                ax.legend()
+                fig.tight_layout()
+                try:
+                    fig.savefig(png_path, dpi=200)
+                    say(f'  Saved {name} backcast graph: {png_path}')
+                except OSError as exc:
+                    say(f'  WARNING: Could not save {name} backcast graph: {exc}')
+                finally:
+                    plt.close(fig)
+                say(f'  Saved {name} backcast data: {csv_path}')
+        else:
+            say('  No matched historical curtailment intervals for comparison plots.')
+
+        # 2024 HISTORICAL INTERCONNECTOR SENSITIVITY — SAME dispatch() ENGINE
+        # Recorded Moyle and EWIC MW are treated as fixed external flows.
+        # Historical 8 -> 7 MUON rule is applied in both test cases.
+        # This diagnostic does not change any forward scenario assumptions.
+        flow_xlsx = input_path('System-Data-Qtr-Hourly-2024.xlsx')
+        if historical_curtailment_intervals and os.path.isfile(flow_xlsx):
+            import openpyxl
+            wb = openpyxl.load_workbook(flow_xlsx, read_only=True, data_only=True)
+            ws = wb.active
+            # Read headers rather than relying on fixed numeric column positions.
+            header = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+            lookup = {str(v).strip(): j for j, v in enumerate(header) if v is not None}
+            required = ('DateTime', 'Moyle I/C', 'EWIC I/C')
+            if not all(k in lookup for k in required):
+                wb.close()
+                raise ValueError(f'2024 interconnector workbook missing columns: {required}')
+            flow_rows = [
+                (r[lookup['DateTime']], r[lookup['Moyle I/C']], r[lookup['EWIC I/C']])
+                for r in ws.iter_rows(min_row=2, values_only=True)
+                if r[lookup['DateTime']] is not None
+            ]
+            wb.close()
+            flows = pd.DataFrame(flow_rows, columns=['DateTime', 'Moyle_MW', 'EWIC_MW'])
+            flows['DateTime'] = pd.to_datetime(flows['DateTime'], errors='coerce')
+            for col in ('Moyle_MW', 'EWIC_MW'):
+                flows[col] = pd.to_numeric(flows[col], errors='coerce')
+            flows = (flows.dropna(subset=['DateTime', 'Moyle_MW', 'EWIC_MW'])
+                     .drop_duplicates('DateTime').set_index('DateTime').sort_index())
+            # Source convention: positive = imports; negative = exports.
+            # Preserve opposite-direction flows on the two links separately.
+            flows['Recorded_Import_MW'] = (
+                flows[['Moyle_MW', 'EWIC_MW']].clip(lower=0).sum(axis=1))
+            flows['Recorded_Export_MW'] = (
+                -flows[['Moyle_MW', 'EWIC_MW']].clip(upper=0).sum(axis=1))
+
+            diag = comparison_intervals.loc[
+                comparison_intervals['DateTime'].dt.year == 2024
+            ].set_index('DateTime').join(
+                flows[['Recorded_Import_MW', 'Recorded_Export_MW']], how='inner'
+            ).sort_index()
+            if diag.empty:
+                say('  2024 import sensitivity skipped: no overlapping timestamps.')
+            else:
+                dates = diag.index.to_numpy(dtype='datetime64[ns]')
+                floors = np.where(dates < np.datetime64('2024-04-07'), 1200.0, 1050.0)
+                wind = diag['Wind_Post_MW'].to_numpy(dtype=float)
+                solar = diag['Solar_Post_MW'].to_numpy(dtype=float)
+                demand = diag['Demand_MW'].to_numpy(dtype=float)
+                imp = diag['Recorded_Import_MW'].to_numpy(dtype=float)
+                exp = diag['Recorded_Export_MW'].to_numpy(dtype=float)
+                no_constraint = {z: 1e12 for z in HEADROOM_ZONES}
+                caps = {'NI': 1.0}
+                for name, use_observed in (
+                    ('No_Flows', False), ('Imports_Only', True), ('Recorded_Flows', True)
+                ):
+                    predicted_mw = np.zeros(len(diag), dtype=float)
+                    # No BESS in historical diagnostic: safe to process MUON
+                    # segments separately through full dispatch().
+                    for floor in np.unique(floors):
+                        mask = floors == floor
+                        seg = dispatch(
+                            wind[mask], np.zeros(mask.sum()), solar[mask],
+                            demand[mask], no_constraint, caps, {}, caps,
+                            HISTORICAL_SNSP_PCT / 100.0,
+                            storage_power_mw=0.0, storage_energy_mwh=0.0,
+                            muon_floor_mw=float(floor),
+                            historical_import_mw=(imp[mask] if use_observed else None),
+                            historical_export_mw=(exp[mask] if name == 'Recorded_Flows' else None),
+                        )
+                        predicted_mw[mask] = seg['curt_w']
+                    diag[name + '_MWh'] = predicted_mw * INTERVAL_HOURS
+
+                # Check no-flow full-dispatch calculation matches main backcast.
+                delta = (diag['No_Flows_MWh'] - diag['Gamma_MWh']).abs()
+                max_delta = float(delta.max())
+                if max_delta > 1e-5:
+                    raise AssertionError(
+                        f'2024 no-flow test does not reproduce baseline: max {max_delta:.6f} MWh')
+
+                cols = ['Actual_MWh', 'Available_MWh',
+                        'No_Flows_MWh', 'Imports_Only_MWh', 'Recorded_Flows_MWh']
+                for frequency, kind in (('D', 'daily'), ('MS', 'monthly')):
+                    comp = diag[cols].resample(frequency).sum()
+                    comp = comp.loc[comp['Available_MWh'] > 0].copy()
+                    for label in ('Actual', 'No_Flows', 'Imports_Only', 'Recorded_Flows'):
+                        comp[label + '_Pct'] = (
+                            100 * comp[label + '_MWh'] / comp['Available_MWh'])
+                    comp['No_Flows_Error_pp'] = comp['No_Flows_Pct'] - comp['Actual_Pct']
+                    comp['Imports_Only_Error_pp'] = comp['Imports_Only_Pct'] - comp['Actual_Pct']
+                    comp['Recorded_Flows_Error_pp'] = (
+                        comp['Recorded_Flows_Pct'] - comp['Actual_Pct'])
+                    csv_path = os.path.join(
+                        SCENARIO_OUTPUT_DIR, f'historical_import_full_dispatch_2024_{kind}.csv')
+                    comp.to_csv(csv_path, float_format='%.5f')
+                    fig, ax = plt.subplots(figsize=(15, 5))
+                    for label, legend in (
+                        ('Actual', 'Recorded curtailment'),
+                        ('No_Flows', 'Gamma, no interconnector flows'),
+                        ('Imports_Only', 'Gamma, recorded imports only'),
+                        ('Recorded_Flows', 'Gamma, observed imports and exports'),
+                    ):
+                        ax.plot(comp.index, comp[label + '_Pct'], label=legend, alpha=0.85)
+                    ax.set(title=f'2024 wind curtailment: Gamma full dispatch ({kind})',
+                           xlabel='Date', ylabel='Curtailment (% of available wind energy)')
+                    ax.set_ylim(bottom=0)
+                    ax.grid(alpha=0.25)
+                    ax.legend()
+                    fig.tight_layout()
+                    png_path = os.path.join(
+                        SCENARIO_OUTPUT_DIR, f'historical_import_full_dispatch_2024_{kind}.png')
+                    try:
+                        fig.savefig(png_path, dpi=200)
+                    except OSError as exc:
+                        say(f'  WARNING: 2024 sensitivity graph could not be saved: {exc}')
+                    finally:
+                        plt.close(fig)
+                    say(f'  Saved full-dispatch 2024 sensitivity ({kind}): {csv_path}')
+
+                weight = diag['Available_MWh'].sum()
+                say(f'  2024 recorded curtailment: {100 * diag["Actual_MWh"].sum() / weight:.2f}%')
+                for label in ('No_Flows', 'Imports_Only', 'Recorded_Flows'):
+                    score = 100 * diag[label + '_MWh'].sum() / weight
+                    daily = diag[['Actual_MWh', 'Available_MWh', label + '_MWh']].resample('D').sum()
+                    daily = daily[daily['Available_MWh'] > 0]
+                    daily_actual = 100 * daily['Actual_MWh'] / daily['Available_MWh']
+                    daily_model = 100 * daily[label + '_MWh'] / daily['Available_MWh']
+                    corr = daily_actual.corr(daily_model)
+                    say(f'    {label}: {score:.2f}%  |  daily correlation {corr:.3f}')
+        elif not os.path.isfile(flow_xlsx):
+            say('  2024 full-dispatch import sensitivity skipped: 2024 EirGrid workbook not present.')
+
         base_run = run_weather_years(start_year, base_demand_twh,
                                      HISTORICAL_SNSP_PCT / 100.0, solar_capacity_2026_gw,
                                      *storage_for_year(start_year), weather_years=[2026])
+
+
+                                     
         base_weather_oversupply_2026 = base_run['curt_pct']
         print(f">> 2026 curtailment: recorded {base_2026_curt:.2f}%, modelled SNSP and minimum generation "
               f"{base_weather_oversupply_2026:.2f}% (at {HISTORICAL_SNSP_PCT:.0f}%); no residual is added")
@@ -3684,6 +4026,54 @@ def _run_demonstrator():
 
         sim_df = pd.DataFrame(sim_results)
 
+
+        # Monthly demand extremes across scenario weather years
+        monthly_rows = []
+
+        for yr in simulation_years:
+            weather_years = [2026] if yr == start_year else scenario_weather_years
+
+            for wy in weather_years:
+                df_wy = merged[merged['year'] == wy]
+                demand = scenario_demand_mw(
+                    df_wy, demand_for_year(yr), yr
+                ) / 1000.0  # MW to GW
+
+                monthly = pd.DataFrame({
+                    'Month': df_wy['parsed_date'].dt.month.to_numpy(),
+                    'Demand_GW': demand
+                }).groupby('Month')['Demand_GW'].agg(['min', 'max', 'mean'])
+
+                for month, r in monthly.iterrows():
+                    monthly_rows.append({
+                        'Year': yr,
+                        'Month': month,
+                        'Min_GW': r['min'],
+                        'Max_GW': r['max'],
+                        'Mean_GW': r['mean']
+                    })
+
+        monthly_df = pd.DataFrame(monthly_rows)
+        monthly_df = monthly_df.groupby(
+            ['Year', 'Month'], as_index=False
+        ).agg(
+            Min_Demand_GW=('Min_GW', 'min'),
+            Max_Demand_GW=('Max_GW', 'max'),
+            Mean_Demand_GW=('Mean_GW', 'mean')
+        )
+
+        monthly_df['IC_Capacity_GW'] = 2.9
+        monthly_df['Peak_Demand_Above_IC_GW'] = (
+            monthly_df['Max_Demand_GW'] - 2.9
+        ).clip(lower=0)
+
+        monthly_df.round(3).to_csv(
+            os.path.join(out_dir, 'monthly_demand_extremes.csv'),
+            index=False
+        )
+        say("      Monthly demand extremes saved to monthly_demand_extremes.csv")
+
+
         # Gas supply check outputs (daily energy, GCV). The envelope is the worst of all weather
         # years for each calendar day, so it is a worst case, not a single year. 29 February is
         # dropped: only leap weather years have it, which made the envelope dip every fourth year.
@@ -3796,6 +4186,26 @@ def _run_demonstrator():
             + sim_df['Import_TWh']
         )
         gfec = sim_df['Gross_Final_Energy_TWh']
+
+        # Electricity as a percentage of total final energy
+        sim_df['Electricity_Share_Final_Energy_Pct'] = (
+            100 * sim_df['Dem_TWh'] / sim_df['Gross_Final_Energy_TWh']
+        )
+
+        # Save annual comparison
+        sim_df[[
+            'Year',
+            'Dem_TWh',
+            'Gross_Final_Energy_TWh',
+            'Electricity_Share_Final_Energy_Pct'
+        ]].round(2).to_csv(
+            os.path.join(out_dir, 'electricity_share_final_energy.csv'),
+            index=False
+        )
+
+        say("Electricity share of final energy saved to CSV")
+
+
         share = lambda num: np.where(gfec > 0.0, 100.0 * num / gfec, 0.0)
         domestic = sim_df['Total_Fossil_Energy_TWh'] + sim_df['Total_Renewable_Energy_TWh']
         if INTERCONNECTOR_DISPATCH:
