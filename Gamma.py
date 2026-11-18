@@ -234,6 +234,17 @@ DEFAULT_BUILD_RATE_GW = 1.87 / (8760 * 0.40 / 1000.0)   # ~0.534 GW/yr
 DEFAULT_SNSP_PCT = 75.0
 DEFAULT_DEMAND_RATE_TWH_PER_YEAR = 1.87  # legacy fallback only
 DEFAULT_BACKGROUND_DEMAND_GROWTH_TWH_PER_YEAR = 0.50
+# SEAI-inspired stabilisation sensitivity: background (non-electrification)
+# electricity/service demand ceases growing after 2040. Not an SEAI forecast to 2100.
+BACKGROUND_DEMAND_STABILISATION_YEAR = 2040
+# Independent service-demand benchmark (NOT linked to scenario electrification).
+# All four energy-accounting lines use one 2026 reference energy requirement.
+# Only background electricity/service demand increases; base heat and land-transport
+# service requirements are held constant. Adjust here to test other assumptions.
+ENERGY_BENCHMARK_BASE_YEAR = 2026
+ENERGY_BENCHMARK_BACKGROUND_GROWTH_TWH_PER_YEAR = 0.50
+# Benchmarks must follow the same background-demand stabilisation year as dispatch.
+ENERGY_BENCHMARK_LAST_YEAR = 2100
 DEFAULT_HEAT_DEMAND_GROWTH_TWH_PER_YEAR = 0.15
 DEFAULT_TRANSPORT_DEMAND_GROWTH_TWH_PER_YEAR = 0.25
 # Overall-transition calibration: 2025 physical baseline, 2026 percentage anchor.
@@ -2620,7 +2631,9 @@ def _run_demonstrator():
         # applies from 2027 onward.
         demand_increase_2026_twh = 0.9
         base_demand_twh = demand_2025_twh + demand_increase_2026_twh
-        tot_demand_final = base_demand_twh + (hzn * annual_demand_growth_rate)
+        # Reporting only: exact demand (including scenario paths and electrification caps)
+        # is calculated after demand_for_year() is defined below.
+        tot_demand_final = None
     
         # Build rates by technology and region (GW/yr). The model uses the total per technology
         # and the IE share of it, which sets where the new capacity connects.
@@ -2696,7 +2709,8 @@ def _run_demonstrator():
         print(f">> Heat-Sector Electricity Growth from 2027: {heat_demand_growth_rate:.2f} TWh/year")
         print(f">> Transport-Sector Electricity Growth from 2027: {transport_demand_growth_rate:.2f} TWh/year")
         print(f">> Total Scenario Demand Growth from 2027: {annual_demand_growth_rate:.2f} TWh/year")
-        print(f">> Projected Total Demand in {final_year}: {tot_demand_final:.2f} TWh")
+        print(f">> Demand: background growth stabilises after {BACKGROUND_DEMAND_STABILISATION_YEAR}; "
+              "heat/transport electrification continues (subject to sector caps).")
         print(f">> Wind build-out: IE onshore {bw_ie:.3f} + NI {bw_ni:.3f} + offshore {bw_off:.3f} GW/year")
         print(f">> Solar build-out: IE {bs_ie:.3f} + NI {bs_ni:.3f} = {solar_build_rate_gw:.3f} GW/year")
         print(f">> Capacity: {final_2026_wind_capacity_gw:.2f} GW onshore in 2026; offshore build from 2027")
@@ -3098,6 +3112,17 @@ def _run_demonstrator():
                 d = path_value('demand_twh', year, base_demand_twh, annual_demand_growth_rate)
             else:
                 d = base_demand_twh + (year - start_year) * annual_demand_growth_rate
+            # Keep non-electrification background demand at its 2040 level.
+            # For explicit demand paths, preserve all specified years. Apply the
+            # adjustment only after the final specified demand milestone; avoid
+            # overriding any directly supplied demand projections.
+            if path_has('demand_twh'):
+                last_path_year = int(scenario_path_df['demand_twh'].dropna().index.max())
+                frozen_years = max(0, year - max(BACKGROUND_DEMAND_STABILISATION_YEAR,
+                                                 last_path_year))
+            else:
+                frozen_years = max(0, year - BACKGROUND_DEMAND_STABILISATION_YEAR)
+            d -= frozen_years * background_demand_growth_rate
             # Heat and transport growth stops once those sectors are fully electrified: electricity
             # beyond the caps would displace no fossil fuel, so it is not added to demand.
             n = year - start_year
@@ -3128,6 +3153,8 @@ def _run_demonstrator():
             return (f"SNSP: {100 * snsp_fraction_for_year(year):.0f}% | "
                     f"MUON: {muon_floor_for_year(year):.0f} MW")
 
+        tot_demand_final = demand_for_year(final_year)
+        print(f">> Projected Total Demand in {final_year}: {tot_demand_final:.2f} TWh")
         if scenario_path_df is not None:
             print(f">> With the path: demand {demand_for_year(final_year):.1f} TWh, SNSP "
                   f"{100 * snsp_fraction_for_year(final_year):.0f}% and minimum units "
@@ -3819,6 +3846,7 @@ def _run_demonstrator():
                 'SNSP_Limit_%': round(100 * snsp_yr, 1),
                 'MUON_Floor_MW': round(muon_floor_for_year(yr)),
                 'Background_Demand_Growth_TWh_per_Year': round(background_demand_growth_rate, 3),
+                'Background_Demand_Stabilisation_Year': BACKGROUND_DEMAND_STABILISATION_YEAR,
                 'Heat_Demand_Growth_TWh_per_Year': round(heat_demand_growth_rate, 3),
                 'Transport_Demand_Growth_TWh_per_Year': round(transport_demand_growth_rate, 3),
                 'Total_Demand_Growth_TWh_per_Year': round(annual_demand_growth_rate, 3),
@@ -4249,6 +4277,28 @@ def _run_demonstrator():
                             + dispatched_import_twh)
         sim_df['Elec_Equiv_Fossil_Share_Pct'] = np.where(
             elec_equiv_total > 0.0, 100.0 * sim_df['Elec_Equiv_Fossil_TWh'] / elec_equiv_total, 0.0)
+        # Energy-denominator comparison (transparent accounting, not additional dispatch).
+        # Primary and gross final are Gamma's existing accounting methods. Do not
+        # confuse their totals with the energy required to provide the same services.
+        sim_df['Total_Primary_Energy_TWh'] = primary_domestic
+        sim_df['Total_Final_Energy_TWh'] = sim_df['Gross_Final_Energy_TWh']
+        sim_df['Total_Electricity_Equivalent_TWh'] = elec_equiv_total
+        # Useful/service energy is an *illustrative proxy*, not a measured useful-energy
+        # balance: 100% of other electricity, heat-pump COP=3.5, fossil heat 100%
+        # (Gamma's existing heat displacement convention), EV traction 100%, and
+        # remaining combustion transport 1/3. These factors are explicitly assumed,
+        # not estimates of national end-use efficiencies. This produces a consistent
+        # Gamma-side comparison without silently altering the historical model.
+        other_electricity = (sim_df['Dem_TWh']
+                             - sim_df['Heat_Electricity_Demand_TWh']
+                             - sim_df['Transport_Electricity_Demand_TWh']).clip(lower=0.0)
+        sim_df['Illustrative_Useful_Service_Energy_TWh'] = (
+            other_electricity
+            + sim_df['Heat_Energy_Electrified_TWh']
+            + sim_df['Remaining_Heat_Fossil_TWh']
+            + sim_df['Transport_Electricity_Demand_TWh']
+            + sim_df['Remaining_Transport_Fossil_TWh'] / TRANSPORT_DISPLACEMENT_FACTOR
+        )
         sim_df['Overall_Imported_Electricity_Pct'] = (
             100.0 - sim_df['Overall_Fossil_Fuel_Pct'] - sim_df['Overall_Renewables_Pct'])
         # What replacing gas in firm plant with green hydrogen would take (physical, no costs).
@@ -5473,6 +5523,235 @@ def _run_demonstrator():
         combined_results.to_csv(
             os.path.join(SCENARIO_OUTPUT_DIR, "all_scenarios_by_year.csv"),
             index=False, float_format='%.2f')
+        # Scenario-dependent energy accounting: all four series are calculated
+        # independently for EACH simulated year from Gamma's annual energy
+        # balances. Primary = physical energy content; final = gross final;
+        # useful = illustrative service proxy; electricity equivalent = the
+        # electricity required for the same services under the assumed end-use
+        # conversions. None of these is held at a fixed 2026 technology mix.
+        forecast = combined_results.loc[
+            combined_results['Data_Type'].eq('Forecast')
+            & combined_results['Year'].between(
+                ENERGY_BENCHMARK_BASE_YEAR, ENERGY_BENCHMARK_LAST_YEAR)
+        ].copy()
+        base = forecast.loc[forecast['Year'] == ENERGY_BENCHMARK_BASE_YEAR]
+        if base.empty:
+            say('Five-line energy benchmark skipped: no modelled 2026 reference year')
+        else:
+            # Retain a common 2026 baseline ONLY for legacy comparison reference
+            # columns in the audit CSV; the figure plots scenario-specific values.
+            b = base.iloc[0]
+            base_primary = float(b['Total_Primary_Energy_TWh'])
+            base_final = float(b['Total_Final_Energy_TWh'])
+            base_useful = float(b['Illustrative_Useful_Service_Energy_TWh'])
+            base_elec_equiv = float(b['Total_Electricity_Equivalent_TWh'])
+            base_dem = float(b['Dem_TWh'])
+            if base_dem <= 0:
+                raise ValueError('2026 electricity demand must be positive for energy benchmarks')
+            # Under the 2026 physical-energy-content accounting, one additional
+            # unit of conventional electricity takes this many units of primary
+            # energy at the *fixed 2026 generation mix*; other accounting bases
+            # count it as one unit. No heat-pump ambient heat is added twice.
+            ref_primary_per_elec = (
+                float(b['Firm_Gas_Burnt_TWh'])
+                + float(b['Renewable_Electricity_Consumed_TWh'])
+                + float(b['Import_TWh'])
+            ) / base_dem
+            if ref_primary_per_elec <= 0:
+                raise ValueError('Invalid 2026 primary-to-electricity ratio')
+            benchmark_tables = []
+            for name, sub in forecast.groupby('Scenario', sort=False):
+                sub = sub.sort_values('Year').copy()
+                # Optional fixed-2026 benchmarks are retained in the CSV for
+                # comparison, but are not plotted as scenario energy use.
+                delta = (sub['Year'].astype(float).clip(
+                    upper=BACKGROUND_DEMAND_STABILISATION_YEAR
+                ) - ENERGY_BENCHMARK_BASE_YEAR).clip(lower=0) * (
+                    ENERGY_BENCHMARK_BACKGROUND_GROWTH_TWH_PER_YEAR)
+                benchmark = pd.DataFrame({
+                    'Scenario': name,
+                    'Year': sub['Year'].to_numpy(),
+                    'Primary_Energy_Modelled_TWh': sub['Total_Primary_Energy_TWh'].to_numpy(),
+                    'Final_Energy_Modelled_TWh': sub['Total_Final_Energy_TWh'].to_numpy(),
+                    'Useful_Service_Energy_Modelled_TWh': sub['Illustrative_Useful_Service_Energy_TWh'].to_numpy(),
+                    'Electricity_Equivalent_Modelled_TWh': sub['Total_Electricity_Equivalent_TWh'].to_numpy(),
+                    # Retain old fixed-technology references for comparison only.
+                    'Primary_Energy_Reference_TWh': base_primary + delta.to_numpy() * ref_primary_per_elec,
+                    'Final_Energy_Reference_TWh': base_final + delta.to_numpy(),
+                    'Useful_Service_Energy_Reference_TWh': base_useful + delta.to_numpy(),
+                    'Electricity_Equivalent_Reference_TWh': base_elec_equiv + delta.to_numpy(),
+                    # Count actual dispatched wind + solar once. Do not add BESS
+                    # discharge, which would double-count shifted renewable output.
+                    # Subtract renewable exports: this line measures renewable
+                    # electricity delivered for use on the island.
+                    'Delivered_Wind_Solar_TWh': (
+                        sub['Wind_Gen_TWh'] + sub['Solar_Gen_TWh']
+                        - sub['Export_Wind_Solar_TWh']).clip(lower=0).to_numpy(),
+                    'Reference_Primary_per_Electricity': ref_primary_per_elec,
+                    'Reference_2026_Primary_TWh': base_primary,
+                    'Reference_2026_Final_TWh': base_final,
+                    'Reference_2026_Useful_TWh': base_useful,
+                    'Reference_2026_Electricity_Equivalent_TWh': base_elec_equiv,
+                    'Benchmark_Background_Growth_TWh_per_Year': ENERGY_BENCHMARK_BACKGROUND_GROWTH_TWH_PER_YEAR,
+                    'Background_Growth_Stabilisation_Year': BACKGROUND_DEMAND_STABILISATION_YEAR,
+                })
+                benchmark_tables.append(benchmark)
+                # For convenience, put a five-line graph in EACH scenario folder.
+                out_dir = os.path.join(SCENARIO_OUTPUT_DIR, str(name))
+                os.makedirs(out_dir, exist_ok=True)
+                csv_path = os.path.join(out_dir, 'energy_benchmarks_vs_renewables.csv')
+                benchmark.to_csv(csv_path, index=False, float_format='%.4f')
+            
+
+                if SCENARIO_CHARTS:
+                    fig, ax = plt.subplots(figsize=(13.5, 7))
+
+                    years = benchmark['Year'].to_numpy()
+
+                    energy_lines = [
+                        ('Primary_Energy_Modelled_TWh',
+                        'Modelled primary energy', '#08306b'),
+                        ('Final_Energy_Modelled_TWh',
+                        'Modelled final energy', '#2171b5'),
+                        ('Useful_Service_Energy_Modelled_TWh',
+                        'Modelled useful energy (illustrative)', '#6baed6'),
+                        ('Electricity_Equivalent_Modelled_TWh',
+                        'Modelled electricity equivalent', '#9ecae1'),
+                    ]
+
+                    # Every energy line is now scenario-dependent.
+                    for col, label, color in energy_lines:
+                        ax.plot(
+                            years, benchmark[col],
+                            color=color, linewidth=2.3,
+                            label=label, zorder=3
+                        )
+
+                    # Fifth line: actual renewable electricity delivered
+                    # by the selected Gamma scenario.
+                    renewable = benchmark['Delivered_Wind_Solar_TWh']
+
+                    ax.plot(
+                        years, renewable,
+                        color='#008B45',
+                        linestyle='--',
+                        linewidth=3.4,
+                        label='Delivered wind + solar',
+                        zorder=5
+                    )
+
+                    # Light shading behind the family of energy measures.
+                    ref_cols = [c for c, _, _ in energy_lines]
+                    ax.axhspan(
+                        benchmark[ref_cols].min().min(),
+                        benchmark[ref_cols].max().max(),
+                        color='#808080', alpha=0.045,
+                        zorder=0
+                    )
+
+                    ax.set_xlim(
+                        ENERGY_BENCHMARK_BASE_YEAR,
+                        ENERGY_BENCHMARK_LAST_YEAR + 13
+                    )
+                    ax.set_ylim(bottom=0)
+                    ax.set_ylabel('Energy (TWh/year)')
+                    ax.set_xlabel('Year')
+
+                    ax.set_title(
+                        'Four modelled energy accounting measures\n'
+                        f'Compared with delivered renewable electricity | {name.replace("_", " ")} Scenario',
+                        fontsize=14, pad=15
+)
+
+                    ax.grid(alpha=0.18, zorder=0)
+
+                    # Direct labels at the right end of each line.
+                    final_year = ENERGY_BENCHMARK_LAST_YEAR
+                    for col, label, color in energy_lines:
+                        value = float(benchmark[col].iloc[-1])
+                        ax.text(
+                            final_year + 1.3, value,
+                            f'{label}  {value:.0f}',
+                            color=color,
+                            fontsize=9,
+                            va='center',
+                            fontweight='medium'
+                        )
+
+                    renewable_end = float(renewable.iloc[-1])
+                    ax.text(
+                        final_year + 1.3, renewable_end - 5,
+                        f'Delivered wind + solar  {renewable_end:.0f}',
+                        color='#008B45',
+                        fontsize=9,
+                        va='top',
+                        fontweight='bold'
+                    )
+
+              
+
+                    # Remaining annual gap in 2100.
+                    electric_end = float(
+                        benchmark[
+                            'Electricity_Equivalent_Modelled_TWh'
+                        ].iloc[-1]
+                    )
+                    gap = electric_end - renewable_end
+
+                    ax.annotate(
+                        '',
+                        xy=(2097, electric_end),
+                        xytext=(2097, renewable_end),
+                        arrowprops=dict(
+                            arrowstyle='<->',
+                            color='#555555',
+                            linewidth=1.5
+                        )
+                    )
+
+                    ax.text(
+                        2095.5,
+                        (electric_end + renewable_end) / 2,
+                        f'{gap:.1f} TWh gap',
+                        ha='right',
+                        va='center',
+                        fontsize=9
+                    )
+
+                    fig.text(
+                        0.5, 0.015,
+                        'All four blue lines are calculated each year from the scenario energy balance; useful energy is an illustrative proxy. '
+                        'Electricity equivalent assumes full electrification of remaining heat and transport. '
+                        'Green dashed: delivered wind and solar electricity.',
+                        ha='center',
+                        fontsize=8,
+                        color='#555555'
+                    )
+
+                    fig.tight_layout(rect=[0, 0.045, 1, 1])
+
+                    png_path = os.path.join(
+                        out_dir,
+                        'energy_benchmarks_vs_renewables.png'
+                    )
+
+                    try:
+                        fig.savefig(png_path, dpi=200)
+                    except OSError as e:
+                        say(
+                            f'WARNING: could not save five-line PNG '
+                            f'for {name}: {e}; CSV saved'
+                        )
+                    finally:
+                        plt.close(fig)
+
+
+
+                say(f'Dynamic primary-energy and reference chart saved for {name} (2026-{int(sub["Year"].max())})')
+            pd.concat(benchmark_tables, ignore_index=True).to_csv(
+                os.path.join(SCENARIO_OUTPUT_DIR, 'energy_benchmarks_vs_renewables_all_scenarios.csv'),
+                index=False, float_format='%.4f')
+
         pd.concat(capacity_store.values(), ignore_index=True).to_csv(
             os.path.join(SCENARIO_OUTPUT_DIR, "all_scenarios_" + CAPACITY_BY_ZONE_CSV), index=False, float_format='%.1f')
         for k in ('wind', 'solar', 'total', 'system'):
