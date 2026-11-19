@@ -4249,6 +4249,89 @@ def _run_demonstrator():
                             + dispatched_import_twh)
         sim_df['Elec_Equiv_Fossil_Share_Pct'] = np.where(
             elec_equiv_total > 0.0, 100.0 * sim_df['Elec_Equiv_Fossil_TWh'] / elec_equiv_total, 0.0)
+
+        # =====================================================================
+        # DYNAMIC ENERGY ACCOUNTING CHART (REPORTING ONLY)
+        # All series use each year's simulated energy mix. This does NOT change
+        # the scenario demand trajectory, wind/solar dispatch or other results.
+        # Generated here, inside run_scenario(), for every completed scenario.
+        # =====================================================================
+        energy_benchmark = pd.DataFrame({
+            'Year': sim_df['Year'].to_numpy(),
+            'Primary_Energy_Modelled_TWh': primary_domestic.to_numpy(),
+            'Final_Energy_Modelled_TWh': sim_df['Gross_Final_Energy_TWh'].to_numpy(),
+            # Useful/service energy is an illustrative proxy: fossil heat at
+            # Gamma's assumed delivered-heat basis, fossil transport at 1/3,
+            # and electric heat/transport at their modelled service outputs.
+            'Useful_Service_Energy_Modelled_TWh': (
+                (sim_df['Dem_TWh']
+                 - sim_df['Heat_Electricity_Demand_TWh']
+                 - sim_df['Transport_Electricity_Demand_TWh']).clip(lower=0.0)
+                + sim_df['Heat_Energy_Electrified_TWh']
+                + sim_df['Remaining_Heat_Fossil_TWh']
+                + sim_df['Transport_Electricity_Demand_TWh']
+                + sim_df['Remaining_Transport_Fossil_TWh'] / TRANSPORT_DISPLACEMENT_FACTOR
+            ).to_numpy(),
+            'Electricity_Equivalent_Modelled_TWh': elec_equiv_total.to_numpy(),
+            # Battery discharge is not added: that would double-count renewables.
+            'Delivered_Wind_Solar_TWh': (
+                sim_df['Wind_Gen_TWh'] + sim_df['Solar_Gen_TWh']
+                - sim_df['Export_Wind_Solar_TWh']
+            ).clip(lower=0.0).to_numpy(),
+        }).sort_values('Year')
+
+        energy_benchmark.to_csv(
+            os.path.join(out_dir, 'energy_benchmarks_vs_renewables.csv'),
+            index=False, float_format='%.4f'
+        )
+
+        if SCENARIO_CHARTS and make_charts:
+            fig, ax = plt.subplots(figsize=(13.5, 7))
+            energy_lines = [
+                ('Primary_Energy_Modelled_TWh', 'Modelled primary energy', '#08306b'),
+                ('Final_Energy_Modelled_TWh', 'Modelled final energy', '#2171b5'),
+                ('Electricity_Equivalent_Modelled_TWh', 'Modelled electricity equivalent', '#9ecae1'),
+                ('Delivered_Wind_Solar_TWh', 'Delivered wind + solar', '#008B45'),
+            ]
+            years = energy_benchmark['Year'].to_numpy()
+            for column, label, color in energy_lines:
+                renewable = column == 'Delivered_Wind_Solar_TWh'
+                vals = energy_benchmark[column].to_numpy()
+                ax.plot(
+                    years, vals, label=label, color=color,
+                    linewidth=3.0 if renewable else 2.2,
+                    linestyle='--' if renewable else '-',
+                )
+                ax.annotate(
+                    f'{label}  {vals[-1]:.0f}',
+                    xy=(years[-1], vals[-1]), xytext=(8, 0),
+                    textcoords='offset points', fontsize=9,
+                    color=color, va='center',
+                )
+            ax.set_xlim(int(years.min()), int(years.max()) + 16)
+            ax.set_ylim(bottom=0)
+            ax.set_xlabel('Year')
+            ax.set_ylabel('Energy (TWh/year)')
+            ax.set_title(
+                'Dynamic energy accounting measures vs delivered renewables\n'
+                f'{scenario_name.replace("_", " ")}'
+            )
+            ax.grid(alpha=0.2)
+            ax.legend(loc='upper left')
+            fig.text(
+                0.5, 0.015,
+                'Energy measures calculated annually from each scenario. '
+                'Electricity equivalent assumes full electrification of '
+                'remaining fossil heat and land transport.',
+                ha='center', fontsize=8, color='#555555'
+            )
+            fig.tight_layout(rect=[0, 0.04, 1, 1])
+            fig.savefig(
+                os.path.join(out_dir, 'energy_benchmarks_vs_renewables.png'),
+                dpi=200, bbox_inches='tight'
+            )
+            plt.close(fig)
+            say(f'      energy_benchmarks_vs_renewables.png saved: {out_dir}')
         sim_df['Overall_Imported_Electricity_Pct'] = (
             100.0 - sim_df['Overall_Fossil_Fuel_Pct'] - sim_df['Overall_Renewables_Pct'])
         # What replacing gas in firm plant with green hydrogen would take (physical, no costs).
