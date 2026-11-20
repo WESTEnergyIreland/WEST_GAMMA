@@ -3098,6 +3098,18 @@ def _run_demonstrator():
                 d = path_value('demand_twh', year, base_demand_twh, annual_demand_growth_rate)
             else:
                 d = base_demand_twh + (year - start_year) * annual_demand_growth_rate
+
+            # SENSITIVITY: Stop background electricity-demand growth after 2050.
+            # Heat and transport electrification continue unchanged.
+            freeze_year = 2050
+            if path_has('demand_twh'):
+                freeze_year = max(
+                    freeze_year,
+                    int(scenario_path_df['demand_twh'].dropna().index.max())
+                )
+
+            d -= max(0, year - freeze_year) * background_demand_growth_rate
+
             # Heat and transport growth stops once those sectors are fully electrified: electricity
             # beyond the caps would displace no fossil fuel, so it is not added to demand.
             n = year - start_year
