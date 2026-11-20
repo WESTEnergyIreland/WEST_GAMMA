@@ -1,6 +1,7 @@
-"""Paper figure: annual gas use against worst-day gas demand and supply, both pathways.
+"""Figure 10 of the Phase 1 paper: annual gas use against worst-day gas demand and supply, both pathways.
 
-Usage: python analysis/figure8_gas.py <ic_run scenario_outputs> <out.png> [end year]
+Usage: python analysis/figure10_gas.py <ic_run scenario_outputs> [end year]
+Writes analysis/output/paper/Figure_10.pdf and .png.
 
 The first argument is the scenario_outputs folder written by analysis/interconnector_sensitivity.py
 (analysis/ic_run/scenario_outputs), which holds each pathway at 0%, 70% and 100% of interconnector
@@ -15,13 +16,14 @@ Dashed red: supply from Moffat, Corrib and biomethane.
 import os
 import sys
 
-import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
 
-PATHWAYS = [('EirGrid_Extended', "EirGrid's plan, extended", '#1f6fb4'),
-            ('Historical_Trend', 'Recorded trend', '#d9622b')]
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from paper_figures_common import save, EE_LABEL, HT_LABEL
+
+PATHWAYS = [('EirGrid_Extended', EE_LABEL, '#1f6fb4'),
+            ('Historical_Trend', HT_LABEL, '#d9622b')]
 
 
 def load(base, sc, a, end_year):
@@ -31,8 +33,8 @@ def load(base, sc, a, end_year):
     return f[f.index <= end_year]
 
 
-def main(ic_dir, out, end_year=2075):
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 3.8), dpi=300)
+def main(ic_dir, end_year=2075):
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 3.8))
     supply = None
     for sc, label, col in PATHWAYS:
         f0, f70, f100 = (load(ic_dir, sc, a, end_year) for a in (0, 70, 100))
@@ -56,10 +58,9 @@ def main(ic_dir, out, end_year=2075):
     ax1.legend(fontsize=7, frameon=False, loc='lower left')
     ax2.legend(fontsize=7, frameon=False, loc='lower right')
     fig.tight_layout()
-    fig.savefig(out)
-    print('wrote', out)
+    save(fig, 10)
 
 
 if __name__ == '__main__':
     a = sys.argv[1:]
-    main(a[0], a[1], int(a[2]) if len(a) > 2 else 2075)
+    main(a[0], int(a[1]) if len(a) > 1 else 2075)

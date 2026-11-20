@@ -3,6 +3,40 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Pre-submission fixes for the Phase 1 paper: 20 November 2026
+
+Branch `paper/presubmission-fixes`. Changes made after the pre-submission review of the paper (rev11).
+
+Model outputs, `Gamma.py`:
+- New columns `Useful_Energy_TWh`, `Useful_Fossil_TWh` and `Useful_Fossil_Share_Pct`. Useful energy is a proxy for energy services: remaining fossil heat fuel at its energy content, heat-pump heat at COP times its electricity, remaining transport fuel at one third, electric vehicles and other electricity as delivered. The fossil part is remaining heat fuel, remaining transport fuel / 3 and electricity from firm plant. The energy benchmark chart uses the same definition. Equation in `docs/model_equations.md`.
+- RES-E (`Modelled_RES_E_Pct`) and `Delivered_Wind_Solar_TWh` now include battery discharge. Batteries charge only from output that would otherwise be curtailed, and that charging is not in `Wind_Gen_TWh` or `Solar_Gen_TWh`, so nothing is counted twice. The comment in the 19 November chart code that said otherwise is corrected.
+
+| RES-E, % of electricity demand | Before | Now |
+|---|---|---|
+| EirGrid_Extended 2026 / 2035 / 2050 | 41.2 / 66.2 / 78.1 | 41.5 / 68.8 / 85.6 |
+| Historical_Trend 2035 / 2050 / 2075 | 61.0 / 69.4 / 71.1 | 62.4 / 73.0 / 77.2 |
+
+Inputs:
+- `scenariosXLSX.xlsx`: EirGrid_Extended `muon_units_ni` 1 to 2, so both pathways start from the 900 MW minimum-units floor in 2026 (it was 750 MW in EE). Fossil shares and dispatch down in the paper's tables are unchanged at one decimal place. The Historical_Trend description now says it follows the TSO roadmap for SNSP and minimum units, as EirGrid_Extended does.
+- `scenario_paths/eirgrid_gss1_*.csv` and `eirgrid_gss2_fg_100ecp*.csv`: VERIFY markers replaced with the assumptions used.
+- New `nep26_sector_electricity.csv`: SEAI National Energy Projections 2026, electricity and renewables by sector, 2024–2040, With Existing and With Additional Measures. Source for the EirGrid_Extended electrification rates in the paper (Supplementary S5). The rates themselves are unchanged.
+
+Figures: one script per paper figure, each writing `analysis/output/paper/Figure_N.pdf` and `.png` at 600 dpi with no title on the figure (`analysis/paper_figures_common.py`).
+- New: `figure2_wind_history.py` (no grey band), `figure3_model_flow.py` (residual term removed), `figure4_dunkelflaute.py`, `figure8_energy_bases.py` (three bases calculated every year from the scenario).
+- Renamed to match the paper: `figure6_projections.py` to `figure7_projections.py` (panel a is RES-E including batteries, panel d uses `Firm_On_H2_Electrolysis_TWh`), `figure7_showcase.py` to `figure9_showcase.py`, `figure8_gas.py` to `figure10_gas.py`.
+- `eirgrid_validation.py` writes Figure 6 with two bars per case; the 40% headroom case is dropped (Table S6 removed from the supplement).
+- Scenario labels in all figures are EirGrid Extended (EE) and Historical Trend (HT).
+
+Repository: README rewritten with a table of how to reproduce each table and figure; the old README and `TIM V DemonstatorV3.docx` moved to `docs/archive/`; `desktop.ini` and `test.txt` removed. `CONTEXT.md` and `STYLE.md` updated with the decisions of 20 November (scenario names, GSS-2 removed, gas basis, headline shares, numbered references, access dates).
+
+Rerun on this code: EirGrid_Extended and Historical_Trend to 2100, EirGrid_Extended to 2050 with charts, the two EirGrid validation cases, the published network path, `analysis/interconnector_sensitivity.py` (Table 5 unchanged), `analysis/sensitivity_study.py`, `analysis/grid_reinforcement_study.py` and the Table 6 tests in `analysis/output/sensitivity_tests.csv`.
+
+## 2024 interconnector diagnostic and energy accounting chart: 16 and 19 November 2026 (Mark)
+
+Recorded here after the event; neither commit changes a forward result.
+- 16 November (b6eb666): historical curtailment test with Gamma's dispatch on recorded wind, solar, demand and network constraint, 2021–2025, with daily and monthly comparisons, and a 2024 sensitivity with recorded Moyle and EWIC flows as fixed external flows (`Data_inputs/System-Data-Qtr-Hourly-2024.xlsx`). 2024 recorded curtailment 4.66%; Gamma gives 3.95% with no flows, 5.03% with imports only and 3.66% with recorded flows.
+- 19 November (b60bf9b): chart of modelled primary, final, useful and electricity-equivalent energy against delivered wind and solar for each scenario (`energy_benchmarks_vs_renewables.csv`).
+
 ## Fixed residual curtailment removed: 14 November 2026
 
 Change to the model. The residual ('other') curtailment is removed. It was the recorded 2026 curtailment less the curtailment the operating rules simulate, held in every later year and supplied by firm plant. Curtailment is now only what the SNSP and minimum generation ceilings remove, and firm generation is only what the dispatch needs. `GAMMA_RESIDUAL_SCALE`, `GAMMA_RESIDUAL_BASIS`, `SOLAR_OTHER_CURT_CALIBRATED` and the `other_curt_pct_2050` scenario input are gone, as are the `Other_incl_RoCoF_%` and `*_Curtail_Other_%` output columns.

@@ -1,0 +1,276 @@
+# SEAI National Energy Projections 2026 (Ireland only), plot data nep26_plotcsvs.zip, files 44-47 "<sector> Fuel Use".
+# Source: https://www.seai.ie/sites/default/files/2026-10/nep26_plotcsvs.zip (accessed 20 November 2026). Values rounded to 0.01 TWh.
+# "Renewables" includes ambient heat from heat pumps, biomass and solar thermal (heat sectors) and biofuels (transport).
+scenario,sector,fuel,year,TWh
+WEM,Residential,Electricity,2024,8.37
+WEM,Residential,Electricity,2025,8.53
+WEM,Residential,Electricity,2026,8.70
+WEM,Residential,Electricity,2027,8.89
+WEM,Residential,Electricity,2028,9.10
+WEM,Residential,Electricity,2029,9.32
+WEM,Residential,Electricity,2030,9.56
+WEM,Residential,Electricity,2031,9.79
+WEM,Residential,Electricity,2032,10.02
+WEM,Residential,Electricity,2033,10.25
+WEM,Residential,Electricity,2034,10.48
+WEM,Residential,Electricity,2035,10.72
+WEM,Residential,Electricity,2036,10.96
+WEM,Residential,Electricity,2037,11.21
+WEM,Residential,Electricity,2038,11.45
+WEM,Residential,Electricity,2039,11.69
+WEM,Residential,Electricity,2040,11.91
+WEM,Residential,Renewables,2024,1.41
+WEM,Residential,Renewables,2025,1.64
+WEM,Residential,Renewables,2026,1.87
+WEM,Residential,Renewables,2027,2.16
+WEM,Residential,Renewables,2028,2.51
+WEM,Residential,Renewables,2029,2.86
+WEM,Residential,Renewables,2030,3.23
+WEM,Residential,Renewables,2031,3.60
+WEM,Residential,Renewables,2032,4.01
+WEM,Residential,Renewables,2033,4.39
+WEM,Residential,Renewables,2034,4.74
+WEM,Residential,Renewables,2035,5.10
+WEM,Residential,Renewables,2036,5.46
+WEM,Residential,Renewables,2037,5.81
+WEM,Residential,Renewables,2038,6.16
+WEM,Residential,Renewables,2039,6.54
+WEM,Residential,Renewables,2040,6.89
+WAM,Residential,Electricity,2024,8.37
+WAM,Residential,Electricity,2025,8.53
+WAM,Residential,Electricity,2026,8.70
+WAM,Residential,Electricity,2027,8.89
+WAM,Residential,Electricity,2028,9.11
+WAM,Residential,Electricity,2029,9.34
+WAM,Residential,Electricity,2030,9.58
+WAM,Residential,Electricity,2031,9.84
+WAM,Residential,Electricity,2032,10.09
+WAM,Residential,Electricity,2033,10.35
+WAM,Residential,Electricity,2034,10.61
+WAM,Residential,Electricity,2035,10.88
+WAM,Residential,Electricity,2036,11.15
+WAM,Residential,Electricity,2037,11.41
+WAM,Residential,Electricity,2038,11.67
+WAM,Residential,Electricity,2039,11.93
+WAM,Residential,Electricity,2040,12.18
+WAM,Residential,Renewables,2024,1.41
+WAM,Residential,Renewables,2025,1.64
+WAM,Residential,Renewables,2026,2.17
+WAM,Residential,Renewables,2027,2.64
+WAM,Residential,Renewables,2028,3.11
+WAM,Residential,Renewables,2029,3.89
+WAM,Residential,Renewables,2030,4.37
+WAM,Residential,Renewables,2031,4.85
+WAM,Residential,Renewables,2032,5.42
+WAM,Residential,Renewables,2033,5.92
+WAM,Residential,Renewables,2034,6.43
+WAM,Residential,Renewables,2035,6.92
+WAM,Residential,Renewables,2036,7.28
+WAM,Residential,Renewables,2037,7.62
+WAM,Residential,Renewables,2038,7.94
+WAM,Residential,Renewables,2039,8.34
+WAM,Residential,Renewables,2040,8.72
+WEM,Services (excl. Datacentre),Electricity,2024,9.25
+WEM,Services (excl. Datacentre),Electricity,2025,9.52
+WEM,Services (excl. Datacentre),Electricity,2026,9.79
+WEM,Services (excl. Datacentre),Electricity,2027,10.05
+WEM,Services (excl. Datacentre),Electricity,2028,10.32
+WEM,Services (excl. Datacentre),Electricity,2029,10.59
+WEM,Services (excl. Datacentre),Electricity,2030,10.87
+WEM,Services (excl. Datacentre),Electricity,2031,10.89
+WEM,Services (excl. Datacentre),Electricity,2032,10.93
+WEM,Services (excl. Datacentre),Electricity,2033,10.98
+WEM,Services (excl. Datacentre),Electricity,2034,11.05
+WEM,Services (excl. Datacentre),Electricity,2035,11.13
+WEM,Services (excl. Datacentre),Electricity,2036,11.22
+WEM,Services (excl. Datacentre),Electricity,2037,11.31
+WEM,Services (excl. Datacentre),Electricity,2038,11.41
+WEM,Services (excl. Datacentre),Electricity,2039,11.52
+WEM,Services (excl. Datacentre),Electricity,2040,11.46
+WEM,Services (excl. Datacentre),Renewables,2024,0.71
+WEM,Services (excl. Datacentre),Renewables,2025,0.81
+WEM,Services (excl. Datacentre),Renewables,2026,0.90
+WEM,Services (excl. Datacentre),Renewables,2027,1.02
+WEM,Services (excl. Datacentre),Renewables,2028,1.17
+WEM,Services (excl. Datacentre),Renewables,2029,1.33
+WEM,Services (excl. Datacentre),Renewables,2030,1.49
+WEM,Services (excl. Datacentre),Renewables,2031,1.68
+WEM,Services (excl. Datacentre),Renewables,2032,1.86
+WEM,Services (excl. Datacentre),Renewables,2033,2.03
+WEM,Services (excl. Datacentre),Renewables,2034,2.20
+WEM,Services (excl. Datacentre),Renewables,2035,2.37
+WEM,Services (excl. Datacentre),Renewables,2036,2.53
+WEM,Services (excl. Datacentre),Renewables,2037,2.70
+WEM,Services (excl. Datacentre),Renewables,2038,2.87
+WEM,Services (excl. Datacentre),Renewables,2039,3.05
+WEM,Services (excl. Datacentre),Renewables,2040,3.18
+WAM,Services (excl. Datacentre),Electricity,2024,9.25
+WAM,Services (excl. Datacentre),Electricity,2025,9.52
+WAM,Services (excl. Datacentre),Electricity,2026,9.76
+WAM,Services (excl. Datacentre),Electricity,2027,10.00
+WAM,Services (excl. Datacentre),Electricity,2028,10.25
+WAM,Services (excl. Datacentre),Electricity,2029,10.49
+WAM,Services (excl. Datacentre),Electricity,2030,10.74
+WAM,Services (excl. Datacentre),Electricity,2031,10.73
+WAM,Services (excl. Datacentre),Electricity,2032,10.74
+WAM,Services (excl. Datacentre),Electricity,2033,10.77
+WAM,Services (excl. Datacentre),Electricity,2034,10.84
+WAM,Services (excl. Datacentre),Electricity,2035,10.89
+WAM,Services (excl. Datacentre),Electricity,2036,10.94
+WAM,Services (excl. Datacentre),Electricity,2037,11.00
+WAM,Services (excl. Datacentre),Electricity,2038,11.06
+WAM,Services (excl. Datacentre),Electricity,2039,11.12
+WAM,Services (excl. Datacentre),Electricity,2040,11.04
+WAM,Services (excl. Datacentre),Renewables,2024,0.71
+WAM,Services (excl. Datacentre),Renewables,2025,0.81
+WAM,Services (excl. Datacentre),Renewables,2026,0.97
+WAM,Services (excl. Datacentre),Renewables,2027,1.14
+WAM,Services (excl. Datacentre),Renewables,2028,1.32
+WAM,Services (excl. Datacentre),Renewables,2029,1.59
+WAM,Services (excl. Datacentre),Renewables,2030,1.81
+WAM,Services (excl. Datacentre),Renewables,2031,2.08
+WAM,Services (excl. Datacentre),Renewables,2032,2.40
+WAM,Services (excl. Datacentre),Renewables,2033,2.71
+WAM,Services (excl. Datacentre),Renewables,2034,3.04
+WAM,Services (excl. Datacentre),Renewables,2035,3.33
+WAM,Services (excl. Datacentre),Renewables,2036,3.55
+WAM,Services (excl. Datacentre),Renewables,2037,3.78
+WAM,Services (excl. Datacentre),Renewables,2038,3.99
+WAM,Services (excl. Datacentre),Renewables,2039,4.24
+WAM,Services (excl. Datacentre),Renewables,2040,4.49
+WEM,Industry,Electricity,2024,6.93
+WEM,Industry,Electricity,2025,7.56
+WEM,Industry,Electricity,2026,8.18
+WEM,Industry,Electricity,2027,8.62
+WEM,Industry,Electricity,2028,8.75
+WEM,Industry,Electricity,2029,8.89
+WEM,Industry,Electricity,2030,9.02
+WEM,Industry,Electricity,2031,9.08
+WEM,Industry,Electricity,2032,9.24
+WEM,Industry,Electricity,2033,9.32
+WEM,Industry,Electricity,2034,9.39
+WEM,Industry,Electricity,2035,9.46
+WEM,Industry,Electricity,2036,9.52
+WEM,Industry,Electricity,2037,9.57
+WEM,Industry,Electricity,2038,9.63
+WEM,Industry,Electricity,2039,9.68
+WEM,Industry,Electricity,2040,9.73
+WEM,Industry,Renewables,2024,2.19
+WEM,Industry,Renewables,2025,2.31
+WEM,Industry,Renewables,2026,2.42
+WEM,Industry,Renewables,2027,2.50
+WEM,Industry,Renewables,2028,2.65
+WEM,Industry,Renewables,2029,2.76
+WEM,Industry,Renewables,2030,2.87
+WEM,Industry,Renewables,2031,2.99
+WEM,Industry,Renewables,2032,3.30
+WEM,Industry,Renewables,2033,3.41
+WEM,Industry,Renewables,2034,3.51
+WEM,Industry,Renewables,2035,3.63
+WEM,Industry,Renewables,2036,3.75
+WEM,Industry,Renewables,2037,3.89
+WEM,Industry,Renewables,2038,4.01
+WEM,Industry,Renewables,2039,4.20
+WEM,Industry,Renewables,2040,4.38
+WAM,Industry,Electricity,2024,6.93
+WAM,Industry,Electricity,2025,7.56
+WAM,Industry,Electricity,2026,8.18
+WAM,Industry,Electricity,2027,8.62
+WAM,Industry,Electricity,2028,8.75
+WAM,Industry,Electricity,2029,8.89
+WAM,Industry,Electricity,2030,9.02
+WAM,Industry,Electricity,2031,9.08
+WAM,Industry,Electricity,2032,9.23
+WAM,Industry,Electricity,2033,9.29
+WAM,Industry,Electricity,2034,9.35
+WAM,Industry,Electricity,2035,9.40
+WAM,Industry,Electricity,2036,9.46
+WAM,Industry,Electricity,2037,9.51
+WAM,Industry,Electricity,2038,9.56
+WAM,Industry,Electricity,2039,9.61
+WAM,Industry,Electricity,2040,9.66
+WAM,Industry,Renewables,2024,2.19
+WAM,Industry,Renewables,2025,2.31
+WAM,Industry,Renewables,2026,2.51
+WAM,Industry,Renewables,2027,2.64
+WAM,Industry,Renewables,2028,2.82
+WAM,Industry,Renewables,2029,3.13
+WAM,Industry,Renewables,2030,3.37
+WAM,Industry,Renewables,2031,3.69
+WAM,Industry,Renewables,2032,4.21
+WAM,Industry,Renewables,2033,4.55
+WAM,Industry,Renewables,2034,4.85
+WAM,Industry,Renewables,2035,5.21
+WAM,Industry,Renewables,2036,5.34
+WAM,Industry,Renewables,2037,5.44
+WAM,Industry,Renewables,2038,5.50
+WAM,Industry,Renewables,2039,5.71
+WAM,Industry,Renewables,2040,5.91
+WEM,Transport,Electricity,2024,0.43
+WEM,Transport,Electricity,2025,0.58
+WEM,Transport,Electricity,2026,0.75
+WEM,Transport,Electricity,2027,0.94
+WEM,Transport,Electricity,2028,1.14
+WEM,Transport,Electricity,2029,1.37
+WEM,Transport,Electricity,2030,1.62
+WEM,Transport,Electricity,2031,1.89
+WEM,Transport,Electricity,2032,2.19
+WEM,Transport,Electricity,2033,2.55
+WEM,Transport,Electricity,2034,3.00
+WEM,Transport,Electricity,2035,3.42
+WEM,Transport,Electricity,2036,3.91
+WEM,Transport,Electricity,2037,4.38
+WEM,Transport,Electricity,2038,4.83
+WEM,Transport,Electricity,2039,5.29
+WEM,Transport,Electricity,2040,5.75
+WEM,Transport,Renewables,2024,3.83
+WEM,Transport,Renewables,2025,4.55
+WEM,Transport,Renewables,2026,5.04
+WEM,Transport,Renewables,2027,5.51
+WEM,Transport,Renewables,2028,5.96
+WEM,Transport,Renewables,2029,6.39
+WEM,Transport,Renewables,2030,6.80
+WEM,Transport,Renewables,2031,6.67
+WEM,Transport,Renewables,2032,6.53
+WEM,Transport,Renewables,2033,6.37
+WEM,Transport,Renewables,2034,6.16
+WEM,Transport,Renewables,2035,5.97
+WEM,Transport,Renewables,2036,5.75
+WEM,Transport,Renewables,2037,5.53
+WEM,Transport,Renewables,2038,5.34
+WEM,Transport,Renewables,2039,5.13
+WEM,Transport,Renewables,2040,4.94
+WAM,Transport,Electricity,2024,0.43
+WAM,Transport,Electricity,2025,0.58
+WAM,Transport,Electricity,2026,0.75
+WAM,Transport,Electricity,2027,0.94
+WAM,Transport,Electricity,2028,1.15
+WAM,Transport,Electricity,2029,1.37
+WAM,Transport,Electricity,2030,1.62
+WAM,Transport,Electricity,2031,1.92
+WAM,Transport,Electricity,2032,2.23
+WAM,Transport,Electricity,2033,2.56
+WAM,Transport,Electricity,2034,2.93
+WAM,Transport,Electricity,2035,3.30
+WAM,Transport,Electricity,2036,3.75
+WAM,Transport,Electricity,2037,4.19
+WAM,Transport,Electricity,2038,4.61
+WAM,Transport,Electricity,2039,5.03
+WAM,Transport,Electricity,2040,5.44
+WAM,Transport,Renewables,2024,3.83
+WAM,Transport,Renewables,2025,4.55
+WAM,Transport,Renewables,2026,4.79
+WAM,Transport,Renewables,2027,5.11
+WAM,Transport,Renewables,2028,5.39
+WAM,Transport,Renewables,2029,5.62
+WAM,Transport,Renewables,2030,5.81
+WAM,Transport,Renewables,2031,5.68
+WAM,Transport,Renewables,2032,5.54
+WAM,Transport,Renewables,2033,5.39
+WAM,Transport,Renewables,2034,5.24
+WAM,Transport,Renewables,2035,5.08
+WAM,Transport,Renewables,2036,4.87
+WAM,Transport,Renewables,2037,4.67
+WAM,Transport,Renewables,2038,4.48
+WAM,Transport,Renewables,2039,4.30
+WAM,Transport,Renewables,2040,4.13

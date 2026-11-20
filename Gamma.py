@@ -4249,6 +4249,27 @@ def _run_demonstrator():
                             + dispatched_import_twh)
         sim_df['Elec_Equiv_Fossil_Share_Pct'] = np.where(
             elec_equiv_total > 0.0, 100.0 * sim_df['Elec_Equiv_Fossil_TWh'] / elec_equiv_total, 0.0)
+        # Useful energy basis (20 Nov 2026; paper Section 4.6 and Table 4). A simple proxy for the
+        # energy services delivered: heat counts as heat delivered (remaining fossil heat fuel at
+        # its energy content, heat-pump heat at HEAT_COP x its electricity), remaining transport
+        # fuel counts at 1 / TRANSPORT_DISPLACEMENT_FACTOR (the work an electric vehicle would do
+        # with it), and all other electricity counts as delivered. Fossil useful energy is the
+        # remaining fossil heat, the remaining transport fuel / factor and the firm electricity
+        # consumed.
+        sim_df['Useful_Energy_TWh'] = (
+            (sim_df['Dem_TWh'] - sim_df['Heat_Electricity_Demand_TWh']
+             - sim_df['Transport_Electricity_Demand_TWh']).clip(lower=0.0)
+            + sim_df['Heat_Energy_Electrified_TWh']
+            + sim_df['Remaining_Heat_Fossil_TWh']
+            + sim_df['Transport_Electricity_Demand_TWh']
+            + sim_df['Remaining_Transport_Fossil_TWh'] / TRANSPORT_DISPLACEMENT_FACTOR)
+        sim_df['Useful_Fossil_TWh'] = (
+            sim_df['Remaining_Heat_Fossil_TWh']
+            + sim_df['Remaining_Transport_Fossil_TWh'] / TRANSPORT_DISPLACEMENT_FACTOR
+            + sim_df['Fossil_Electricity_Consumed_TWh'])
+        sim_df['Useful_Fossil_Share_Pct'] = np.where(
+            sim_df['Useful_Energy_TWh'] > 0.0,
+            100.0 * sim_df['Useful_Fossil_TWh'] / sim_df['Useful_Energy_TWh'], 0.0)
 
         # =====================================================================
         # DYNAMIC ENERGY ACCOUNTING CHART (REPORTING ONLY)
@@ -4260,23 +4281,16 @@ def _run_demonstrator():
             'Year': sim_df['Year'].to_numpy(),
             'Primary_Energy_Modelled_TWh': primary_domestic.to_numpy(),
             'Final_Energy_Modelled_TWh': sim_df['Gross_Final_Energy_TWh'].to_numpy(),
-            # Useful/service energy is an illustrative proxy: fossil heat at
-            # Gamma's assumed delivered-heat basis, fossil transport at 1/3,
-            # and electric heat/transport at their modelled service outputs.
-            'Useful_Service_Energy_Modelled_TWh': (
-                (sim_df['Dem_TWh']
-                 - sim_df['Heat_Electricity_Demand_TWh']
-                 - sim_df['Transport_Electricity_Demand_TWh']).clip(lower=0.0)
-                + sim_df['Heat_Energy_Electrified_TWh']
-                + sim_df['Remaining_Heat_Fossil_TWh']
-                + sim_df['Transport_Electricity_Demand_TWh']
-                + sim_df['Remaining_Transport_Fossil_TWh'] / TRANSPORT_DISPLACEMENT_FACTOR
-            ).to_numpy(),
+            # Useful energy: the proxy defined above (Useful_Energy_TWh).
+            'Useful_Service_Energy_Modelled_TWh': sim_df['Useful_Energy_TWh'].to_numpy(),
             'Electricity_Equivalent_Modelled_TWh': elec_equiv_total.to_numpy(),
-            # Battery discharge is not added: that would double-count renewables.
+            # Wind and solar consumed on the island, including what reaches demand through
+            # batteries. Batteries charge only from output that would otherwise be curtailed, and
+            # that charging is not in Wind_Gen_TWh or Solar_Gen_TWh, so adding the discharge does
+            # not count any energy twice (20 Nov 2026; before, discharge was left out).
             'Delivered_Wind_Solar_TWh': (
                 sim_df['Wind_Gen_TWh'] + sim_df['Solar_Gen_TWh']
-                - sim_df['Export_Wind_Solar_TWh']
+                - sim_df['Export_Wind_Solar_TWh'] + sim_df['Storage_Discharge_TWh']
             ).clip(lower=0.0).to_numpy(),
         }).sort_values('Year')
 
@@ -4369,7 +4383,8 @@ def _run_demonstrator():
             'Overall_Imported_Electricity_Pct', 'RES_Overall_RED_%', 'RES_E_RED_%',
             'Final_Fossil_Fuel_Pct', 'Final_Renewables_Pct', 'Primary_Fossil_TWh',
             'Primary_Renewable_TWh', 'Firm_Gas_Burnt_TWh', 'Firm_On_H2_Hydrogen_TWh',
-            'Firm_On_H2_Electrolysis_TWh', 'Elec_Equiv_Fossil_TWh', 'Elec_Equiv_Fossil_Share_Pct'
+            'Firm_On_H2_Electrolysis_TWh', 'Elec_Equiv_Fossil_TWh', 'Elec_Equiv_Fossil_Share_Pct',
+            'Useful_Energy_TWh', 'Useful_Fossil_TWh', 'Useful_Fossil_Share_Pct'
         ] + list(SHARE_COLUMN_NAMES.values()):
             sim_df[c] = sim_df[c].round(3 if c.endswith('_TWh') else 2)
         anchor = sim_df.loc[sim_df['Year'] == TRANSITION_BASE_YEAR]

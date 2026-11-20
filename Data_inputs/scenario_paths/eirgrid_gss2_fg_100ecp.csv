@@ -4,7 +4,7 @@
 #   Table, connected + due to connect: onshore wind 9,889 MW, solar 12,647 MW, batteries 6,017 MW
 #   (= 28.5 GW, the '100% ECP' total in Assumptions Document Figure 3); offshore 0.0 GW.
 # NI: GSS-2 says NI data 'to be added'; as the GSS-1 2035 path (onshore 1,723 MW, solar 268 MW) and
-#   ECP-2.5 Table 4 '50%' batteries (645 MW). VERIFY when EirGrid publishes NI data.
+#   ECP-2.5 Table 4 '50%' batteries (645 MW). Assumption until EirGrid publishes NI data.
 # Storage MWh: mostly unpublished in the list; 2.7 h assumed for additions (as GSS-1).
 # Operating rules, GSS-2 Assumptions Table 2, Future Grid: SNSP 100%, minimum sets IE 0 + NI 0,
 #   1 Dublin unit for voltage control (modelled as 1 IE unit). Weather: 2022 profiles (GSS-2 Table 1).

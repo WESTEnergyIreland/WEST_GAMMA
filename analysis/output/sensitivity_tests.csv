@@ -1,0 +1,23 @@
+test,setting,scenario,year,metric,base,test_value,difference,run_dir_note
+heat_pump_cop,HEAT_COP 2.5 (base 3.5),EirGrid_Extended,2050,fossil share of TPE %,59.85,62.38,2.53,Table 6
+heat_pump_cop,HEAT_COP 3.9,EirGrid_Extended,2050,fossil share of TPE %,59.85,58.84,-1.01,Supplementary S5
+heat_pump_cop,HEAT_COP 3.9,EirGrid_Extended,2100,fossil share of TPE %,23.20,20.73,-2.47,Supplementary S5
+heat_pump_cop,HEAT_COP 3.9,Historical_Trend,2050,fossil share of TPE %,71.51,70.68,-0.83,Supplementary S5
+heat_pump_cop,HEAT_COP 3.9,Historical_Trend,2100,fossil share of TPE %,51.61,49.76,-1.85,Supplementary S5
+firm_efficiency,CCGT 60% OCGT 42% (base 55/38),EirGrid_Extended,2050,fossil share of TPE %,59.85,59.41,-0.44,Table 6
+firm_efficiency,CCGT 50% OCGT 34%,EirGrid_Extended,2050,fossil share of TPE %,59.85,60.38,0.53,Table 6
+firm_efficiency,all firm units 35%,EirGrid_Extended,2050,fossil share of TPE %,59.85,61.42,1.57,Supplementary S5
+firm_efficiency,all firm units 35%,EirGrid_Extended,2100,fossil share of TPE %,23.20,24.18,0.98,Supplementary S5
+firm_efficiency,all firm units 35%,Historical_Trend,2050,fossil share of TPE %,71.51,73.68,2.17,Supplementary S5
+firm_efficiency,all firm units 35%,Historical_Trend,2100,fossil share of TPE %,51.61,55.54,3.93,Supplementary S5
+offshore_cf,GAMMA_OFFSHORE_CF 0.45 (base 0.40),EirGrid_Extended,2050,fossil share of TPE %,59.85,59.43,-0.42,Table 6
+demand_shape,GAMMA_FLAT_GROWTH=0 (growth on today's shape),EirGrid_Extended,2050,fossil share of TPE %,59.85,59.86,0.01,Table 6; S9.2
+demand_shape,GAMMA_FLAT_GROWTH=0,Historical_Trend,2050,fossil share of TPE %,71.51,71.54,0.03,S9.2
+demand_shape,GAMMA_FLAT_GROWTH=0,EirGrid_Extended,2050,firm capacity GW,13.18,14.38,1.20,Table 6; S9.2
+demand_shape,GAMMA_FLAT_GROWTH=0,Historical_Trend,2050,firm capacity GW,11.46,12.34,0.88,S9.2
+slow_operating_rules,path historical_trend_slow_ops,Historical_Trend,2035,dispatch down % (max abs difference),,,1.42,Table 6; S5
+slow_operating_rules,path historical_trend_slow_ops,Historical_Trend,2035,fossil share of TPE % (max abs difference),,,0.32,S5
+published_network_path,zonal limits kept after 2035,EirGrid_Extended,2050,fossil share of TPE %,59.85,62.61,2.76,Table 6; Section 7.3
+validation_sigma,sigma IE 0.95 NI 1.57,S1/S4/S8,2030/2030/2035,Gamma less EirGrid total dispatch down (points),-7.8/-6.0/-2.9,-7.5/-5.7/-2.1,,S9.4
+validation_sigma,sigma IE 1.38 NI 2.27,S1/S4/S8,2030/2030/2035,Gamma less EirGrid total dispatch down (points),-7.8/-6.0/-2.9,-8.0/-6.2/-3.5,,S9.4
+validation_weather,weather years 2014-2019 and 2021-2025 (base 2020),S4/S8,2030/2035,Gamma less EirGrid total dispatch down (points),-6.0/-2.9,-12.1 to -6.2 / -9.4 to -2.8,,S9.4

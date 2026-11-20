@@ -138,6 +138,14 @@ $$\text{fossil share, electricity equivalent} = \frac{H^f_y/\mathrm{COP} + T^f_y
 
 with $\mathrm{COP} = 3.5$ and the transport displacement factor $k^{tr} = 3.0$. It is the fossil share of the electricity a fully electrified system would need, and removes the primary energy fallacy for heat and transport as well as for firm plant (output `Elec_Equiv_Fossil_Share_Pct`). Full decarbonisation is the first $y$ with fossil share $\le 10\%$. $M_y$ is the electricity imported in the dispatch: zero in the main runs, which have no interconnector flows, and the dispatched imports in the interconnector runs (`GAMMA_IC_DISPATCH=1`). Until 12 November 2026 the main runs multiplied the share by $(1 - m)$ with $m = 0.04$, a fixed allowance for imported electricity; `GAMMA_IMPORT_SHARE=4` restores it and multiplies every fossil share by 0.96.
 
+The useful-energy share (added 20 November 2026) is a simple proxy for the energy services delivered. Heat counts as heat delivered: remaining fossil heat fuel at its energy content, and heat-pump heat at $\mathrm{COP}$ times its electricity, $E^{heat}_y$. Remaining transport fuel counts at $1/k^{tr}$, the work an electric vehicle would do with it. All other electricity counts as delivered. With demand $D_y$, heat-pump electricity $E^{heat,el}_y$ and transport electricity $E^{tr,el}_y$:
+
+$$U_y = (D_y - E^{heat,el}_y - E^{tr,el}_y) + E^{heat}_y + H^f_y + E^{tr,el}_y + T^f_y/k^{tr}, \qquad \text{fossil share of useful energy} = \frac{H^f_y + T^f_y/k^{tr} + F^{cons}_y}{U_y}$$
+
+(outputs `Useful_Energy_TWh`, `Useful_Fossil_Share_Pct`). Firm electricity counts at the electricity delivered even where it drives heat pumps or vehicles, so the share is a proxy, not an end-use balance.
+
+Wind and solar as a share of demand (`RES_E_RED_%`, renamed `Modelled_RES_E_Pct`) is $(W_y + S_y + B^{dis}_y)/D_y$, where $W_y$ and $S_y$ are wind and solar delivered directly and $B^{dis}_y$ is battery discharge. Batteries charge only from output that would otherwise be curtailed, and that charging is not in $W_y$ or $S_y$, so the discharge is wind and solar delivered later. The paper reports this share from 20 November 2026; before, it reported $(W_y + S_y)/D_y$ (`Share_of_Demand_%` in `summary_total.csv`).
+
 ## 10. Hydrogen for firm plant
 
 $$E^{elec}_{H_2,y} = \frac{F_y}{\eta^{fleet}_y\,\eta^{el}}, \qquad \eta^{el} = 0.70 .$$
