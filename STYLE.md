@@ -41,16 +41,19 @@ Accepted: "Doubling wind capacity raises dispatch down from X% to Y% under the E
 | dispatch down | constraint plus curtailment |
 | constraint | loss due to transmission limits (local) |
 | curtailment | loss due to system-wide limits (SNSP, minimum generation, RoCoF, inertia) |
-| residual curtailment | recorded curtailment the model's operating rules do not simulate |
+| residual curtailment | recorded curtailment the model's operating rules do not simulate (not in the model since 14 November 2026) |
 | SNSP | System Non-Synchronous Penetration; define at first use |
 | IE, NI, all-island | Ireland, Northern Ireland, both |
 | full decarbonisation | not "net zero" |
+| surplus | output above demand and exports; not "oversupply" |
+| TPE | Total Primary Energy; every energy share names its denominator |
 | Gamma | the model; not "the demonstrator" in new text |
 
-Scenario names are written exactly as in `Data_inputs/scenariosXLSX.xlsx` (for example EirGrid_Extended, Historical_Trend).
+Scenario names: in the paper and supplement, EirGrid Extended (EE) and Historical Trend (HT), defined at first use in the abstract and again in the main text; never "pathway" where scenario is meant. In code, the workbook and the changelog, the row names EirGrid_Extended and Historical_Trend.
 
 ## References
 
-- Harvard style.
-- In-text: one author (Smith, 2024); two authors (Smith and Jones, 2024); three or more (Smith *et al.*, 2024), with *et al.* in italics.
+- The Phase 1 paper uses numbered references in order of first appearance; Energy Policy sets no format at submission and applies its own author-year style at proof. Other WEST documents use Harvard style.
+- Harvard in-text: one author (Smith, 2024); two authors (Smith and Jones, 2024); three or more (Smith *et al.*, 2024), with *et al.* in italics. In the numbered style, write Smith *et al.* [12].
+- Web references give the full URL and the date last accessed (day, month and year).
 - Cite primary sources (EirGrid, SONI, SEAI, CRU, peer-reviewed papers) over news and blogs.
