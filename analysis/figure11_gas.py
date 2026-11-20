@@ -1,7 +1,7 @@
-"""Figure 10 of the Phase 1 paper: annual gas use against worst-day gas demand and supply, both pathways.
+"""Figure 11 of the Phase 1 paper: annual gas use against worst-day gas demand and supply, both pathways.
 
-Usage: python analysis/figure10_gas.py <ic_run scenario_outputs> [end year]
-Writes analysis/output/paper/Figure_10.pdf and .png.
+Usage: python analysis/figure11_gas.py <ic_run scenario_outputs> [end year]
+Writes analysis/output/paper/Figure_11.pdf and .png.
 
 The first argument is the scenario_outputs folder written by analysis/interconnector_sensitivity.py
 (analysis/ic_run/scenario_outputs), which holds each pathway at 0%, 70% and 100% of interconnector
@@ -33,7 +33,7 @@ def load(base, sc, a, end_year):
     return f[f.index <= end_year]
 
 
-def main(ic_dir, end_year=2075):
+def main(ic_dir, end_year=2050):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 3.8))
     supply = None
     for sc, label, col in PATHWAYS:
@@ -58,9 +58,9 @@ def main(ic_dir, end_year=2075):
     ax1.legend(fontsize=7, frameon=False, loc='lower left')
     ax2.legend(fontsize=7, frameon=False, loc='lower right')
     fig.tight_layout()
-    save(fig, 10)
+    save(fig, 11)
 
 
 if __name__ == '__main__':
     a = sys.argv[1:]
-    main(a[0], int(a[1]) if len(a) > 1 else 2075)
+    main(a[0], int(a[1]) if len(a) > 1 else 2050)

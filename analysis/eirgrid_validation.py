@@ -68,7 +68,7 @@ def main():
     t.to_csv(os.path.join(OUT, 'eirgrid_validation.csv'), index=False)
     print(t.to_string(index=False))
 
-    # Paper Figure 6: EirGrid and Gamma side by side for each case. The 40% headroom-cover case
+    # Paper Figure 7: EirGrid and Gamma side by side for each case. The 40% headroom-cover case
     # was dropped from the paper on 20 November 2026 (it was fitted before the residual was removed
     # and before equation S2 was corrected).
     fig, ax = plt.subplots(figsize=(7.2, 3.4))
@@ -93,7 +93,7 @@ def main():
     fig.savefig(os.path.join(OUT, 'eirgrid_validation.png'), dpi=200)
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from paper_figures_common import save
-    save(fig, 6)
+    save(fig, 7)
     print(f"saved {os.path.join(OUT, 'eirgrid_validation.csv')} and .png")
 
 

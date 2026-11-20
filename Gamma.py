@@ -5083,7 +5083,7 @@ def _run_demonstrator():
             ax.text(1.015, 0.03, stats_text, transform=ax.transAxes, va='bottom', fontsize=9.5, fontweight='bold', color='#000080',
                      bbox=dict(boxstyle='round,pad=0.6', facecolor='#F0F4FF', edgecolor='#B0C4DE', alpha=0.9))
 
-            # Data behind the chart, for paper figures (analysis/figure7_showcase.py)
+            # Data behind the chart, for paper figures (analysis/figure10_showcase.py)
             pd.DataFrame({
                 'time_h': time_hours, 'demand_incl_charging_mw': d_mw, 'demand_mw': native_demand_mw,
                 'available_wind_solar_mw': total_avail_mw, 'operational_limit_mw': snsp_limit_mw,
@@ -5253,7 +5253,7 @@ def _run_demonstrator():
 
         df_grand['date'] = pd.to_datetime(df_grand[['year', 'month']].assign(day=1))
         df_grand = df_grand.sort_values('date').drop_duplicates(subset=['date'], keep='first')
-        # Data behind the overview chart, for paper figures (analysis/figure7_showcase.py)
+        # Data behind the overview chart, for paper figures (analysis/figure10_showcase.py)
         df_grand.to_csv(os.path.join(out_dir, 'chart_monthly_overview.csv'), index=False)
 
         fig6, ax6 = plt.subplots(figsize=(14.5, 7), dpi=100)

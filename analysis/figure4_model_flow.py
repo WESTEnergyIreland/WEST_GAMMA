@@ -1,7 +1,7 @@
-"""Figure 3 of the Phase 1 paper: flow of the Gamma model (inputs, the order of calculation in each
+"""Figure 4 of the Phase 1 paper: flow of the Gamma model (inputs, the order of calculation in each
 15-minute interval, annual outputs).
 
-Usage: python analysis/figure3_model_flow.py
+Usage: python analysis/figure4_model_flow.py
 """
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch
@@ -39,4 +39,4 @@ for r, (title, fill, boxes) in enumerate(ROWS):
     if r < 2:
         ax.annotate('', xy=(50, y0 - 2.6), xytext=(50, y0 - 0.3),
                     arrowprops=dict(arrowstyle='-|>', color='#444444', lw=1.4))
-save(fig, 3)
+save(fig, 4)

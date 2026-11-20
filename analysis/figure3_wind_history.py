@@ -1,4 +1,4 @@
-"""Figure 2 of the Phase 1 paper: wind and solar as a share of all-island demand, installed wind
+"""Figure 3 of the Phase 1 paper: wind and solar as a share of all-island demand, installed wind
 and wind capacity factor, 2014-2026.
 
 (a) Available wind, delivered wind and delivered wind plus solar as a share of all-island demand,
@@ -9,7 +9,7 @@ and wind capacity factor, 2014-2026.
     the start and end of the year x hours in the year); 2014 uses its year-end capacity, because
     the 2013 value is not in the inputs.
 
-Usage: python analysis/figure2_wind_history.py
+Usage: python analysis/figure3_wind_history.py
 """
 import os
 
@@ -65,7 +65,7 @@ b.spines[['top']].set_visible(False); b2.spines[['top']].set_visible(False)
 h1, l1 = b.get_legend_handles_labels(); h2, l2 = b2.get_legend_handles_labels()
 b.legend(h1 + h2, l1 + l2, frameon=False, ncol=2, loc='upper center', bbox_to_anchor=(0.5, -0.1))
 fig.tight_layout()
-save(fig, 2)
+save(fig, 3)
 print(pd.DataFrame({'available_%_demand': g['av_pct'], 'delivered_%_demand': g['gen_pct'],
                     'wind+solar_%_demand': g['ws_pct'], 'cf_available': cf_av, 'cf_delivered': cf_del,
                     'installed_GW': cap}).round(2).to_string())

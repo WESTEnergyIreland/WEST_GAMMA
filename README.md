@@ -21,15 +21,16 @@ A full run of both scenarios to 2100 takes about 8 minutes with charts off and 2
 
 | Paper item | Command | Output |
 |---|---|---|
-| Tables 4 and S15, Figures 7, 8 and 9 | `python Gamma.py` (charts on for Figure 9) | `scenario_outputs/` |
-| Figure 2 | `python analysis/figure2_wind_history.py` | `analysis/output/paper/Figure_2.*` |
-| Figure 3 | `python analysis/figure3_model_flow.py` | `analysis/output/paper/Figure_3.*` |
-| Figure 4 | EE run to 2050 with charts on, then `python analysis/figure4_dunkelflaute.py <outputs>` | `Figure_4.*` |
-| Table 2, Figure 6 | `python Gamma.py EirGrid_Validation_2030_Initial`, `python Gamma.py EirGrid_Validation_2030_2035`, then `python analysis/eirgrid_validation.py` | `analysis/output/eirgrid_validation.csv`, `Figure_6.*` |
-| Figure 7 | main run and a run with the published network path kept after 2035, then `python analysis/figure7_projections.py <outputs> <published-path outputs>` | `Figure_7.*` |
-| Figure 8 | `python analysis/figure8_energy_bases.py <outputs>` | `Figure_8.*` |
-| Figure 9 | `python analysis/figure9_showcase.py <outputs>` (run with charts on) | `Figure_9.*` |
-| Table 5, Figure 10 | `python analysis/interconnector_sensitivity.py`, then `python analysis/figure10_gas.py analysis/ic_run/scenario_outputs` | `analysis/output/interconnector_sensitivity.*`, `Figure_10.*` |
+| Tables 4 and S15, Figures 8, 9 and 10 | `python Gamma.py` (charts on for Figure 10) | `scenario_outputs/` |
+| Figures 1, 2 and 6 | not drawn by a script in this repository | |
+| Figure 3 | `python analysis/figure3_wind_history.py` | `analysis/output/paper/Figure_3.*` |
+| Figure 4 | `python analysis/figure4_model_flow.py` | `analysis/output/paper/Figure_4.*` |
+| Figure 5 | EE run to 2050 with charts on, then `python analysis/figure5_dunkelflaute.py <outputs>` | `Figure_5.*` |
+| Table 2, Figure 7 | `python Gamma.py EirGrid_Validation_2030_Initial`, `python Gamma.py EirGrid_Validation_2030_2035`, then `python analysis/eirgrid_validation.py` | `analysis/output/eirgrid_validation.csv`, `Figure_7.*` |
+| Figure 8 | main run and a run with the published network path kept after 2035, then `python analysis/figure8_projections.py <outputs> <published-path outputs>` | `Figure_8.*` |
+| Figure 9 | `python analysis/figure9_energy_bases.py <outputs>` | `Figure_9.*` |
+| Figure 10 | EE run with charts on and `target_year` 2052 for the 2050 days, then `python analysis/figure10_showcase.py <outputs>` | `Figure_10.*` |
+| Table 5, Figure 11 | `python analysis/interconnector_sensitivity.py`, then `python analysis/figure11_gas.py analysis/ic_run/scenario_outputs` | `analysis/output/interconnector_sensitivity.*`, `Figure_11.*` |
 | Section 7.3, Table S8 | `python analysis/grid_reinforcement_study.py` | `analysis/output/grid_reinforcement/` |
 | Section 7.2, Tables S9 to S12 | `python analysis/sensitivity_study.py` | `analysis/output/sensitivity/` |
 | Table 6 and Supplement S5, S9 tests | see `CHANGELOG.md`, 20 November 2026 | `analysis/output/sensitivity_tests.csv` |
