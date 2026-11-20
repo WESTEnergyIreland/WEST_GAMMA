@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from paper_figures_common import save, BLUE, ORANGE, EE_LABEL, HT_LABEL
 NEW, BASE = sys.argv[1], sys.argv[2]
-END_ARG = int(sys.argv[3]) if len(sys.argv) > 3 else None
+END_ARG = int(sys.argv[3]) if len(sys.argv) > 3 else 2050   # paper horizon (20 November 2026)
 def load(run, sc):
     t=pd.read_csv(f'{run}/{sc}/summary_total.csv').set_index('Year')
     t['DD_TWh']=t['Available_TWh']*t['Total_Loss_%']/100
@@ -33,9 +33,9 @@ START=min(int(t.index.min()) for t in data.values())
 data={k:t.loc[t.index<=END] for k,t in data.items()}
 fig,ax=plt.subplots(2,2,figsize=(12,9.3))
 panels=[('Modelled_RES_E_Pct','(a) Wind and solar consumed, incl. via batteries,\n% of demand',(0,100)),
-        ('Total_Loss_%','(b) Dispatched-down wind and solar,\n% of available',(0,70)),
+        ('Total_Loss_%','(b) Dispatched-down wind and solar,\n% of available',(0,70) if END>2050 else (0,40)),
         ('Overall_Fossil_Fuel_Pct','(c) Fossil fuel,\n% of Total Primary Energy (TPE)',(0,100)),
-        ('H2_TWh','(d) TWh: electricity to run firm plant on\nhydrogen (solid); all dispatched down (dotted)',(0,125))]
+        ('H2_TWh','(d) TWh: electricity to run firm plant on\nhydrogen (solid); all dispatched down (dotted)',(0,125) if END>2050 else (0,80))]
 for k,(col,title,yl) in enumerate(panels):
     a=ax.flat[k]
     for sc,c in zip(SC,(BLUE,ORANGE)):

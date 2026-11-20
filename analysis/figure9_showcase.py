@@ -9,7 +9,7 @@ Writes analysis/output/paper/Figure_9.pdf and .png. daily_panel() is also used b
 The daily panels read the chart_Daily_Dunkelflaute_<year>.csv and chart_Daily_Absolute_Storm_<year>.csv
 files Gamma writes (it picks the days two years before target_year, so a run to 2035 gives 2033 days).
 [day year] chooses among them if more than one exists; [end year] cuts the monthly panels
-(default: the last year in the outputs).
+(default 2050, the paper horizon; the days need a run with target_year 2052).
 """
 import glob, os, re, sys
 import matplotlib
@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from paper_figures_common import save, EE_LABEL, HT_LABEL
 
 OUT = sys.argv[1] if __name__ == '__main__' else None
-END = int(sys.argv[2]) if __name__ == '__main__' and len(sys.argv) > 2 else None
+END = int(sys.argv[2]) if __name__ == '__main__' and len(sys.argv) > 2 else 2050   # paper horizon
 DAY_YEAR = int(sys.argv[3]) if __name__ == '__main__' and len(sys.argv) > 3 else None
 EG, HT = 'EirGrid_Extended', 'Historical_Trend'
 C = dict(wind='#90EE90', wind_e='#2CA02C', solar='#FFD54F', solar_e='#E0A800', dis='#9467BD',

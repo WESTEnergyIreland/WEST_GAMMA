@@ -33,7 +33,7 @@ def load(base, sc, a, end_year):
     return f[f.index <= end_year]
 
 
-def main(ic_dir, end_year=2075):
+def main(ic_dir, end_year=2050):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 3.8))
     supply = None
     for sc, label, col in PATHWAYS:
@@ -63,4 +63,4 @@ def main(ic_dir, end_year=2075):
 
 if __name__ == '__main__':
     a = sys.argv[1:]
-    main(a[0], int(a[1]) if len(a) > 1 else 2075)
+    main(a[0], int(a[1]) if len(a) > 1 else 2050)
