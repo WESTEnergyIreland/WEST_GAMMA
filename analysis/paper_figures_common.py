@@ -25,8 +25,8 @@ def save(fig, number, dpi=600):
     """Write Figure_<number>.pdf and Figure_<number>.png; return the PNG path."""
     os.makedirs(PAPER_OUT, exist_ok=True)
     base = os.path.join(PAPER_OUT, f'Figure_{number}')
-    fig.savefig(base + '.pdf', bbox_inches='tight')
-    fig.savefig(base + '.png', dpi=dpi, bbox_inches='tight')
+    fig.savefig(base + '.pdf', bbox_inches='tight', pad_inches=0.2)
+    fig.savefig(base + '.png', dpi=dpi, bbox_inches='tight', pad_inches=0.2)
     plt.close(fig)
     print(f'saved {base}.pdf and .png')
     return base + '.png'
