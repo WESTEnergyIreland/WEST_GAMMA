@@ -1,4 +1,4 @@
-"""Figure 7 of the Phase 1 paper: projections for EirGrid Extended (EE) and Historical Trend (HT).
+"""Figure 8 of the Phase 1 paper: projections for EirGrid Extended (EE) and Historical Trend (HT).
 
 Solid lines: the scenarios as defined (zonal network limits removed from 2036).
 Dashed lines: the same scenarios with the published network path after 2035 (reinforcement_steps
@@ -7,8 +7,8 @@ including what reaches demand through batteries (Modelled_RES_E_Pct). Panel (d):
 the firm plant on green hydrogen at 70% electrolyser efficiency and the modelled fleet efficiency
 (Firm_On_H2_Electrolysis_TWh), and all wind and solar dispatched down (available x total dispatch down).
 
-Usage: python analysis/figure7_projections.py <outputs, no limits> <outputs, published path> [end year]
-Writes analysis/output/paper/Figure_7.pdf and .png.
+Usage: python analysis/figure8_projections.py <outputs, no limits> <outputs, published path> [end year]
+Writes analysis/output/paper/Figure_8.pdf and .png.
 where each outputs folder holds EirGrid_Extended/ and Historical_Trend/ from Gamma.py.
 The x axis runs to [end year] if given, otherwise to the last year in the outputs (the
 scenarios' target_year). An end year later than the outputs is cut back to the outputs.
@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from paper_figures_common import save, BLUE, ORANGE, EE_LABEL, HT_LABEL
 NEW, BASE = sys.argv[1], sys.argv[2]
-END_ARG = int(sys.argv[3]) if len(sys.argv) > 3 else None
+END_ARG = int(sys.argv[3]) if len(sys.argv) > 3 else 2050   # paper horizon (20 November 2026)
 def load(run, sc):
     t=pd.read_csv(f'{run}/{sc}/summary_total.csv').set_index('Year')
     t['DD_TWh']=t['Available_TWh']*t['Total_Loss_%']/100
@@ -33,9 +33,9 @@ START=min(int(t.index.min()) for t in data.values())
 data={k:t.loc[t.index<=END] for k,t in data.items()}
 fig,ax=plt.subplots(2,2,figsize=(12,9.3))
 panels=[('Modelled_RES_E_Pct','(a) Wind and solar consumed, incl. via batteries,\n% of demand',(0,100)),
-        ('Total_Loss_%','(b) Dispatched-down wind and solar,\n% of available',(0,70)),
+        ('Total_Loss_%','(b) Dispatched-down wind and solar,\n% of available',(0,70) if END>2050 else (0,40)),
         ('Overall_Fossil_Fuel_Pct','(c) Fossil fuel,\n% of Total Primary Energy (TPE)',(0,100)),
-        ('H2_TWh','(d) TWh: electricity to run firm plant on\nhydrogen (solid); all dispatched down (dotted)',(0,125))]
+        ('H2_TWh','(d) TWh: electricity to run firm plant on\nhydrogen (solid); all dispatched down (dotted)',(0,125) if END>2050 else (0,80))]
 for k,(col,title,yl) in enumerate(panels):
     a=ax.flat[k]
     for sc,c in zip(SC,(BLUE,ORANGE)):
@@ -56,4 +56,4 @@ h=[Line2D([],[],color=BLUE,lw=2.6),Line2D([],[],color=ORANGE,lw=2.6),Line2D([],[
 labels=[EE_LABEL,HT_LABEL,'Same scenario, published network path after 2035']
 if END<=2035: h,labels=h[:2],labels[:2]   # dashed and solid lines coincide to 2035
 fig.legend(h,labels,loc='lower center',ncol=len(h),frameon=False,fontsize=11)
-fig.tight_layout(rect=(0,0.05,1,1)); save(fig, 7)
+fig.tight_layout(rect=(0,0.05,1,1)); save(fig, 8)

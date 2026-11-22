@@ -3,6 +3,14 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Figure scripts and files renumbered to match the paper: 22 November 2026
+
+The paper now has eleven figures, so every script and output from the old Figure 2 onwards was one number behind. No change to any figure's content.
+- `figure2_wind_history.py` to `figure3_wind_history.py`, `figure3_model_flow.py` to `figure4_model_flow.py`, `figure4_dunkelflaute.py` to `figure5_dunkelflaute.py`, `figure7_projections.py` to `figure8_projections.py`, `figure8_energy_bases.py` to `figure9_energy_bases.py`, `figure9_showcase.py` to `figure10_showcase.py`, `figure10_gas.py` to `figure11_gas.py`. `eirgrid_validation.py` keeps its name and now writes `Figure_7`.
+- `analysis/output/paper/Figure_N.pdf/.png` renamed to the same numbers. The leftover images from older numbering (`figure4_dunkelflaute_2048.png`, `figure5_eirgrid_validation.png`, `figure6_projections.png`, `figure7_showcase.png`, `figure8_gas.png`) are removed.
+- Figures 1, 2 and 6 of the paper are not drawn by a script in this repository.
+- README "Reproducing the paper" updated.
+
 ## Table 2 on Ireland's own energies; matched-window 2026 comparison: 22 November 2026
 
 Branch `fix/validation-ie-energies`, on top of `fix/battery-snsp-and-sensitivity-demand`. Findings 3 and 4 of the technical audit of rev11.
@@ -72,6 +80,13 @@ Heat and transport electrification at 2.5 times the EE rates (`analysis/sensitiv
 | 2100 firm capacity (GW) | 24.6 | 25.28 |
 
 All values match the audit's diagnostic reruns. The committed outputs in `analysis/output/` (sensitivity tables, interconnector sensitivity, figures) are not regenerated on this branch and still show the earlier dispatch. Regenerate them from one revision after this is merged, before the paper's numbers are changed.
+
+## Paper horizon set to 2050: 20 November 2026
+
+From Laurentiu and Cian: reporting to 2100 invites attack as beyond reasonable assumptions. No model or input change, so no result changes.
+- **Figures.** `figure8_projections.py`, `figure9_energy_bases.py` (new `[end year]` argument), `figure10_showcase.py` and `figure11_gas.py` (named by the paper's figure numbers, see the entry above) default to an end year of 2050. Figure 8 axes tighten to 40% (b) and 80 TWh (d) when the end year is 2050 or earlier. Figures 8, 9 and 11 were rebuilt from the main, published-path and interconnector runs to 2050.
+- **Figure 10 days.** Gamma picks the showcase days two years before `target_year`, so the 2050 days come from a CSV-and-charts run of EirGrid_Extended with `target_year` 2052 (12 January 2050, cold and still; 21 December 2050, windiest). Its annual results to 2050 match the main run exactly. The monthly panels are the main run cut at December 2050.
+- **Paper.** Table 4 and Table S15 now show 2026, then 2030, 2035 and 2050 for each scenario (HT 2075 dropped). New 2030 values: EE dispatch down 18.9%, RES-E 57.8%, fossil share of TPE 82.4%; HT 11.4%, 43.2% and 87.6%. Figure 9 at 2050: electricity-equivalent need 101 TWh (EE) and 94 TWh (HT) against 63 and 45 TWh of wind and solar consumed. The 2100 results move to one paragraph in Section 7.2 and the supplement, framed as a test of long-term behaviour.
 
 ## Pre-submission fixes for the Phase 1 paper: 20 November 2026
 

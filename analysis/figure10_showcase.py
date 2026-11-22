@@ -1,15 +1,15 @@
-"""Figure 9 of the Phase 1 paper: 2 x 2 showcase of Gamma outputs, no data boxes, one legend.
+"""Figure 10 of the Phase 1 paper: 2 x 2 showcase of Gamma outputs, no data boxes, one legend.
 
 (a) EirGrid_Extended, dunkelflaute day       (b) EirGrid_Extended, maximum wind (storm) day
 (c) EirGrid_Extended, monthly 2019 to end     (d) Historical_Trend, monthly 2019 to end
 
-Usage: python analysis/figure9_showcase.py <outputs> [end year] [day year]
-Writes analysis/output/paper/Figure_9.pdf and .png. daily_panel() is also used by figure4_dunkelflaute.py.
+Usage: python analysis/figure10_showcase.py <outputs> [end year] [day year]
+Writes analysis/output/paper/Figure_10.pdf and .png. daily_panel() is also used by figure5_dunkelflaute.py.
 <outputs> holds EirGrid_Extended/ and Historical_Trend/ from a Gamma.py run with charts on.
 The daily panels read the chart_Daily_Dunkelflaute_<year>.csv and chart_Daily_Absolute_Storm_<year>.csv
 files Gamma writes (it picks the days two years before target_year, so a run to 2035 gives 2033 days).
 [day year] chooses among them if more than one exists; [end year] cuts the monthly panels
-(default: the last year in the outputs).
+(default 2050, the paper horizon; the days need a run with target_year 2052).
 """
 import glob, os, re, sys
 import matplotlib
@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from paper_figures_common import save, EE_LABEL, HT_LABEL
 
 OUT = sys.argv[1] if __name__ == '__main__' else None
-END = int(sys.argv[2]) if __name__ == '__main__' and len(sys.argv) > 2 else None
+END = int(sys.argv[2]) if __name__ == '__main__' and len(sys.argv) > 2 else 2050   # paper horizon
 DAY_YEAR = int(sys.argv[3]) if __name__ == '__main__' and len(sys.argv) > 3 else None
 EG, HT = 'EirGrid_Extended', 'Historical_Trend'
 C = dict(wind='#90EE90', wind_e='#2CA02C', solar='#FFD54F', solar_e='#E0A800', dis='#9467BD',
@@ -136,5 +136,5 @@ if __name__ == '__main__':
                Line2D([], [], color=C['wind_e'], lw=1.4, ls='--', label='Available wind and solar (a, b)')]
     fig.legend(handles=handles, loc='lower center', ncol=5, frameon=False, fontsize=10)
     fig.tight_layout(rect=(0, 0.07, 1, 1))
-    save(fig, 9)
+    save(fig, 10)
     print(f"monthly panels to {end}")
