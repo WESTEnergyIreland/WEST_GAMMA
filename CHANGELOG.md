@@ -3,6 +3,33 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Table 2 on Ireland's own energies; matched-window 2026 comparison: 22 November 2026
+
+Branch `fix/validation-ie-energies`, on top of `fix/battery-snsp-and-sensitivity-demand`. Findings 3 and 4 of the technical audit of rev11.
+
+**1. Table 2 (EirGrid validation).** `analysis/eirgrid_validation.py` added Gamma's IE constraint percentage to its all-island curtailment percentage, two different denominators. `Con_WS_IE_%` also split all-island wind availability between IE and NI by installed capacity, which understated IE availability because offshore wind (all IE) has a higher yield. Both now use zone energies: constraint and curtailment of wind and solar in the six IE onshore zones and IE offshore, over the same zones' available energy.
+- New `forecast_results.csv` columns: `IE_Avail_WS_TWh`, `IE_Curt_WS_%`, `IE_Surplus_WS_%` (system surplus shared to IE by its part of curtailment) and `IE_Total_DD_WS_%`. `Con_WS_IE_%` and `Con_WS_NI_%` are now on the zone-energy basis. `analysis/cover_recalibration.py` reads `Con_WS_IE_%` and would give different results if rerun; it is not used in the paper.
+- The all-island `gamma_surplus_before_constraint_pct` column is dropped from `eirgrid_validation.csv`, as it was not on the Ireland basis.
+
+| Ireland total dispatch down, % of IE available wind and solar | EirGrid | Gamma before (Table 2) | Gamma now |
+|---|---|---|---|
+| S1 2030 Initial | 17.6 | 9.8 | 9.98 |
+| S4 2030, 2.6 GW offshore | 26.8 | 20.8 | 21.42 |
+| S8 2035, 4.7 GW offshore | 28.5 | 25.6 | 25.78 |
+
+"Now" includes the battery correction on the branch below; the audit gives 9.83, 20.80 and 25.50 for IE energies with the earlier dispatch. Gamma is still lower than EirGrid in all three cases. No controlled run attributes part of each gap to high frequency, RoCoF or other unmodelled causes, so the paper should report the measured gaps and list candidate causes separately.
+
+**2. 2026 against the record.** The 15.2% recorded figure in the paper and in `CONTEXT.md` is not reproduced by the repository's hourly files. From `system_dd_hourly_all_island*.csv`, January to August 2026, recorded all-island dispatch down is 14.62% of available wind and solar and 14.95% of available wind. The nearest value to 15.2% is all-island wind for January to June (15.24%). The source of 15.2% is not known. Gamma's full-year 2026 figure (12.3%, now 12.68% with the battery correction) covers October to December filled from an earlier weather year, so it is not on the same window as the record.
+- New `forecast_results.csv` columns for the anchor year: `Recorded_Window_Last_Month` (8) and `WS_DD_Recorded_Window_%`, modelled all-island wind and solar dispatch down over the months the record covers, on 2026 weather. The fleet is the scenario's 2026 anchor fleet, not the connected fleet month by month.
+
+| 2026, all-island wind and solar, % of available | Recorded | Gamma | Difference (points) |
+|---|---|---|---|
+| January to August | 14.62 | 11.38 | −3.24 |
+
+The audit gives 10.99% for the same window with the earlier dispatch.
+
+Rerun on this code: `EirGrid_Validation_2030_Initial`, `EirGrid_Validation_2030_2035` and `analysis/eirgrid_validation.py`; EirGrid_Extended to 2030 for the 2026 window. The committed `analysis/output/eirgrid_validation.csv` and Figure 6 are not updated on this branch, with the other outputs, so that all are regenerated from one revision after merging.
+
 ## Battery charging within SNSP and the minimum-units floor; electrification sensitivity demand: 22 November 2026
 
 Branch `fix/battery-snsp-and-sensitivity-demand`. Findings 1, 2 and the recorded-imports part of 7 of the technical audit of rev11. Both change results.
