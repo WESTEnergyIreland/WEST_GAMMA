@@ -58,6 +58,13 @@ def build_workbook():
     wb = openpyxl.load_workbook(path)
     ws = wb['Scenarios']
     hdr = [c.value for c in ws[1]]
+    # The base row's demand path already holds its heat and transport growth. Variants record
+    # those rates so Gamma keeps background demand on the path and adds only their own
+    # electrification (22 November 2026; before, faster electrification displaced background load).
+    for extra in ('path_heat_growth_twh_per_year', 'path_transport_growth_twh_per_year'):
+        if extra not in hdr:
+            ws.cell(1, len(hdr) + 1).value = extra
+            hdr.append(extra)
     col = {h: i + 1 for i, h in enumerate(hdr)}
     src = next(r for r in range(3, ws.max_row + 1) if ws.cell(r, 1).value == BASE)
     base = [ws.cell(src, c).value for c in range(1, ws.max_column + 1)]
@@ -73,6 +80,10 @@ def build_workbook():
             ws.cell(r, col['scenario']).value = 'S_base'
             continue
         ws.cell(r, col['scenario']).value = run_name(family, factor)
+        ws.cell(r, col['path_heat_growth_twh_per_year']).value = float(
+            base[col['heat_demand_growth_twh_per_year'] - 1])
+        ws.cell(r, col['path_transport_growth_twh_per_year']).value = float(
+            base[col['transport_demand_growth_twh_per_year'] - 1])
         for field in FAMILIES[family][1]:
             ws.cell(r, col[field]).value = float(ws.cell(r, col[field]).value) * factor
         ws.cell(r, col['description']).value = f"Sensitivity: {BASE} with {FAMILIES[family][0].lower()} x{factor}"

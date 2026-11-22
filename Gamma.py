@@ -557,6 +557,94 @@ def expected_constraint_mw(avail_mw, limit_mw, sigma, calib=1.0):
     return np.clip(calib * raw, 0.0, x)
 
 
+def operational_ceiling_mw(system_demand_mw, snsp_fraction, muon_floor_mw, forced_import_mw=0.0):
+    """Ceiling on all non-synchronous output in an interval, less recorded HVDC imports.
+
+    system_demand_mw is native demand + BESS charging + exports (the SNSP denominator).
+    The ceiling covers every MW of wind and solar, including the MW charging batteries or
+    being exported, plus BESS discharge and imports. Returns (ceiling, SNSP part, MUON part).
+    """
+    snsp_mw = max(0.0, snsp_fraction * system_demand_mw - forced_import_mw)
+    muon_mw = max(0.0, system_demand_mw - forced_import_mw - muon_floor_mw)
+    return min(snsp_mw, muon_mw), snsp_mw, muon_mw
+
+
+def dispatch_interval(native_demand_mw, post_constraint_vre_mw, charge_mw, discharge_cap_mw,
+                      snsp_fraction, muon_floor_mw, forced_import_mw=0.0,
+                      export_cap_mw=0.0, import_cap_mw=0.0):
+    """One quarter-hour of wind, solar, BESS and interconnector dispatch.
+
+    charge_mw is the battery charging already sized by the access rule; it is taken from
+    post-constraint wind and solar. Since 22 November 2026 the MW charging the battery
+    count against the SNSP and MUON ceiling as well as adding to its denominator, so
+
+        direct + charge + export_vre + discharge + imports + recorded imports
+            <= min(f (D + C + E), D + C + E - MUON floor).
+
+    Before, direct wind and solar could use the whole ceiling on top of the charging MW,
+    which let SNSP exceed its limit and synchronous output fall below the floor whenever the
+    fleet charged. discharge_cap_mw is the power and state-of-charge limit on discharge.
+    """
+    f = snsp_fraction
+    d = max(0.0, native_demand_mw)
+    fi = max(0.0, forced_import_mw)
+    post = max(0.0, post_constraint_vre_mw)
+    c = min(max(0.0, charge_mw), post)
+    if f < 1.0:
+        # Charging alone may not take SNSP past its limit: c <= f (d + c) - fi.
+        c = min(c, max(0.0, (f * d - fi) / (1.0 - f)))
+    vre_after_charge = post - c
+
+    limit, snsp_ceil, muon_ceil = operational_ceiling_mw(d + c, f, muon_floor_mw, fi)
+    direct = min(vre_after_charge, max(0.0, limit - c), max(0.0, d - fi))
+    curt = max(0.0, vre_after_charge - direct)
+
+    # Exports absorb what is left, only as far as needed: the smallest E that lifts the ceiling
+    # on all wind and solar (charging included) to the post-constraint output.
+    export = export_vre = export_sync = 0.0
+    if export_cap_mw > 0.0 and curt > 1e-9 and f > 0.0:
+        needed = max((post + fi) / f, post + fi + muon_floor_mw) - (d + c)
+        export = min(export_cap_mw, max(0.0, needed))
+        limit, snsp_ceil, muon_ceil = operational_ceiling_mw(d + c + export, f, muon_floor_mw, fi)
+        total_vre = min(post, limit)
+        export_vre = min(export, max(0.0, total_vre - c - direct))
+        export_sync = export - export_vre
+        curt = max(0.0, vre_after_charge - direct - export_vre)
+    system_demand = d + c + export
+
+    surplus = min(curt, max(0.0, vre_after_charge - d - export_vre))
+
+    discharge = 0.0
+    if c <= 1e-9 and discharge_cap_mw > 0.0:
+        used = direct + export_vre + fi
+        discharge = min(
+            max(0.0, discharge_cap_mw),
+            max(0.0, d - fi - direct),
+            max(0.0, f * system_demand - used),
+            max(0.0, system_demand - muon_floor_mw - used),
+        )
+
+    imports = 0.0
+    if import_cap_mw > 0.0 and c <= 1e-9 and export <= 0.0:
+        used = direct + discharge + fi
+        imports = min(
+            import_cap_mw,
+            max(0.0, d - used),
+            max(0.0, f * d - used),
+            max(0.0, d - muon_floor_mw - used),
+        )
+
+    nonsync = direct + c + export_vre + discharge + imports + fi
+    return {
+        'charge': c, 'direct': direct, 'curt': curt, 'surplus': surplus,
+        'export': export, 'export_vre': export_vre, 'export_sync': export_sync,
+        'discharge': discharge, 'imp': imports,
+        'limit': limit, 'snspceil': snsp_ceil, 'muonceil': muon_ceil,
+        'system_demand': system_demand, 'nonsync': nonsync,
+        'snsppct': 100.0 * nonsync / system_demand if system_demand > 0.0 else 0.0,
+    }
+
+
 def fit_constraint_model(dd, years):
     """Fit limit L (MW) and spread sigma on the given years, with constrained energy matched exactly."""
     sub = dd[dd['year'].isin(years)]
@@ -1742,7 +1830,9 @@ def _run_demonstrator():
           2. Limit BESS access to otherwise-curtailed post-constraint VRE by the
              unconstrained VRE fraction and the standalone/hybrid access weighting.
           3. Charge from that accessible original curtailment; charging is included
-             in overall demand used for the SNSP and MUON operational ceilings.
+             in overall demand used for the SNSP and MUON operational ceilings, and the
+             wind and solar MW charging the fleet count against those ceilings
+             (dispatch_interval, 22 November 2026).
           4. If the fleet is not charging, dispatch post-constraint wind and solar
              first, then discharge BESS into residual demand and remaining SNSP/MUON
              headroom. There is no time-of-day discharge window.
@@ -1836,21 +1926,6 @@ def _run_demonstrator():
         ]
         a = {name: np.zeros(n, dtype=float) for name in names}
 
-        def operational_limit(native_demand_mw, charge_mw):
-            """Combined SNSP/MUON ceiling for non-synchronous output."""
-            effective_demand_mw = native_demand_mw + charge_mw
-            # Recorded HVDC imports count in the SNSP numerator and occupy
-            # generation room. Recorded exports add to system demand instead.
-            snsp_ceiling_mw = max(0.0, f * effective_demand_mw - forced_import_i)
-            muon_ceiling_mw = max(
-                0.0, effective_demand_mw - forced_import_i - muon_floor_mw
-            )
-            return (
-                min(snsp_ceiling_mw, muon_ceiling_mw),
-                snsp_ceiling_mw,
-                muon_ceiling_mw,
-            )
-
         for i in range(n):
             forced_import_i = float(forced_import[i])
             forced_export_i = float(forced_export[i])
@@ -1899,84 +1974,19 @@ def _run_demonstrator():
                 - accessible_curtailment_mw,
             )
 
-            # Charging is physically withdrawn from post-constraint VRE and appears
-            # as additional system demand. The same MW cannot be counted as direct
-            # renewable dispatch.
+            # Charging is physically withdrawn from post-constraint VRE, adds to system demand
+            # and counts against the SNSP/MUON ceiling (see dispatch_interval).
             charge_mw = min(charge_mw, post_constraint_vre_mw)
-            effective_demand_mw = native_demand_mw + charge_mw
-            vre_after_charge_mw = max(
-                0.0, post_constraint_vre_mw - charge_mw
+            discharge_cap_mw = min(power_mw, soc_mwh_now * discharge_eff / INTERVAL_HOURS)
+            r = dispatch_interval(
+                native_demand_mw, post_constraint_vre_mw, charge_mw, discharge_cap_mw,
+                f, muon_floor_mw, forced_import_i, export_cap_mw, import_cap_mw,
             )
-            limit_mw, snsp_ceiling_mw, muon_ceiling_mw = operational_limit(
-                native_demand_mw, charge_mw
-            )
-            # Wind/solar serving native demand can't exceed that demand. The SNSP/MUON ceiling
-            # counts charging as demand, but the charging MW are already supplied from VRE.
-            direct_vre_mw = min(vre_after_charge_mw, limit_mw,
-                                max(0.0, native_demand_mw - forced_import_i))
-            curtailment_mw = max(
-                0.0, vre_after_charge_mw - direct_vre_mw
-            )
-
-            # Exports absorb what is left, only as far as needed: the export E that lifts the
-            # ceiling L(D + C + E) = min(f (D + C + E), D + C + E - MUON) to the remaining VRE.
-            export_mw = export_vre_mw = export_sync_mw = 0.0
-            if export_cap_mw > 0.0 and curtailment_mw > 1e-9 and f > 0.0:
-                needed_mw = max(vre_after_charge_mw / f,
-                                vre_after_charge_mw + muon_floor_mw) - effective_demand_mw
-                export_mw = min(export_cap_mw, max(0.0, needed_mw))
-                limit_mw, snsp_ceiling_mw, muon_ceiling_mw = operational_limit(
-                    native_demand_mw + export_mw, charge_mw
-                )
-                total_vre_mw = min(vre_after_charge_mw, limit_mw)
-                export_vre_mw = min(export_mw, max(0.0, total_vre_mw - direct_vre_mw))
-                export_sync_mw = export_mw - export_vre_mw
-                curtailment_mw = max(0.0, vre_after_charge_mw - direct_vre_mw - export_vre_mw)
-                effective_demand_mw = native_demand_mw + charge_mw + export_mw
-
-            # Surplus (EirGrid's ECP definition): wind and solar left over after native demand,
-            # battery charging and exports, which no operating limit could release. It is the part
-            # of curtailment_mw that remains at SNSP 100% with no minimum units; the rest is
-            # operational curtailment.
-            surplus_mw = min(curtailment_mw,
-                             max(0.0, vre_after_charge_mw - native_demand_mw - export_vre_mw))
+            charge_mw = r['charge']
+            discharge_mw = r['discharge']
             # The same quantity on available output before the network is applied, which is the
             # order EirGrid uses (surplus first, then curtailment, then constraint). Diagnostic only.
-            surplus_pre_mw = max(0.0, available_vre_mw - charge_mw - native_demand_mw - export_vre_mw)
-
-            discharge_mw = 0.0
-            if charge_mw <= 1e-9 and soc_mwh_now > 0.0:
-                # Wind and solar always dispatch first. BESS can then use only the
-                # remaining system-demand, SNSP and MUON headroom.
-                residual_demand_mw = max(
-                    0.0, native_demand_mw - direct_vre_mw
-                )
-                snsp_headroom_mw = max(
-                    0.0, f * native_demand_mw - direct_vre_mw
-                )
-                muon_headroom_mw = max(
-                    0.0,
-                    native_demand_mw
-                    - muon_floor_mw
-                    - direct_vre_mw,
-                )
-                discharge_mw = min(
-                    power_mw,
-                    soc_mwh_now * discharge_eff / INTERVAL_HOURS,
-                    residual_demand_mw,
-                    snsp_headroom_mw,
-                    muon_headroom_mw,
-                )
-
-            # Imports cover the residual after wind, solar and BESS, within SNSP/MUON headroom.
-            import_mw = 0.0
-            if import_cap_mw > 0.0 and charge_mw <= 1e-9 and export_mw <= 0.0:
-                import_mw = min(
-                    import_cap_mw,
-                    max(0.0, native_demand_mw - forced_import_i - direct_vre_mw - discharge_mw),
-                    max(0.0, f * native_demand_mw - direct_vre_mw - discharge_mw),
-                    max(0.0, native_demand_mw - muon_floor_mw - direct_vre_mw - discharge_mw),
-                )
+            surplus_pre_mw = max(0.0, available_vre_mw - charge_mw - native_demand_mw - r['export_vre'])
 
             soc_mwh_now += charge_mw * INTERVAL_HOURS * charge_eff
             soc_mwh_now -= discharge_mw * INTERVAL_HOURS / discharge_eff
@@ -1985,24 +1995,21 @@ def _run_demonstrator():
             a['charge'][i] = charge_mw
             a['discharge'][i] = discharge_mw
             a['soc'][i] = soc_mwh_now
-            a['direct'][i] = direct_vre_mw
-            a['curt'][i] = curtailment_mw
-            a['surplus'][i] = surplus_mw
+            a['direct'][i] = r['direct']
+            a['curt'][i] = r['curt']
+            a['surplus'][i] = r['surplus']
             a['surplus_pre'][i] = surplus_pre_mw
             a['accessible_curt'][i] = charge_mw
-            a['limit'][i] = limit_mw
-            a['snspceil'][i] = snsp_ceiling_mw
-            a['muonceil'][i] = muon_ceiling_mw
-            a['export'][i] = export_mw + forced_export_i
-            a['export_vre'][i] = export_vre_mw
-            a['export_sync'][i] = export_sync_mw
-            a['imp'][i] = import_mw + forced_import_i
-            snsp_numerator_mw = (direct_vre_mw + export_vre_mw + discharge_mw
-                                 + import_mw + forced_import_i)
-            a['snsppct'][i] = (
-                100.0 * snsp_numerator_mw / effective_demand_mw
-                if effective_demand_mw > 0.0 else 0.0
-            )
+            a['limit'][i] = r['limit']
+            a['snspceil'][i] = r['snspceil']
+            a['muonceil'][i] = r['muonceil']
+            a['export'][i] = r['export'] + forced_export_i
+            a['export_vre'][i] = r['export_vre']
+            a['export_sync'][i] = r['export_sync']
+            a['imp'][i] = r['imp'] + forced_import_i
+            # SNSP diagnostic: all non-synchronous output, including wind and solar charging
+            # the batteries, over native demand + charging + exports.
+            a['snsppct'][i] = r['snsppct']
 
         # BESS cannot recover energy behind an active fitted network constraint.
         # Physical grid constraint remains exactly the fitted zonal constraint.
@@ -2235,6 +2242,7 @@ def _run_demonstrator():
                                  'ie_reinforcement_mw_per_year', 'ni_reinforcement_mw_per_year',
                                  'reinforcement_steps', 'target_year', 'scenario_path', 'weather_years',
                                  'headroom_pipeline_cover_pct', 'battery_hours_target', 'battery_hours_target_year',
+                                 'path_heat_growth_twh_per_year', 'path_transport_growth_twh_per_year',
                                  'run']
         lookup = {key(k): k for k in known}
         # Also accept Build_WIND_OFFSHORE / TID / HeadroomCurve style headers
@@ -2299,10 +2307,16 @@ def _run_demonstrator():
                     'ie_reinforcement_mw_per_year': 0.0, 'ni_reinforcement_mw_per_year': 0.0,
                     'ie_reinforcement_pct': 0.0, 'ni_reinforcement_pct': 0.0, 'target_year': 2050.0,
                     'headroom_pipeline_cover_pct': 0.0, 'battery_hours_target': 0.0,
-                    'battery_hours_target_year': 2035.0}
+                    'battery_hours_target_year': 2035.0,
+                    # Heat and transport growth already inside a scenario_path demand_twh column.
+                    # Blank: the scenario's own rates (no change). Sensitivities that alter the
+                    # rates set these to the rates of the scenario the path belongs to.
+                    'path_heat_growth_twh_per_year': float('nan'),
+                    'path_transport_growth_twh_per_year': float('nan')}
         not_flagged = ('ie_reinforcement_pct', 'ni_reinforcement_pct', 'ie_reinforcement_mw_per_year',
                        'ni_reinforcement_mw_per_year', 'headroom_pipeline_cover_pct',
-                       'storage_initial_soc_pct', 'battery_hours_target', 'battery_hours_target_year')
+                       'storage_initial_soc_pct', 'battery_hours_target', 'battery_hours_target_year',
+                       'path_heat_growth_twh_per_year', 'path_transport_growth_twh_per_year')
         scenarios = []
         for i, row in table.iterrows():
             name = str(row.get('scenario', '')).strip()
@@ -2613,6 +2627,11 @@ def _run_demonstrator():
         transport_demand_growth_rate = float(sc['transport_demand_growth_twh_per_year'])
         annual_demand_growth_rate = (background_demand_growth_rate + heat_demand_growth_rate
                                      + transport_demand_growth_rate)
+        # Heat and transport growth built into a demand path (see demand_for_year).
+        _ph = float(sc.get('path_heat_growth_twh_per_year', float('nan')))
+        _pt = float(sc.get('path_transport_growth_twh_per_year', float('nan')))
+        path_heat_growth_rate = _ph if np.isfinite(_ph) else heat_demand_growth_rate
+        path_transport_growth_rate = _pt if np.isfinite(_pt) else transport_demand_growth_rate
 
         # 2026 is a transition year before the assumed decarbonisation and
         # electrification trajectory begins. Use a fixed 0.9 TWh increase over
@@ -3091,22 +3110,32 @@ def _run_demonstrator():
                   f"solar MW; IE headroom up {added:,.0f} MW by {final_year}")
 
         def demand_for_year(year):
-            """All-island demand (TWh): 2026 anchor, then the scenario path or the growth rate."""
+            """All-island demand (TWh): background demand plus heat and transport electricity.
+
+            Background is the path (or 2026 anchor plus growth) less the heat and transport growth
+            the path was built with. Heat and transport are then added at this scenario's own
+            rates, each stopped at full electrification, since electricity beyond the caps would
+            displace no fossil fuel. With the path rates equal to the scenario's own rates this is
+            the path less any growth beyond the caps, as before 22 November 2026. Before then a
+            sensitivity that changed the rates kept total demand on the path to its last year,
+            so faster electrification displaced background demand."""
             if year <= start_year:
                 return base_demand_twh
-            if path_has('demand_twh'):
-                d = path_value('demand_twh', year, base_demand_twh, annual_demand_growth_rate)
-            else:
-                d = base_demand_twh + (year - start_year) * annual_demand_growth_rate
-            # Heat and transport growth stops once those sectors are fully electrified: electricity
-            # beyond the caps would displace no fossil fuel, so it is not added to demand.
             n = year - start_year
+            if path_has('demand_twh'):
+                ref_rate = (background_demand_growth_rate + path_heat_growth_rate
+                            + path_transport_growth_rate)
+                d = path_value('demand_twh', year, base_demand_twh, ref_rate)
+                background = d - n * (path_heat_growth_rate + path_transport_growth_rate)
+            else:
+                background = base_demand_twh + n * background_demand_growth_rate
             heat_0 = BASE_HEAT_ELECTRICITY_TWH_2025 + DEFAULT_HEAT_DEMAND_GROWTH_TWH_PER_YEAR
             trans_0 = BASE_TRANSPORT_ELECTRICITY_TWH_2025 + DEFAULT_TRANSPORT_DEMAND_GROWTH_TWH_PER_YEAR
-            heat_over = max(0.0, heat_0 + n * heat_demand_growth_rate - ALL_ISLAND_HEAT_DEMAND_TWH / HEAT_COP)
-            trans_over = max(0.0, trans_0 + n * transport_demand_growth_rate
-                             - ALL_ISLAND_TRANSPORT_DEMAND_TWH / TRANSPORT_DISPLACEMENT_FACTOR)
-            return d - heat_over - trans_over
+            heat_cap = ALL_ISLAND_HEAT_DEMAND_TWH / HEAT_COP
+            trans_cap = ALL_ISLAND_TRANSPORT_DEMAND_TWH / TRANSPORT_DISPLACEMENT_FACTOR
+            heat_inc = max(0.0, min(heat_cap, heat_0 + n * heat_demand_growth_rate) - heat_0)
+            trans_inc = max(0.0, min(trans_cap, trans_0 + n * transport_demand_growth_rate) - trans_0)
+            return background + heat_inc + trans_inc
 
         def snsp_fraction_for_year(year):
             """SNSP limit: the 2026 limit in the anchor year, then the path or the scenario value."""

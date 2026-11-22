@@ -3,6 +3,49 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Battery charging within SNSP and the minimum-units floor; electrification sensitivity demand: 22 November 2026
+
+Branch `fix/battery-snsp-and-sensitivity-demand`. Findings 1, 2 and the recorded-imports part of 7 of the technical audit of rev11. Both change results.
+
+**1. Battery charging and the operating limits.** The SNSP and minimum-units ceiling counted battery charging as demand, but wind and solar delivered directly could then use the whole ceiling on top of the MW charging the battery. In charging intervals SNSP exceeded its limit and synchronous output fell below the floor, while the SNSP diagnostic left the charging MW out of its numerator and reported compliance. Example: 1,000 MW demand, 1,200 MW wind and solar, 200 MW charging, 75% SNSP. Before: 900 MW direct, actual SNSP 91.7% (1,100 of 1,200 MW), reported 75.0%. Now: 700 MW direct, SNSP 75.0%. The annual energy balance passed either way.
+- New module-level `dispatch_interval()` holds the per-interval rule; `dispatch()` calls it. Direct wind and solar are limited to the ceiling less charging, the export headroom uses the same convention, charging alone cannot take SNSP past its limit, and the SNSP diagnostic includes charging.
+- Battery discharge and imports now leave room for recorded HVDC imports in the SNSP and floor terms. This affects only the historical recorded-flow sensitivity; its 2024 result (3.66%) has no batteries and is unchanged.
+- Synchronous exports are unchanged. They are intended: exports raise the SNSP denominator, so (1 − SNSP) of an export flow comes from synchronous plant (Section 4.5 of the paper should say so).
+- The charging-access rule, efficiencies, opening state of charge and dispatch order are unchanged.
+- New `tests/test_dispatch_interval.py`: the audit's worked examples and 20,000 random intervals checking SNSP including charging, the synchronous floor, both sides of the power balance and the reported SNSP.
+
+**2. Electrification sensitivity demand.** On a scenario path, total demand followed the path to its last year (2035 on EirGrid_Extended) whatever the heat and transport rates. Faster electrification therefore displaced background demand. Demand is now background demand plus the actual capped heat and transport increments (`demand_for_year`, equation in `docs/model_equations.md` Section 6). New optional scenario columns `path_heat_growth_twh_per_year` and `path_transport_growth_twh_per_year` give the rates the path was built with; blank means the scenario's own rates, so the main scenarios are unaffected by this part. `analysis/sensitivity_study.py` fills them with the base row's rates.
+
+Results, rerun on this branch with zero interconnector flows and no import allowance (all weather years):
+
+| 2050 | EE before | EE now | HT before | HT now |
+|---|---|---|---|---|
+| Fossil share of primary energy (%) | 59.85 | 60.01 | 71.51 | 71.62 |
+| Wind and solar consumed incl. batteries (% of demand) | 85.64 | 85.33 | 72.96 | 72.70 |
+| Firm generation (TWh) | 10.67 | 10.90 | 16.71 | 16.87 |
+| Electricity for hydrogen to supply the firm fleet (TWh) | 32.64 | 33.20 | 45.54 | 45.98 |
+| Wind dispatch down (% of available wind) | 31.21 | 31.40 | 17.56 | 17.79 |
+| Solar dispatch down (% of available solar) | 23.68 | 24.13 | 13.96 | 14.43 |
+| Firm capacity requirement (GW) | 13.18 | 13.18 | 11.46 | 11.46 |
+| Worst gas day, zero flows (GWh/d) | 663.7 | 663.7 | 556.9 | 556.9 |
+
+| 2100 | EE before | EE now | HT before | HT now |
+|---|---|---|---|---|
+| Fossil share of primary energy (%) | 23.20 | 23.37 | 51.61 | 51.77 |
+
+Heat and transport electrification at 2.5 times the EE rates (`analysis/sensitivity_study.py`):
+
+| | Before | Now |
+|---|---|---|
+| 2050 demand (TWh) | 84.1 | 90.2 |
+| 2050 fossil share of primary energy (%) | 42.7 | 44.01 |
+| 2050 firm capacity (GW) | 16.5 | 17.22 |
+| 2100 demand (TWh) | 130.6 | 136.7 |
+| 2100 fossil share of primary energy (%) | 11.1 | 12.50 |
+| 2100 firm capacity (GW) | 24.6 | 25.28 |
+
+All values match the audit's diagnostic reruns. The committed outputs in `analysis/output/` (sensitivity tables, interconnector sensitivity, figures) are not regenerated on this branch and still show the earlier dispatch. Regenerate them from one revision after this is merged, before the paper's numbers are changed.
+
 ## Pre-submission fixes for the Phase 1 paper: 20 November 2026
 
 Branch `paper/presubmission-fixes`. Changes made after the pre-submission review of the paper (rev11).
