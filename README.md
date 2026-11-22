@@ -32,7 +32,7 @@ A full run of both scenarios to 2100 takes about 8 minutes with charts off and 2
 | Table 5, Figure 10 | `python analysis/interconnector_sensitivity.py`, then `python analysis/figure10_gas.py analysis/ic_run/scenario_outputs` | `analysis/output/interconnector_sensitivity.*`, `Figure_10.*` |
 | Section 7.3, Table S8 | `python analysis/grid_reinforcement_study.py` | `analysis/output/grid_reinforcement/` |
 | Section 7.2, Tables S9 to S12 | `python analysis/sensitivity_study.py` | `analysis/output/sensitivity/` |
-| Table 6 and Supplement S5, S9 tests | see `CHANGELOG.md`, 20 November 2026 | `analysis/output/sensitivity_tests.csv` |
+| Table 6 and Supplement S5, S9 tests | `python analysis/table6_tests.py` (after `python Gamma.py`) | `analysis/output/sensitivity_tests.csv` |
 
 Figure 1 is drawn from the TSOs' annual reports for 2011 to 2020 and the half-hourly records for 2021 to 2026; its script is not yet in the repository. Every figure script writes a vector PDF for submission and a 600 dpi PNG.
 

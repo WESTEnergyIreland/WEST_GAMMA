@@ -29,7 +29,7 @@ daily_panel(ax, files[-1], '')
 ax.set_title('', loc='left')
 ax.grid(axis='y', color='0.9')
 ax.spines[['top', 'right']].set_visible(False)
-handles = legend_handles() + [Line2D([], [], color='black', lw=1.8, label='Demand (incl. battery charging)'),
+handles = legend_handles() + [Line2D([], [], color='black', lw=1.8, label='Demand'),
                               Line2D([], [], color=C['wind_e'], lw=1.4, ls='--', label='Available wind and solar')]
 fig.legend(handles=handles, loc='lower center', ncol=3, frameon=False, fontsize=9)
 fig.tight_layout(rect=(0, 0.17, 1, 1))

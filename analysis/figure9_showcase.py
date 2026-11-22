@@ -49,14 +49,17 @@ def daily_panel(ax, path, title):
     ax.fill_between(t, w, top, color=C['solar'], edgecolor=C['solar_e'], lw=0.5)
     ax.fill_between(t, top, top + d['battery_discharge_mw'], color=C['dis'], edgecolor=C['dis_e'], lw=0.5)
     stack = top + d['battery_discharge_mw']
-    ax.fill_between(t, stack, d['demand_incl_charging_mw'], where=d['demand_incl_charging_mw'] > stack,
-                    color=C['firm'], lw=0, zorder=0)
+    # Firm plant serves native demand less wind, solar and discharge. Charging is supplied by wind
+    # and solar and is drawn below zero, so it is not added to the firm area (22 November 2026;
+    # before, the grey area ran to demand including charging and overstated firm output).
+    native = d['demand_incl_charging_mw'] - d['battery_charge_mw']
+    ax.fill_between(t, stack, native, where=native > stack, color=C['firm'], lw=0, zorder=0)
     ax.fill_between(t, 0, -d['battery_charge_mw'], color=C['chg'], edgecolor=C['chg_e'], lw=0.5, alpha=0.8)
     ax.fill_between(t, top, top + d['curtailment_oversupply_mw'], facecolor='none', edgecolor=C['curt'],
                     hatch='///', lw=0.6)
     ax.fill_between(t, top + d['curtailment_oversupply_mw'], d['available_wind_solar_mw'],
                     where=d['grid_constraint_mw'] > 0, facecolor='none', edgecolor=C['con'], hatch='...', lw=0.6)
-    ax.plot(t, d['demand_incl_charging_mw'], color='black', lw=1.8)
+    ax.plot(t, native, color='black', lw=1.8)
     ax.plot(t, d['available_wind_solar_mw'], color=C['wind_e'], lw=1.4, ls='--')
     ax.axhline(0, color='0.4', lw=0.7)
     r = d.iloc[0]
@@ -132,7 +135,7 @@ if __name__ == '__main__':
                Patch(facecolor=C['firm'], label='Firm plant (gas today)'),
                Patch(facecolor='none', edgecolor=C['curt'], hatch='///', label='Curtailment and surplus'),
                Patch(facecolor='none', edgecolor=C['con'], hatch='...', label='Network constraint'),
-               Line2D([], [], color='black', lw=1.8, label='Demand (incl. battery charging in a, b)'),
+               Line2D([], [], color='black', lw=1.8, label='Demand'),
                Line2D([], [], color=C['wind_e'], lw=1.4, ls='--', label='Available wind and solar (a, b)')]
     fig.legend(handles=handles, loc='lower center', ncol=5, frameon=False, fontsize=10)
     fig.tight_layout(rect=(0, 0.07, 1, 1))

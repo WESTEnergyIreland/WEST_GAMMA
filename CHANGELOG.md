@@ -3,6 +3,29 @@
 Handover record of changes to `DemonstratorV2.py` and its data builder `build_all_island_dd.py`.
 The full methodology is in `Technical_Briefing_README.docx`.
 
+## Paper outputs regenerated after the audit fixes; Table 6 test script; daily firm area: 22 November 2026
+
+Branch `regen/rev12-outputs`. All outputs below are from `main` after PRs #72 and #73.
+- Rerun: `python Gamma.py` (EE and HT to 2100, charts on), `analysis/interconnector_sensitivity.py`, `analysis/sensitivity_study.py`, `analysis/grid_reinforcement_study.py`, `analysis/eirgrid_validation.py`, and the Table 6 tests. EE and HT to 2050 and to 2052 with charts for the daily figures.
+- New `analysis/table6_tests.py` runs the Table 6 and Supplementary S5/S9 one-at-a-time tests (they were run by hand before). The validation sigma and weather-year rows in `sensitivity_tests.csv` are kept from the earlier runs and still show the earlier Table 2 basis; the script does not rerun them.
+- `figure9_showcase.py` (and Figure 4, which uses it): the grey firm area now runs to native demand, not demand including battery charging. Charging is supplied by wind and solar and stays drawn below zero. Before, the firm area was overstated by the charging MW. The demand line is native demand.
+- Figures 4, 6, 7, 8, 9 and 10 in `analysis/output/paper/` redrawn to 2050.
+
+| Paper item | Before | Now |
+|---|---|---|
+| Table 5 EE 70% / 100%: fossil share of TPE (%) | 57.1 / 56.0 | 57.3 / 56.2 |
+| Table 5 EE 0% / 70% / 100%: dispatch down (%) | 29.4 / 22.8 / 20.1 | 29.7 / 22.3 / 19.7 |
+| Table 5 HT 0% / 70% / 100%: fossil share (%) | 71.5 / 66.5 / 64.7 | 71.6 / 66.6 / 64.8 |
+| Table 5 HT 0% / 70% / 100%: dispatch down (%) | 16.8 / 9.8 / 7.4 | 17.0 / 9.3 / 6.8 |
+| Worst gas days and first years above supply | | unchanged |
+| Table 6: zonal limits kept after 2035 (EE 2050, %) | 62.6 | 62.8 |
+| Table 6: COP 2.5 / offshore 45% (%) | 62.4 / 59.4 | 62.5 / 59.6 |
+| Table 6: firm efficiencies 60/42 and 50/34 (%) | 59.4 / 60.4 | 59.6 / 60.5 |
+| Table 6: slower operating rules, max difference to 2035 (fossil share / dispatch down, points) | 0.3 / 1.4 | 0.4 / 1.8 (dispatch down now wind and solar combined) |
+| Section 7.3: fossil share across 0–7.3%/yr headroom growth, EE 2050 (%) | 60–63 | 60.7–63.1 |
+| Section 7.2: yield of next 10.5 GW / fleet average (TWh/GW), direct wind and solar | 0.34 / 1.22 | 0.34 / 1.22 (0.42 / 1.29 with battery discharge) |
+| Build at 2.5 times after 2035, EE 2050 fossil share (%) | 54 | 54.1 |
+
 ## Table 2 on Ireland's own energies; matched-window 2026 comparison: 22 November 2026
 
 Branch `fix/validation-ie-energies`, on top of `fix/battery-snsp-and-sensitivity-demand`. Findings 3 and 4 of the technical audit of rev11.
