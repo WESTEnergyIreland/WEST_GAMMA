@@ -4,11 +4,13 @@ Run after Gamma.py. Reads Data_inputs/eirgrid_ecp_gss1_results_ie.csv and the fo
 the validation scenarios, and writes analysis/output/eirgrid_validation.csv and .png.
 
 Like for like: EirGrid models the whole SEM and publishes Ireland results. Gamma also runs the
-whole SEM; its Ireland figures are Ireland's constraint (wind + solar) plus the system-wide
-curtailment, which applies to Ireland and Northern Ireland alike. EirGrid's 'surplus' (output
-above demand, storage and exports) is part of Gamma's curtailment. Gamma also reports its surplus
-separately (Surplus_% in summary_system.csv), so the table gives EirGrid's three-way split too:
-surplus, operational curtailment and constraint.
+whole SEM. Its Ireland figures are Ireland's own energies: constraint and curtailment of wind and
+solar in the six IE onshore zones and IE offshore, divided by the same zones' available energy
+(IE_*_WS columns in forecast_results.csv). Before 22 November 2026 the script added Gamma's IE
+constraint percentage to its all-island curtailment percentage, which mixed two denominators.
+EirGrid's 'surplus' (output above demand, storage and exports) is part of Gamma's curtailment; the
+table gives EirGrid's three-way split too, with Gamma's system surplus shared to IE by its part of
+curtailment.
 """
 import os
 import sys
@@ -33,14 +35,14 @@ def gamma_ireland(scenario, year):
     if r.empty:
         return None
     r = r.iloc[0]
-    s = pd.read_csv(os.path.join(RESULTS, scenario, 'summary_system.csv')).set_index('Year').loc[year]
-    curtailment = s['SNSP_Curtailment_%'] + s['MinGen_Curtailment_%']
-    surplus = s['Surplus_%'] if 'Surplus_%' in s.index else float('nan')
+    need = ('IE_Curt_WS_%', 'IE_Surplus_WS_%', 'IE_Total_DD_WS_%')
+    if any(c not in r.index for c in need):
+        sys.exit(f"{f} has no IE energy columns; rerun Gamma.py on the current code")
+    curtailment = r['IE_Curt_WS_%']
+    surplus = r['IE_Surplus_WS_%']
     return {'gamma_constraint_pct': r['Con_WS_IE_%'], 'gamma_curtailment_pct': curtailment,
-            'gamma_total_pct': r['Con_WS_IE_%'] + curtailment,
-            'gamma_surplus_pct': surplus, 'gamma_operational_curtailment_pct': curtailment - surplus,
-            'gamma_surplus_before_constraint_pct': s.get('Surplus_Before_Constraint_%', float('nan'))}
-
+            'gamma_total_pct': r['IE_Total_DD_WS_%'],
+            'gamma_surplus_pct': surplus, 'gamma_operational_curtailment_pct': curtailment - surplus}
 
 def main():
     pub = pd.read_csv(PUBLISHED, comment='#')

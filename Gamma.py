@@ -1686,12 +1686,19 @@ def _run_demonstrator():
     # + other + TSO test. Minimum generation is not recorded separately in these files.
     # Solar capacity history is not in the inputs, so actual solar CF is left blank.
     hist_eval_rows = []
+    # Last recorded month of the anchor year (part-year record), for the matched-window
+    # comparison of modelled and recorded 2026 dispatch down (22 November 2026).
+    anchor_record_last_month = None
     for tech, fname in DD_ALL_ISLAND_FILES.items():
         path = input_path(fname)
         if not os.path.exists(path):
             continue
         h = pd.read_csv(path, parse_dates=['datetime'])
         h['year'] = h['datetime'].dt.year
+        _a = h.loc[(h['year'] == 2026) & (h['av_mwh'] > 0), 'datetime']
+        if len(_a):
+            m = int(_a.max().month)
+            anchor_record_last_month = m if anchor_record_last_month is None else min(anchor_record_last_month, m)
         g = h.groupby('year').agg(hours=('av_mwh', 'size'), av=('av_mwh', 'sum'), ao=('ao_mwh', 'sum'),
                                   con=('constraint_mwh', 'sum'), curt=('curtailment_mwh', 'sum'),
                                   snsp=('snsp_mwh', 'sum'), hf=('hi_frq_mwh', 'sum'), rocof=('rocof_mwh', 'sum'),
@@ -2673,6 +2680,29 @@ def _run_demonstrator():
         offshore_own = str(sc.get('offshore_connection', DEFAULT_OFFSHORE_CONNECTION)).strip().lower() != 'shared'
         # Zones shown in the readable summaries. With its own connection, offshore is a zone of its own.
         summary_zones = HEADROOM_ZONES + (['OFFSHORE'] if offshore_own else [])
+
+        def jurisdiction_zones(region):
+            if region == 'NI':
+                return ['NI']
+            return IE_ZONES + (['OFFSHORE'] if 'OFFSHORE' in summary_zones else [])
+
+        def jurisdiction_twh(run, kind, region):
+            """Wind + solar energy (TWh/yr) of one kind (avail, con, curt) summed over a jurisdiction's zones."""
+            return sum(run.get(f'z_{tech}_{kind}_{z}', 0.0)
+                       for z in jurisdiction_zones(region) for tech in ('wind', 'solar'))
+
+        def jurisdiction_pct(run, kind, region):
+            """Constraint or curtailment as % of the jurisdiction's own available wind + solar energy."""
+            av = jurisdiction_twh(run, 'avail', region)
+            return 100.0 * jurisdiction_twh(run, kind, region) / av if av > 0 else 0.0
+
+        def jurisdiction_surplus_pct(run, region):
+            """System surplus shared by the jurisdiction's part of curtailment, % of its available energy."""
+            curt_all = sum(jurisdiction_twh(run, 'curt', r) for r in REGIONS)
+            av = jurisdiction_twh(run, 'avail', region)
+            if curt_all <= 0 or av <= 0:
+                return 0.0
+            return 100.0 * run['sys_curt_surplus_twh'] * jurisdiction_twh(run, 'curt', region) / curt_all / av
         # Interconnectors (issues #5, #8, #9)
         celtic_year = float(sc.get('celtic_energised_year', DEFAULT_CELTIC_ENERGISED_YEAR))
         mares_year = float(sc.get('mares_energised_year', DEFAULT_MARES_ENERGISED_YEAR))
@@ -3297,6 +3327,9 @@ def _run_demonstrator():
                 firm_mw = np.maximum(
                     0.0, demand - d['domestic_vre_mw'] - d['discharge_mw'] - d['import_mw']
                 ) + d['export_sync_mw']
+                win = None
+                if year == start_year and wy == start_year and anchor_record_last_month:
+                    win = (df_wy['parsed_date'].dt.month <= anchor_record_last_month).to_numpy(dtype=float)
                 gd = gas_daily(df_wy, firm_mw, year, wy)
                 row = {
                     'gas_worst_day_gwh': float(gd['total_gwh'].max()) if len(gd) else 0.0,
@@ -3341,6 +3374,11 @@ def _run_demonstrator():
                     'recoverable_grid_constraint_twh': d['recoverable_grid_constraint_mw'].sum() * to_annual_twh,
                     'grid_constrained_oversupply_twh': d['grid_constrained_oversupply_mw'].sum() * to_annual_twh,
                     'operational_curtailment_oversupply_twh': d['operational_curtailment_oversupply_mw'].sum() * to_annual_twh,
+                    # Matched window: anchor year on its own weather, months covered by the record.
+                    'window_avail_mwh': (float(((avail + solar) * win).sum()) * INTERVAL_HOURS
+                                         if win is not None else np.nan),
+                    'window_dd_mwh': (float(((d['con_w'] + d['con_s'] + d['curt_w'] + d['curt_s']) * win).sum())
+                                      * INTERVAL_HOURS if win is not None else np.nan),
                     'IE_comb_pct': 100 * (reg_w['IE'].sum() + reg_s['IE'].sum())
                                    / (tot_av * ie_share + tot_sv * s_ie),
                     'NI_comb_pct': 100 * (reg_w['NI'].sum() + reg_s['NI'].sum())
@@ -3909,8 +3947,23 @@ def _run_demonstrator():
                 'Solar_Con_NI_%': round(run['solar_NI_own_pct'] if solar_cap > 0 else 0.0, 2),
                 'Wind_Gen_TWh': round(implied_gen_twh, 2),
                 'Wind+Solar_%': round(wind_pct_of_demand + solar_pct_of_demand, 2),
-                'Con_WS_IE_%': round(run['IE_comb_pct'], 2),
-                'Con_WS_NI_%': round(run['NI_comb_pct'], 2),
+                # Jurisdiction shares from zone energies (22 November 2026): IE is the six onshore
+                # zones plus offshore, each with its own availability. Before, IE availability was
+                # all-island availability split by installed capacity, which understated offshore.
+                'Con_WS_IE_%': round(jurisdiction_pct(run, 'con', 'IE'), 2),
+                'Con_WS_NI_%': round(jurisdiction_pct(run, 'con', 'NI'), 2),
+                'IE_Avail_WS_TWh': round(jurisdiction_twh(run, 'avail', 'IE'), 3),
+                'IE_Curt_WS_%': round(jurisdiction_pct(run, 'curt', 'IE'), 2),
+                'IE_Surplus_WS_%': round(jurisdiction_surplus_pct(run, 'IE'), 2),
+                'IE_Total_DD_WS_%': round(jurisdiction_pct(run, 'con', 'IE')
+                                          + jurisdiction_pct(run, 'curt', 'IE'), 2),
+                # Anchor year only: modelled all-island wind + solar dispatch down over the months the
+                # part-year record covers (January to Recorded_Window_Last_Month), % of available.
+                'Recorded_Window_Last_Month': (anchor_record_last_month
+                                               if np.isfinite(run.get('window_avail_mwh', np.nan)) else np.nan),
+                'WS_DD_Recorded_Window_%': (round(100.0 * run['window_dd_mwh'] / run['window_avail_mwh'], 2)
+                                            if run.get('window_avail_mwh', 0) and np.isfinite(run['window_avail_mwh'])
+                                            else np.nan),
             }
             for z in HEADROOM_ZONES:
                 row_out[f'Con_{z}_%'] = round(run.get(f'Con_{z}_%', 0.0), 2)
