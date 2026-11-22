@@ -48,6 +48,7 @@ An independent, evidence-based assessment of Ireland's energy system, aiming for
 - Headline after the 14 November change: 2050 fossil share of TPE 59.8% (EE) and 71.5% (HT), with no import allowance and zero interconnector flows; electricity-equivalent share 37.4% and 52.4%.
 - 20 November 2026 (pre-submission review): the share of electricity demand met by wind and solar counts wind and solar delivered through batteries (EE 2050: 85.6%, previously reported as 78.1%); the fossil share of useful energy is a model output (`Useful_Fossil_Share_Pct`); the 40% headroom-cover case is dropped from the paper with Table S6; heat and transport electrification rates on EE are checked against SEAI NEP 2026 results data (`Data_inputs/nep26_sector_electricity.csv`).
 - 20 November 2026: the repository is public at https://github.com/WESTEnergyIreland/WEST_GAMMA. Licence and Zenodo archive to be decided.
+- 22 November 2026: the code is released under the MIT licence (`LICENSE`), as stated in the paper's Data availability section. No Zenodo archive is referenced in the paper.
 
 ## Where things live
 

@@ -42,4 +42,4 @@ All inputs are public and listed in Supplementary Table S1: the TSOs' quarter-ho
 
 ## Licence
 
-To be confirmed by the group before the release used in the paper is archived on Zenodo.
+The code is released under the MIT licence; see `LICENSE`. Input data in `Data_inputs/` come from the public sources listed in Supplementary Table S1 and remain under their providers' terms.
