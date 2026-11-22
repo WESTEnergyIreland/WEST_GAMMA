@@ -53,7 +53,7 @@ Scenario names: in the paper and supplement, EirGrid Extended (EE) and Historica
 
 ## References
 
-- The Phase 1 paper uses numbered references in order of first appearance; Energy Policy sets no format at submission and applies its own author-year style at proof. Other WEST documents use Harvard style.
-- Harvard in-text: one author (Smith, 2024); two authors (Smith and Jones, 2024); three or more (Smith *et al.*, 2024), with *et al.* in italics. In the numbered style, write Smith *et al.* [12].
+- All WEST documents, including the Phase 1 paper and supplement, use Harvard (Elsevier author-year) style. The paper switched from numbered references on 22 November 2026; the supplement shares one alphabetical list format with the main paper.
+- Harvard in-text: one author (Smith, 2024); two authors (Smith and Jones, 2024); three or more (Smith *et al.*, 2024), with *et al.* in italics. Same author and year: 2026a, 2026b, assigned in order of the reference list. Several works in one bracket: (EirGrid, 2026a, 2026b; SEAI, 2026a). Legislation is cited by its short title without a comma, e.g. (Climate Change Act (Northern Ireland) 2022).
 - Web references give the full URL and the date last accessed (day, month and year).
 - Cite primary sources (EirGrid, SONI, SEAI, CRU, peer-reviewed papers) over news and blogs.
