@@ -80,13 +80,15 @@ Each interval is solved in this order.
 
 1. **Potential curtailment** with no charging: $K^0_t = \max\big(0,\ \tilde X_t - \min(sD_t,\ D_t - P^{\min})\big)$.
 2. **Charge** from the part of $K^0_t$ the fleet can reach:
-$$P^{ch}_t = \min\Big(\bar P,\ \frac{\bar E - S_{t-1}}{\eta^{ch}\Delta t},\ \alpha\,\frac{\tilde X_t}{X_t}\,K^0_t,\ \tilde X_t\Big), \qquad \alpha = \min\big(1,\ 1.10\,h + 0.90\,(1-h)\big),$$
+$$P^{ch}_t = \min\Big(\bar P,\ \frac{\bar E - S_{t-1}}{\eta^{ch}\Delta t},\ \alpha\,\frac{\tilde X_t}{X_t}\,K^0_t,\ \tilde X_t,\ \frac{sD_t}{1-s}\Big), \qquad \alpha = \min\big(1,\ 1.10\,h + 0.90\,(1-h)\big),$$
 where $h$ is the co-located share of battery MW. The factor $\tilde X_t/X_t$ stands for the share of surplus that is not behind a network constraint.
-3. **Delivered and curtailed output**:
-$$V_t = \min\big(\tilde X_t - P^{ch}_t,\ L_t,\ D_t\big), \qquad K_t = \tilde X_t - P^{ch}_t - V_t .$$
+3. **Delivered and curtailed output**. The wind and solar charging the battery are non-synchronous output, so they count against $L_t$ as well as adding to its denominator:
+$$V_t = \min\big(\tilde X_t - P^{ch}_t,\ L_t - P^{ch}_t,\ D_t\big), \qquad K_t = \tilde X_t - P^{ch}_t - V_t .$$
+Before 22 November 2026 the second term was $L_t$, so in charging intervals SNSP could exceed $s$ and synchronous output fall below $P^{\min}$. The SNSP diagnostic is now $(V_t + P^{ch}_t + P^{dis}_t)/(D_t + P^{ch}_t)$, with exports and imports added where they are dispatched.
 Curtailment is shared between wind and solar in proportion to their post-constraint output.
 4. **Discharge**, only when not charging:
-$$P^{dis}_t = \min\Big(\bar P,\ \frac{\eta^{dis} S_{t-1}}{\Delta t},\ D_t - V_t,\ sD_t - V_t,\ D_t - P^{\min} - V_t\Big)^{+}.$$
+$$P^{dis}_t = \min\Big(\bar P,\ \frac{\eta^{dis} S_{t-1}}{\Delta t},\ D_t - I^{rec}_t - V_t,\ sD_t - I^{rec}_t - V_t,\ D_t - P^{\min} - I^{rec}_t - V_t\Big)^{+},$$
+where $I^{rec}_t$ is recorded HVDC imports in the historical flow sensitivity (zero in all projections). Before 22 November 2026 the SNSP and floor terms left out $I^{rec}_t$.
 5. **State of charge**:
 $$S_t = \min\Big(\bar E,\ \max\big(0,\ S_{t-1} + \eta^{ch}P^{ch}_t\Delta t - P^{dis}_t\Delta t/\eta^{dis}\big)\Big), \qquad S_0 = 0.5\,\bar E .$$
 6. **Firm output**: $F_t = D_t - V_t - P^{dis}_t$.
@@ -111,6 +113,10 @@ $$\bar Q_y = \frac{1}{|\mathcal W|}\sum_{w} \sum_{t \in w} Q_{t,w}\,\Delta t \cd
 $$D_t = \underbrace{d_t\,\frac{(E_y - E^{hp}_y)\cdot 10^6/8760}{\bar d}}_{\text{recorded shape}} + \underbrace{\frac{\omega_t}{\sum_t \omega_t}\,\frac{E^{hp}_y\cdot 10^6}{\Delta t}\cdot\frac{n\Delta t}{8760}}_{\text{added heat pumps}}, \qquad \omega_t = \frac{\max(0,\ 15.5 - T_t)}{1 + 0.025\,(T_t - \bar T)},$$
 
 where $d_t$ is recorded demand in weather year $w$, $E_y$ is annual demand (TWh), $E^{hp}_y$ is heat-pump electricity added since 2026, $T_t$ is hourly temperature at Dublin Airport and $\bar T$ is its heating-weighted mean (the COP factor in the denominator is clipped to $[0.5, 1.5]$). Heat and transport electricity are capped at $E^{heat}/\mathrm{COP} = 70.6/3.5$ TWh and $E^{tr}/3.0 = 62.2/3.0$ TWh.
+
+Annual demand (`demand_for_year`) is background demand plus heat and transport electricity added since 2026, each capped:
+$$E_y = B_y + \min\big(\bar H,\ H_0 + n\,g^{h}\big) - H_0 + \min\big(\bar T,\ T_0 + n\,g^{tr}\big) - T_0, \qquad n = y - 2026,$$
+where $\bar H$ and $\bar T$ are the caps above. Without a demand path $B_y = E_{2026} + n\,g^{b}$. With a path $P_y$ (`scenario_path` column `demand_twh`) $B_y = P_y - n\,(\hat g^{h} + \hat g^{tr})$, where $\hat g$ are the heat and transport rates the path was built with (`path_heat_growth_twh_per_year`, `path_transport_growth_twh_per_year`; blank means the scenario's own rates). Before 22 November 2026 a sensitivity that changed $g^{h}$ or $g^{tr}$ kept $E_y = P_y$ to the path's last year, so faster electrification displaced background demand.
 
 ## 7. Firm capacity
 
